@@ -1,0 +1,150 @@
+apply plugin: 'com.android.application'
+
+def vcode = new Date().format('yyyyMMdd').toInteger()
+def buildNumber = 0;
+def vb = new File("version.build")
+if (vb.exists())
+    buildNumber = vb.readLines()[0].toInteger() + 1
+println("当前编译版本号: " + buildNumber.toString())
+
+android {
+    signingConfigs {
+        release {
+            storeFile file("../platform.jks")
+            storePassword 'admin12345'
+            keyAlias 'batcom'
+            keyPassword 'admin12345'
+        }
+        debug {
+            storeFile file("../platform.jks")
+            storePassword 'admin12345'
+            keyAlias 'batcom'
+            keyPassword 'admin12345'
+        }
+    }
+    compileSdkVersion 28
+    defaultConfig {
+        applicationId "hikvision.zhanyun.com.hikvision"
+        minSdkVersion 28 // 红外模组sdk要求23版本
+        versionCode 1
+//        versionName "1.0.0.30"// + buildNumber.toString()
+        versionName "1.0.0"// + buildNumber.toString()
+        renderscriptTargetApi 18
+        renderscriptSupportModeEnabled true
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        ndk {
+//            abiFilters "arm64-v8a","armeabi-v7a"
+            abiFilters "armeabi-v7a" //只支持32位
+        }
+        String verStr = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone("Asia/Shanghai"))
+        buildConfigField("String", "BUILD_TIME", "\"${verStr}\"")
+
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+//                abiFilters "arm64-v8a", "armeabi-v7a"
+                abiFilters "armeabi-v7a"
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+
+        debug {
+            minifyEnabled false
+            debuggable true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            jniDebuggable true
+            signingConfig signingConfigs.debug
+        }
+    }
+
+//    externalNativeBuild {
+//        cmake {
+//            path "CMakeLists.txt"
+//        }
+//    }
+    android {
+        compileOptions {
+            sourceCompatibility 1.8
+            targetCompatibility 1.8
+        }
+    }
+
+    sourceSets.main {
+        jniLibs.srcDirs = ['libs']
+    }
+    buildToolsVersion '28.0.3'
+
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            def outputFile = output.outputFile
+            if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                def apkName = "K7100-V${versionName}.apk";
+                // gradle 3.1以下版本用下面代码
+                // output.outputFileName = new File(output.outputFile.parent, apkName)
+                output.outputFileName = new File("", apkName)
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    //implementation 'com.squareup.okhttp3:logging-interceptor:3.10.0'
+    implementation 'androidx.appcompat:appcompat:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    //    testImplementation 'junit:junit:4.12'
+    //    androidTestImplementation 'com.android.support.test:runner:1.0.1'
+    //    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+//    implementation files('libs/bouncycastle.jar')
+    //implementation 'org.tensorflow:tensorflow-android:+'
+    implementation 'com.alibaba:fastjson:1.1.71.android'
+    implementation 'be.teletask.onvif:onvif:+'
+    implementation 'com.googlecode.mp4parser:isoparser:1.0.6'
+    implementation 'org.aspectj:aspectjrt:1.6.2'
+    implementation project(path: ':renderscript-toolkit')
+    implementation project(path: ':opencv')
+    implementation 'commons-io:commons-io:2.4'
+    //implementation 'com.github.ar-android:libstreaming:1.0.0'
+    implementation files('libs/libuvccameraJar_v1.1.jar')
+    implementation 'com.hwangjr.rxbus:rxbus:2.0.0'  // 高德红外需要的包
+    //implementation files('libs/libuvccamera-release.aar')
+
+    //    implementation 'com.android.support:design:28.0.0'
+    implementation 'io.netty:netty-all:4.1.9.Final' /////
+    implementation 'com.blankj:utilcode:1.27.0' /////
+    implementation 'org.greenrobot:eventbus:3.1.1' /////
+
+}
+
+/*gradle.taskGraph.afterTask {
+    Task task, TaskState state ->
+        if (!state.failure) {
+            if ("$task.name" == "assembleRelease") {
+                def fn = "" + rootProject.projectDir + "/app/build/outputs/apk/release/qiu-V${versionName}.apk"
+                File file = new File(fn)
+                if (file.exists()) {
+                    fn = fn.replace("/", "\\")
+                    exec { commandLine "cmd", "/c", "copy /y ${fn} ..\\qiu.apk" }
+
+                    exec {
+                        workingDir rootProject.projectDir
+                        commandLine "ftp", "-i", "-s:ftp.txt", ">nul"
+                    }
+                } else
+                    println("APK 文件找不到！");
+
+                vb.write(buildNumber.toString());
+            }
+        }
+}*/

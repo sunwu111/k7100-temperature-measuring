@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">南网规约</string>
+    <string name="SPGProtocolOrder">接收的命令: </string>
+
+    <string name="configActivityError">配置信息不全</string>
+    <string name="configActivityFail">保存配置失败</string>
+    <string name="configActivityOk">保存配置成功，即将重启应用</string>
+    <string name="parseHostFail">无法解析服务器，请检查网络和配置，两分钟后重启应用</string>
+    <string name="irGlobalAlarm">全局告警</string>
+    <string name="irThresholdAlarm">阈值告警</string>
+    <string name="irEnvAlarm">温升告警</string>
+    <string name="irComAlarm">不平衡告警</string>
+    <string name="irPaletteDisplay">调色板</string>>
+    <string name="irHotpotTrace">热点追踪</string>>
+    <string name="irImageStitch">红外图像拼接</string>
+    <string name="irImageFusion">双光融合</string>
+    <string name="irDrawOsd">画框</string>
+    <string name="presetSet">设置预置位</string>
+    <string name="cameraRotate">旋转度数，0=不旋转</string>
+    <string name="backLightCom">背光补偿</string>
+    <string name="strongLightSup">强光抑制</string>>
+    <string name="electronicFog">电子透雾</string>>
+    <string name="lowLight">低照度</string>
+    <string name="videoLoss">视频丢失</string>
+    <string name="videoBlock">视频遮挡</string>
+    <string name="videoOutFocus">视频失焦</string>
+    <string name="videoScreenDist">视频花屏</string>
+</resources>
