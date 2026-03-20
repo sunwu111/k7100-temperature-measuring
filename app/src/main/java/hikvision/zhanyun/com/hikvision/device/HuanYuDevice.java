@@ -3,10 +3,13 @@ package hikvision.zhanyun.com.hikvision.device;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isIRPhotoing;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isVLPhotoing;
+import static hikvision.zhanyun.com.hikvision.MainActivity.settings;
+import static hikvision.zhanyun.com.hikvision.Settings.PhotoConfig.getImageSize;
 import static lyh.Utils.PERIOD_HOUR;
 import static lyh.Utils.formatDateTime;
 import static lyh.Utils.lo;
 import static lyh.Utils.su;
+
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -60,6 +63,7 @@ import java.util.Base64;
 
 public class HuanYuDevice extends MyOnvifDevice {
     private List<Settings.FileItem> videoFiles = new ArrayList<>();
+
 
     private String HuanyuDeviceLog = "HuanyuDeviceLog";
 
@@ -2563,7 +2567,9 @@ public class HuanYuDevice extends MyOnvifDevice {
                 if (osdToArray != null && osdToArrayIndex < osdToArray.size() && !osdToArray.get(osdToArrayIndex).isEmpty() && osd.tag == 1) {
                     String s = osdToArray.get(osdToArrayIndex);
                     String encodedCustomText = Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8));
-                    int rectY = 818 + (i - 6) * OSDInterval; // 从818开始，每行间隔49
+//                    int rectY = 470 * getImageSize(settings.photoConfig.get(String.valueOf(1)).size).y / 512 + (i - 6) * OSDInterval; // 每行间隔49   // 818
+                    int rectY = 900 + (i - 6) * OSDInterval;
+
                     customBuilder.append("                {\n")
                             .append(String.format("                    \"data\": \"%s\",\n", encodedCustomText))
                             .append(String.format("                    \"enable\": %b,\n", (osd.tag == 1)))

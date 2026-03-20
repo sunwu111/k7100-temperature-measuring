@@ -424,6 +424,33 @@ public class RS485Impl{
         }
     }
 
+
+    // 明景微气象数据
+    public float[] getAeroInfoArry4WithoutHNJD() {
+        try (AutoLock autoLock = new AutoLock(this.locker)){
+            return GPIO.getAeroInfoArry4WithoutHNJD();
+        }
+    }
+    public float[] getAeroInfo4Arry() {
+        try (AutoLock autoLock = new AutoLock(this.locker)){
+            return GPIO.getAeroInfo4Arry();
+        }
+    }
+
+    public String getAeroInfo4() {
+        try (AutoLock autoLock = new AutoLock(this.locker)){
+            return GPIO.getAeroInfo4();
+        }
+    }
+    public String getAeroInfo4WithoutHNJD() {
+        try (AutoLock autoLock = new AutoLock(this.locker)){
+            return GPIO.getAeroInfo4WithoutHNJD();
+        }
+    }
+
+
+
+
     public boolean coldReboot() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.coldReboot();

@@ -60,6 +60,17 @@ public class GPIO {
     public static native float[] getGyroInfo(int idx);
     public static native boolean resetGyro(int idx);
 
+
+
+    // 明景微气象
+    // 明景微气象
+    public static native String getAeroInfo4();
+    public static native String getAeroInfo4WithoutHNJD();
+    public static native float[] getAeroInfo4Arry();
+    public static native float[] getAeroInfoArry4WithoutHNJD();
+
+
+
     public static native int powerControl(int devNum, boolean devswitch);
 
     public static native int[] getRtcInfo();

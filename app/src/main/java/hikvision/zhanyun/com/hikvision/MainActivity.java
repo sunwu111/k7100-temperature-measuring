@@ -301,7 +301,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static long thisMonthTraffic = 0;                              // 当前月的流量数据
     private static boolean sleeping = true;                                // 云台当前开机状态，关机为true，该值会从太阳能开关云台的通知中更新
     private static boolean sleepingIr = true;                             // 红外当前开机状态，关机为true，该值会从太阳能开关红外的通知中更新
-    private static Settings settings = new Settings();                     // 系统配置，各个通道的配置数据
+    public static Settings settings = new Settings();                     // 系统配置，各个通道的配置数据
     //    private static final long UPDATE_INTERVAL = 4000; // 4秒更新一次
     private static final long UPDATE_INTERVAL = settings.onlineCfg.sample * PERIOD_MINUTE;
     private static CAMERASetting cAMERASetting = new CAMERASetting();      // 摄像头模组参数配置 /////
@@ -1199,6 +1199,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 //                    aeroInfo.WindDirection, aeroInfo.RainFall);
 
                 /////
+                case 6:
+                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
+                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
+                            aeroInfo.WindDirection, aeroInfo.RainFall);
                 default:
                     return "";
             }
@@ -1981,7 +1985,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             initReboot(-1);
 
             // 如果有气象仪，则启动时重启一次气象仪，以便复位雨量感应
-            if (deviceConfig.aeroDevice != 0) resetAero();
+            if (deviceConfig.aeroDevice != 0 && deviceConfig.aeroDevice != 6) resetAero();
             serialHandler.post(() -> getData()); /////
 
             // 开机同步供电板时钟
@@ -4575,35 +4579,50 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private void doAeroInfoAction(Intent intent) {
-//        if (spgProtocol == null || !SPGProtocol.Logged) return;
-        // 气象数据样本: 0R0,Dn=017D,Dm=087D,Dx=090D,Sn=000.7M,Sm=000.9M,Sx=001.4M,Ta=022.3C,Ua=058.8P,Pa=001012.9H,Rc=0000.0M,Sr=0000.0W
-        String[] ss = intent.getStringExtra("aeroinfo").trim()
-                .replace("0R0,", "")
-                .replace(" ", "").split(",");
         AeroInfo aeroInfo = new AeroInfo();
-        for (String kv : ss) {
-            String ss2[] = kv.split("=");
-            if ("Dx".equals(ss2[0]))
-                aeroInfo.WindDirection = Integer.valueOf(ss2[1].trim().replace("D", ""));
-            else if ("Dm".equals(ss2[0]))
-                aeroInfo.WindDirectionByMin = Integer.valueOf(ss2[1].trim().replace("D", ""));
-            else if ("Sn".equals(ss2[0]))
-                aeroInfo.WindSpeed = Float.valueOf(ss2[1].trim().replace("M", ""));
-            else if ("Sm".equals(ss2[0])) {
-                aeroInfo.WindSpeedByMin = Float.valueOf(ss2[1].trim().replace("M", ""));
-                aeroInfo.WindSpeedBy10Min = aeroInfo.WindSpeedByMin;
-            } else if ("Sx".equals(ss2[0])) {
-                aeroInfo.MaxWindSpeedBy10Min = Float.valueOf(ss2[1].trim().replace("M", ""));
-            } else if ("Ta".equals(ss2[0])) {
-                aeroInfo.Temp = Float.valueOf(ss2[1].trim().replace("C", ""));
-            } else if ("Ua".equals(ss2[0])) {
-                aeroInfo.Humidity = Float.valueOf(ss2[1].trim().replace("P", ""));
-            } else if ("Pa".equals(ss2[0])) {
-                aeroInfo.AtomosPress = Float.valueOf(ss2[1].trim().replace("H", ""));
-            } else if ("Rc".equals(ss2[0])) {
-                aeroInfo.RainFall = Float.valueOf(ss2[1].trim().replace("M", ""));
-            } else if ("Sr".equals(ss2[0])) {
-                aeroInfo.Sunshine = Float.valueOf(ss2[1].trim().replace("W", ""));
+        if (deviceConfig.aeroDevice == 6){
+            float[] data = intent.getFloatArrayExtra("aeroinfo");
+            aeroInfo.Temp = data[0];              // 温度
+            aeroInfo.Humidity = data[1];          // 湿度
+            aeroInfo.AtomosPress = data[2];       // 气压
+            aeroInfo.WindDirection = (int) data[6];  // 风向
+            aeroInfo.RainFall = data[7];             // 雨量
+            aeroInfo.WindSpeed = data[3];         // 瞬时风速
+
+//            aeroInfo.WindSpeedByMin = data[4];    // 2分钟
+            aeroInfo.WindSpeedBy10Min = data[5];  // 10分钟
+
+        }else {
+            //        if (spgProtocol == null || !SPGProtocol.Logged) return;
+            // 气象数据样本: 0R0,Dn=017D,Dm=087D,Dx=090D,Sn=000.7M,Sm=000.9M,Sx=001.4M,Ta=022.3C,Ua=058.8P,Pa=001012.9H,Rc=0000.0M,Sr=0000.0W
+            String[] ss = intent.getStringExtra("aeroinfo").trim()
+                    .replace("0R0,", "")
+                    .replace(" ", "").split(",");
+
+            for (String kv : ss) {
+                String ss2[] = kv.split("=");
+                if ("Dx".equals(ss2[0]))
+                    aeroInfo.WindDirection = Integer.valueOf(ss2[1].trim().replace("D", ""));
+                else if ("Dm".equals(ss2[0]))
+                    aeroInfo.WindDirectionByMin = Integer.valueOf(ss2[1].trim().replace("D", ""));
+                else if ("Sn".equals(ss2[0]))
+                    aeroInfo.WindSpeed = Float.valueOf(ss2[1].trim().replace("M", ""));
+                else if ("Sm".equals(ss2[0])) {
+                    aeroInfo.WindSpeedByMin = Float.valueOf(ss2[1].trim().replace("M", ""));
+                    aeroInfo.WindSpeedBy10Min = aeroInfo.WindSpeedByMin;
+                } else if ("Sx".equals(ss2[0])) {
+                    aeroInfo.MaxWindSpeedBy10Min = Float.valueOf(ss2[1].trim().replace("M", ""));
+                } else if ("Ta".equals(ss2[0])) {
+                    aeroInfo.Temp = Float.valueOf(ss2[1].trim().replace("C", ""));
+                } else if ("Ua".equals(ss2[0])) {
+                    aeroInfo.Humidity = Float.valueOf(ss2[1].trim().replace("P", ""));
+                } else if ("Pa".equals(ss2[0])) {
+                    aeroInfo.AtomosPress = Float.valueOf(ss2[1].trim().replace("H", ""));
+                } else if ("Rc".equals(ss2[0])) {
+                    aeroInfo.RainFall = Float.valueOf(ss2[1].trim().replace("M", ""));
+                } else if ("Sr".equals(ss2[0])) {
+                    aeroInfo.Sunshine = Float.valueOf(ss2[1].trim().replace("W", ""));
+                }
             }
         }
 
@@ -8438,17 +8457,34 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             s = RS485Impl.Instance().getAeroInfo(49);
         else if (deviceConfig.aeroDevice == 5) /////
             s = RS485Impl.Instance().getAeroInfo(79); /////
-        Log.w(Log.TAG, "获取气象仪数据：" + s);
+        else if (deviceConfig.aeroDevice == 6 && deviceConfig.chargeControl == 6){
+            s = RS485Impl.Instance().getAeroInfo4(); /////
+        }else {
+            s = RS485Impl.Instance().getAeroInfo4WithoutHNJD();
+        }
 
+
+        Log.w(Log.TAG, "获取气象仪数据：" + s);
         if ("".equals(s)) return false;
 
         Intent myint = new Intent(AEROINFO_ACTION);
-        myint.putExtra("aeroinfo", s);
-        sendBroadcast(myint);
+
+        if(deviceConfig.aeroDevice == 6){
+            if (deviceConfig.chargeControl == 6){
+                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfo4Arry());  //
+                sendBroadcast(myint);
+            }else {
+                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfoArry4WithoutHNJD());  //
+                sendBroadcast(myint);
+            }
+        }else {
+            myint.putExtra("aeroinfo", s);
+            sendBroadcast(myint);
+        }
+
         return true;
     }
 
-    /////
 
     @Override
     public void onUpgradeStart() {

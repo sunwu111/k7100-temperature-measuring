@@ -1235,6 +1235,7 @@ public class GUIDEDev extends Device {
                     int start = 0;
                     int len = text.length();
                     float y = 470 * (float) bitmap.getHeight() / 512;
+//                    Log.e(Log.TAG,"(float) bitmap.getHeight()"+(float) bitmap.getHeight());  // 576
                     while (start < len) {
                         int end = paint.breakText(text, start, len, true, maxWidth, null);
                         String line = text.substring(start, start + end);

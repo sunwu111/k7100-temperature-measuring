@@ -76,6 +76,8 @@ import okhttp3.Response;
 
 import static hikvision.zhanyun.com.hikvision.MainActivity.FILE_PATH;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
+import static hikvision.zhanyun.com.hikvision.MainActivity.settings;
+import static hikvision.zhanyun.com.hikvision.Settings.PhotoConfig.getImageSize;
 import static lyh.Utils.PERIOD_MINUTE;
 import static lyh.Utils.extractFileName;
 import static lyh.Utils.stringToDateTime;
@@ -995,7 +997,7 @@ public abstract class Device {
         if (this.osd.time == 1) {
             String time = lyh.Utils.formatDateTime("yyyy-MM-dd HH:mm:ss EEE", new Date());
             float x = leftMargin;
-            float y = textSize; // 第一行
+            float y = 55; // 第一行
             drawOutlineText(canvas, time, x, y, textSize);
         }
 
@@ -1004,7 +1006,7 @@ public abstract class Device {
             String status = controllerCallback.onStatusInfo();
             if (status != null) {
                 String[] ss = status.split("\n");
-                float startY = textSize + lineSpacing; // 从时间下方开始
+                float startY = 55 + lineSpacing; // 从时间下方开始
 
                 for (int i = 0; i < ss.length; i++) {
                     float x = leftMargin;
@@ -1023,7 +1025,8 @@ public abstract class Device {
             int start = 0;
             int len = text.length();
             float x = leftMargin;
-            float y = h - w / osd.size * 2; // 保持原有的Y坐标计算方式
+//            float y = h - w / osd.size * 2; // 保持原有的Y坐标计算方式
+            float y = 470 * getImageSize(settings.photoConfig.get(String.valueOf(3)).size).y / 512; // 保持原有的Y坐标计算方式   528
 
             while (start < len) {
                 int end = paint.breakText(text, start, len, true, maxWidth, null);
@@ -1034,6 +1037,7 @@ public abstract class Device {
             }
         }
     }
+
 
 
     private byte[] yuv;
