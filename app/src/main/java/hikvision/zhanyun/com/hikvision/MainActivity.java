@@ -1844,23 +1844,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         startTemperatureMonitoring();
 
 
-        // 15秒无操作休眠
-//        if (DEBUG) {
-//            SystemSettings.sleepAfter(this, 24*60*60);
-//        }
-//        else {
-//            SystemSettings.sleepAfter(this, 15);
-//        }
-
-//        SystemSettings.sleepAfter(this, 24*60*60);
-
         SystemSettings.sleepAfter(this, 15);
-
-        //  开启绿灯后删掉
-//        Log.e(Log.TAG, "关闭系统绿灯");
-//        writeNum("1", RED_PATH);
-//        writeNum("0", GREEN_PATH);
-//        writeNum("0", YELLOW_PATH);
 
 
         float cpuTemp = readCpuTemp();
@@ -1872,7 +1856,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         SystemSettings.airplaneOff(this);
         // 打开BDS定位 ////////
-        SystemSettings.bdsON(this); ////////
+        SystemSettings.bdsON(this);
 
         cleanFiles();
 
@@ -2002,12 +1986,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     moveRecordPreset();
                 }
             }
-            /////
-
         }).start();
         updateOnline("程序启动完成，设备ID：" + deviceConfig.deviceId);     // 开机后更新一次关闭负载和视频等的时间
-
-
     }
 
     private void wifiInit() {
@@ -2172,6 +2152,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             solarVoltage = 0;
     }
 
+
     public boolean saveSettings(Object settings, String filename) {
         try {
             String s = JSON.toJSONString(settings, true);
@@ -2257,7 +2238,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         trafficMonth.put(thisMonth, getMonthTraffic());
         saveObjectToFile(trafficMonth, TRAFFIC_FILE);
     }
-    /////
 
     public void showMsg(final String msg) {
         runOnUiThread(() -> {
@@ -4752,15 +4732,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             // 保证在拍照的前后3分钟不做重启处理，以免丢失照片
             if (isPhotoingSafe(3)) {
-                if (offLineRecode.getRecordGap() < PERIOD_HOUR * 2) {           // 若累计离线时间达到或超过2小时，
-                    if (!DEBUG) {
+                if (!DEBUG) {
+                    if (offLineRecode.getRecordGap() < PERIOD_HOUR * 2) {           // 若累计离线时间达到或超过2小时，
                         Log.i(Log.TAG, "心跳超时，重启apk");
-//                        restartApplication(this, 5);
+    //                        restartApplication(this, 5);
                         rebootSystem("心跳超时"); // sunwu
+                    } else {
+                        offLineRecode.clearRecord();
+                        rebootSystem("心跳超时");
                     }
-                } else {
-                    offLineRecode.clearRecord();
-                    rebootSystem("心跳超时");
                 }
             }
         }   // 超过5次心跳，不在拍照安全期内的话就重启apk，累计离线时间超过2小时，进行重启系统
@@ -5198,7 +5178,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             try {
                 wakeLock.acquire();
                 if (DEBUG) {
-//                    Log.i(Log.TAG, "获取cpu锁成功, " + wakeLock.toString());
+                    Log.i(Log.TAG, "获取cpu锁成功, " + wakeLock.toString());
                 }
             } catch (Exception e) {
 
@@ -5223,7 +5203,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             try {
                 wakeLock.release(); // 这里注释掉只为云台球机过检测试保险
                 if (DEBUG) {
-//                    Log.i(Log.TAG, "释放cpu锁成功, " + wakeLock.toString());
+                    Log.i(Log.TAG, "释放cpu锁成功, " + wakeLock.toString());
                 }
             } catch (Exception e) {
             }
@@ -5597,14 +5577,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             wifiAP.enable();
             deviceConfig.wifi = true;
             saveDeviceConfig();
-            dev.move(order, para);
+//            dev.move(order, para);
             Log.i(Log.TAG, "辅助开关2打开，开启Wi-Fi");
         } else if (order == 18 && para == 2) {
             // 关闭Wi-Fi
             wifiAP.disable();
             deviceConfig.wifi = false;
             saveDeviceConfig();
-            dev.move(order, para);
+//            dev.move(order, para);
             Log.i(Log.TAG, "辅助开关2关闭，关闭Wi-Fi");
             /////
         } else if (order == 17 && para == 3) {
@@ -8462,7 +8442,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }else {
             s = RS485Impl.Instance().getAeroInfo4WithoutHNJD();
         }
-
 
         Log.w(Log.TAG, "获取气象仪数据：" + s);
         if ("".equals(s)) return false;

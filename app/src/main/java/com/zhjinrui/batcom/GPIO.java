@@ -61,8 +61,6 @@ public class GPIO {
     public static native boolean resetGyro(int idx);
 
 
-
-    // 明景微气象
     // 明景微气象
     public static native String getAeroInfo4();
     public static native String getAeroInfo4WithoutHNJD();

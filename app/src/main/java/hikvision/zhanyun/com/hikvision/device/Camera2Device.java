@@ -369,7 +369,6 @@ public class Camera2Device extends Device {
                 }
                 previewBitmap = preProcessingPhoto(previewBitmap);
 
-
                 if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
                     Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
 
@@ -385,7 +384,7 @@ public class Camera2Device extends Device {
                         NettyUtils.setTakePhoto(false);
                     }
                     if (controllerCallback != null) {
-                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage)); /////
+                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
                     }
                     mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
 

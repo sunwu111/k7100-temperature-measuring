@@ -28,7 +28,7 @@ android {
         minSdkVersion 28 // 红外模组sdk要求23版本
         versionCode 1
 //        versionName "1.0.0.30"// + buildNumber.toString()
-        versionName "1.0.1.1"// + buildNumber.toString()
+        versionName "1.0.1.0.1"// + buildNumber.toString()
         renderscriptTargetApi 18
         renderscriptSupportModeEnabled true
 
@@ -85,7 +85,8 @@ android {
         variant.outputs.each { output ->
             def outputFile = output.outputFile
             if (outputFile != null && outputFile.name.endsWith('.apk')) {
-                def apkName = "K7100-V${versionName}.apk";
+//                def apkName = "K7100-V${versionName}.apk";
+                def apkName = "K7100-V${versionName}-${variant.buildType.name}.apk"
                 // gradle 3.1以下版本用下面代码
                 // output.outputFileName = new File(output.outputFile.parent, apkName)
                 output.outputFileName = new File("", apkName)

@@ -3440,7 +3440,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 //            }
 //        }
 
-
         // 处理cmd==2的情况
         if (cmd == 2 && toCheck && !isIRPhotoing && !isVLPhotoing) {
             lastCmd2Time = System.currentTimeMillis();  // 记录时间
