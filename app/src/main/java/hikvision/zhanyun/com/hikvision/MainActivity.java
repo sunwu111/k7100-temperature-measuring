@@ -8436,7 +8436,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         else if (deviceConfig.aeroDevice == 4)
             s = RS485Impl.Instance().getAeroInfo(49);
         else if (deviceConfig.aeroDevice == 5) /////
-            s = RS485Impl.Instance().getAeroInfo(79); /////
+//            s = RS485Impl.Instance().getAeroInfo(79); /////
+            s = RS485Impl.Instance().getAeroInfo(90); /////
         else if (deviceConfig.aeroDevice == 6 && deviceConfig.chargeControl == 6){
             s = RS485Impl.Instance().getAeroInfo4(); /////
         }else {
