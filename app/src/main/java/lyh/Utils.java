@@ -321,6 +321,7 @@ public class Utils {
         }
     }
 
+
     public static class MyExceptionHandler implements Thread.UncaughtExceptionHandler {
         private Context context;
         private String url;
@@ -368,6 +369,155 @@ public class Utils {
             System.exit(-1);
         }
     }
+
+
+    // 更为详细的错误打印
+//    public static class MyExceptionHandler implements Thread.UncaughtExceptionHandler {
+//
+//        private Context context;
+//        private String url;
+//        private String logFile;
+//
+//        public MyExceptionHandler(Context context, String url, String logFile) {
+//            this.url = url;
+//            this.context = context.getApplicationContext();
+//            this.logFile = logFile;
+//        }
+//
+//        @Override
+//        public void uncaughtException(Thread thread, Throwable ex) {
+//
+//            long crashTime = System.currentTimeMillis();
+//
+//            String stack = getFullStackTrace(ex);
+//            String threadInfo = "Thread: " + thread.getName() +
+//                    " (id=" + thread.getId() + ")\n";
+//
+//            String deviceInfo =
+//                    "Model: " + android.os.Build.MODEL + "\n" +
+//                            "Brand: " + android.os.Build.BRAND + "\n" +
+//                            "Device: " + android.os.Build.DEVICE + "\n" +
+//                            "Android: " + android.os.Build.VERSION.RELEASE + "\n" +
+//                            "SDK: " + android.os.Build.VERSION.SDK_INT + "\n";
+//
+//            Runtime runtime = Runtime.getRuntime();
+//            String memInfo =
+//                    "MaxMemory: " + runtime.maxMemory() / 1024 / 1024 + "MB\n" +
+//                            "TotalMemory: " + runtime.totalMemory() / 1024 / 1024 + "MB\n" +
+//                            "FreeMemory: " + runtime.freeMemory() / 1024 / 1024 + "MB\n";
+//
+//            String logcat = getLogcat();
+//
+//            String log = currentDateTime() + "\n"
+//                    + "===== CRASH START =====\n"
+//                    + threadInfo
+//                    + deviceInfo
+//                    + memInfo
+//                    + "\n----- Exception -----\n"
+//                    + stack
+//                    + "\n----- Logcat -----\n"
+//                    + logcat
+//                    + "===== CRASH END =====\n\n";
+//
+//            Log.e(TAG, log);
+//
+//            if (logFile != null) {
+//                appendFile(logFile, log);
+//            }
+//
+//            if (url != null) {
+//                try {
+//                    final String fn = DIR_CACHE(context) + "/" + getAppName(context) + ".txt";
+//                    if (stringToFile(fn, log)) {
+//                        new Thread(() -> {
+//                            httpPostFile(url, fn, 20);
+//                            deleteFile(fn);
+//                        }).start();
+//                    }
+//                } catch (Exception e) {
+//                    Log.e(TAG, "upload error", e);
+//                }
+//            }
+//
+//            try {
+//                Intent intent = new Intent(context, context.getClass());
+//                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                intent.putExtra("crash", true);
+//
+//                PendingIntent restartIntent = PendingIntent.getActivity(
+//                        context,
+//                        0,
+//                        intent,
+//                        PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+//                );
+//
+//                AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+//                if (am != null) {
+//                    am.setExact(AlarmManager.RTC_WAKEUP,
+//                            crashTime + 5000,
+//                            restartIntent);
+//                }
+//
+//            } catch (Exception e) {
+//                Log.e(TAG, "restart error", e);
+//            }
+//
+//            try {
+//                Thread.sleep(2000);
+//            } catch (InterruptedException ignored) {}
+//
+//            android.os.Process.killProcess(android.os.Process.myPid());
+//            System.exit(1);
+//        }
+//
+//        /**
+//         * 获取完整异常链（核心改进）
+//         */
+//        private String getFullStackTrace(Throwable ex) {
+//            StringBuilder sb = new StringBuilder();
+//
+//            while (ex != null) {
+//                sb.append("Exception: ").append(ex.toString()).append("\n");
+//
+//                for (StackTraceElement element : ex.getStackTrace()) {
+//                    sb.append("    at ").append(element.toString()).append("\n");
+//                }
+//
+//                ex = ex.getCause();
+//                if (ex != null) {
+//                    sb.append("Caused by:\n");
+//                }
+//            }
+//
+//            return sb.toString();
+//        }
+//
+//        /**
+//         * 获取最近 logcat（关键）
+//         */
+//        private String getLogcat() {
+//            StringBuilder log = new StringBuilder();
+//
+//            try {
+//                Process process = Runtime.getRuntime().exec("logcat -d -t 200");
+//
+//                BufferedReader reader = new BufferedReader(
+//                        new InputStreamReader(process.getInputStream())
+//                );
+//
+//                String line;
+//                while ((line = reader.readLine()) != null) {
+//                    log.append(line).append("\n");
+//                }
+//
+//            } catch (Exception e) {
+//                log.append("logcat error: ").append(e.getMessage());
+//            }
+//
+//            return log.toString();
+//        }
+//    }
+
 
     /*
         返回程序的缓存目录

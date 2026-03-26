@@ -95,6 +95,7 @@
             </intent-filter>
         </receiver>
 
+
         <service
             android:name=".WatchDog"
             android:directBootAware="true"
@@ -102,5 +103,6 @@
             android:process=":watchDogProcess"
             android:launchMode="singleInstance"></service>
     </application>
+
 
 </manifest>

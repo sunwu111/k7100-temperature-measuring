@@ -533,6 +533,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private SensorManager sensorManager;
     private Sensor gyroSensor;
     private MediaCodec mediaDecoder = null;
+
+
     private BroadcastReceiver onIntentReceive = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -8141,6 +8143,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return ret;
     }
 
+
     public boolean getData() {
         try {
             cpuLock();
@@ -8155,7 +8158,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (deviceConfig.chargeControl == 6) {
                 value[0] = RS485Impl.Instance().getLoadAmpler();
 
-
                 /////
                 // 会有电流值为0的异常情况，以下代码为避免这个情况，放电时设置为-0.1，充电时设置为0.1
                 if (value[0] == 0 && batAmper < 0) {
@@ -8164,17 +8166,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     value[0] = 0.1f;
                 }
 
-                //// 读取错误数据-200
-//                Log.e(Log.TAG,"value[0]"+value[0]);
                 if (value[0] <= -199 || value[0] >= 199) {
                     value[0] = temporaryCurrent;
                 } else {
                     temporaryCurrent = value[0];
                 }
-//                Log.e(Log.TAG,"value[0]"+value[0]);
-//                Log.e(Log.TAG,"temporaryCurrent"+temporaryCurrent);
 
-                /////
                 value[3] = RS485Impl.Instance().getSolarAmpler();
                 value[4] = RS485Impl.Instance().getBatAmpler();
 
@@ -8451,10 +8448,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if(deviceConfig.aeroDevice == 6){
             if (deviceConfig.chargeControl == 6){
-                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfo4Arry());  //
+                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfo4Arry());
                 sendBroadcast(myint);
             }else {
-                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfoArry4WithoutHNJD());  //
+                myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfoArry4WithoutHNJD());
                 sendBroadcast(myint);
             }
         }else {
