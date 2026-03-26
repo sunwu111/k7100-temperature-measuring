@@ -355,43 +355,45 @@ public class Camera2Device extends Device {
     // 直播和拍照回调函数
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
-        public void onImageAvailable(ImageReader reader) {
+        public void onImageAvailable(ImageReader reader) { ///////
             Image img = reader.acquireLatestImage();
             try {
                 if (img == null || !previewReady) return;
 
-                mCameraParamHandler.post(() -> updateCaptureRequestParameters());
+                mCameraParamHandler.post(() -> updateCaptureRequestParameters()); /////
 
                 Bitmap previewBitmap = imageDecode(img);
-
+                /////
                 if (rotate == 1) {
+//                    Log.i(Log.TAG, "MIPI摄像头旋转180度");
                     previewBitmap = rotate180WithCanvas(previewBitmap);
                 }
-                previewBitmap = preProcessingPhoto(previewBitmap);
+                /////
+                previewBitmap = preProcessingPhoto(previewBitmap); /////
 
-                if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
+
+                if (mCameraPhotoing) {
                     Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
-
-                    photoDone.set(true); ///////////// sunwu
-
                     mCameraPhtotingLock.notifyLock();
-                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
+                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true); /////
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
+
                     drawWatermark(previewBitmap); // 先AI识别再画OSD //////
-                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
+
+                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100); /////
                     if (NettyUtils.isTakePhoto()) {
                         toolTakePhoto(previewBitmap);
                         NettyUtils.setTakePhoto(false);
                     }
                     if (controllerCallback != null) {
-                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
+                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage)); /////   抓拍成功的回调
                     }
-                    mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
-
                 } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////
+
+                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////     设置osd
+
                     Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
                     procVideoHandler.removeCallbacksAndMessages(null); /////
                     procVideoHandler.post(() -> { /////
@@ -1074,90 +1076,163 @@ public class Camera2Device extends Device {
     /**
      * 摄像头没有主/子码流之分，所以stream都是0
      */
+
+
+//    @Override
+//    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
+//        aiParameters = aps; /////
+//        scheduledHandler.post(() -> {
+//
+//            try{
+//                mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+//
+//                if (is6735) {
+//                    // 6735通过camera2接口只能设置为1280*720，更大分辨率设置无效
+//                    mResolution = new Point(1280, 720);
+//                } else if (streamConfigurationMap != null) {
+//                    Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
+//                    mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
+//                }
+//
+//                if (!isLiving()){
+//                    createPreviewSession(mResolution.x, mResolution.y, false);
+//                }
+//
+//                if (mPreviewSession == null) {
+//                    Log.i(Log.TAG, "创建预览会话失败");
+//
+//                    //// 如果拍照失败，先释放资源，再重新申请
+//                    if (!isLiving() && !isRecording()) {
+//                        unlockFocus();
+//                        close();
+//                    }
+//
+//                    controllerCallback.onPhotoFailed(id, preset, filename);
+//                    return;
+//                }
+//
+//                mOnShow = show;
+//
+//                mCameraPhotoing = true;
+//
+//                takePhotoOnce.set(true);
+//                photoDone.set(false);
+//
+//                mFileImage = filename;
+//                mFilePreset = preset;
+//                {
+//                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+//                    mState = STATE_PICTURE_TAKING;
+//                }
+//
+//                // 等待拍照成功
+//                int timeoutSeconds = 30;
+//                int timeoutMs = timeoutSeconds * 1000;
+//                long start = System.currentTimeMillis();
+//
+//
+//                while (!photoDone.get()) {
+//                    long remain = timeoutMs - (System.currentTimeMillis() - start);
+//                    if (remain <= 0) break;
+//                    mCameraPhtotingLock.waitLock((int) remain);
+//                }
+//
+//                if (!photoDone.get()) {
+//                    Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
+//
+//                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
+//                    if (!isLiving() && !isRecording()) {
+//                        unlockFocus();
+//                        close();
+//                    }
+//                    controllerCallback.onPhotoFailed(id, preset, filename);
+//                }
+//
+//            }catch (Exception e){
+//                Log.e(Log.TAG, "拍照过程中发生异常"+e);
+//                controllerCallback.onPhotoFailed(id, preset, filename);
+//            }finally {
+//                if (!isLiving() && !isRecording()) {
+//                    unlockFocus();
+//                    close();
+//                }
+//                mCameraPhotoing = false;
+//            }
+//        });
+//        return true;
+//    }
+
     @Override
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
         aiParameters = aps; /////
         scheduledHandler.post(() -> {
+            // 拍照为第一优先级
+            if (isLiving()) liveStop(); /////
+            if (isRecording()) videoStop(); /////
 
-            try{
-                mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+//            if (open(stream) != true) {
+//                controllerCallback.onPhotoFailed(id, preset, filename);
+//                return;
+//            }
 
-                if (is6735) {
-                    // 6735通过camera2接口只能设置为1280*720，更大分辨率设置无效
-                    mResolution = new Point(1280, 720);
-                } else if (streamConfigurationMap != null) {
-                    Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
-                    mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
-                }
-
-                if (!isLiving()){
-                    createPreviewSession(mResolution.x, mResolution.y, false);
-                }
-
-                if (mPreviewSession == null) {
-                    Log.i(Log.TAG, "创建预览会话失败");
-
-                    //// 如果拍照失败，先释放资源，再重新申请
-                    if (!isLiving() && !isRecording()) {
-                        unlockFocus();
-                        close();
-                    }
-
-                    controllerCallback.onPhotoFailed(id, preset, filename);
-                    return;
-                }
-
-                mOnShow = show;
-
-                mCameraPhotoing = true;
-
-                takePhotoOnce.set(true);
-                photoDone.set(false);
-
-                mFileImage = filename;
-                mFilePreset = preset;
-                {
-                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                    mState = STATE_PICTURE_TAKING;
-                }
-
-                // 等待拍照成功
-                int timeoutSeconds = 30;
-                int timeoutMs = timeoutSeconds * 1000;
-                long start = System.currentTimeMillis();
-
-
-                while (!photoDone.get()) {
-                    long remain = timeoutMs - (System.currentTimeMillis() - start);
-                    if (remain <= 0) break;
-                    mCameraPhtotingLock.waitLock((int) remain);
-                }
-
-                if (!photoDone.get()) {
-                    Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
-
-                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
-                    if (!isLiving() && !isRecording()) {
-                        unlockFocus();
-                        close();
-                    }
-                    controllerCallback.onPhotoFailed(id, preset, filename);
-                }
-
-            }catch (Exception e){
-                Log.e(Log.TAG, "拍照过程中发生异常"+e);
-                controllerCallback.onPhotoFailed(id, preset, filename);
-            }finally {
-                if (!isLiving() && !isRecording()) {
-                    unlockFocus();
-                    close();
-                }
-                mCameraPhotoing = false;
+            mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+            if (is6735) {
+                // 6735通过camera2接口只能设置为1280*720，更大分辨率设置无效
+                mResolution = new Point(1280, 720);
+            } else if (streamConfigurationMap != null) {
+                Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
+                /*for (int i = 0; i < sizes.length; i++) {
+                    Log.i(Log.TAG, "图像支持的分辨率：" + sizes[i].getWidth() + "x" + sizes[i].getHeight());
+                }*/
+                mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
             }
+
+            createPreviewSession(mResolution.x, mResolution.y, false);
+
+            if (mPreviewSession == null) {
+                Log.i(Log.TAG, "创建预览会话失败");
+                controllerCallback.onPhotoFailed(id, preset, filename);
+                return;
+            }
+
+            mOnShow = show; /////
+            mCameraPhotoing = true;
+            mFileImage = filename;
+            mFilePreset = preset;
+            {
+                // 等待对焦成功
+                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                mState = STATE_PICTURE_TAKING;
+            }
+            // 等待拍照成功
+//            int timeoutSeconds = 5; // 拍摄分辨率500W的照片2秒超时不够，晚上会有丢照片的情况，增加到5秒
+            int timeoutSeconds = 30;
+            if (mCameraPhtotingLock.waitLock(timeoutSeconds * 1000) != true) {
+                Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
+                controllerCallback.onPhotoFailed(id, preset, filename);
+            }
+
+            if (!isLiving() && !isRecording()) { /////
+                unlockFocus();
+                close();
+            }
+            mCameraPhotoing = false;
         });
+
         return true;
     }
-    
+
+
+
+
+
+
+
+
+
+
+
+
 
     @Override
     public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
