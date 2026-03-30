@@ -2248,6 +2248,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         });
     }
 
+
     // 在线超时后，关闭视频和share，节省流量和电量
 //    public void doOnlineTimeout(String reason) {
 //        Log.e(Log.TAG,reason);
@@ -5552,7 +5553,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public void ptzControl(int channelNum, final int order, final int para) {
         final Device dev = channels.get(String.valueOf(channelNum));
 //        WifiAP wifiAP = WifiAP.getInstance(this, deviceConfig.deviceId, "11121314"); /////
-        WifiAP wifiAP = WifiAP.getInstance(this, ssid, "11121314"); /////
+        WifiAP wifiAP = WifiAP.getInstance(this, ssid, "11121314"); /////       ？？？？？
         if (dev == null) return;
 
         if (deviceConfig.toCheck) {
@@ -7129,17 +7130,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return path;
     }
 
+
     @Override
     public void onConfigurationChanged(final Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         Log.i(Log.TAG, "系统配置更改，配置内容：" + newConfig);
     }
 
+
     @Override
     public void onBackPressed() {
         Log.w(Log.TAG, "Back按钮点击");
         moveTaskToBack(true);
     }
+
 
     @Override
     protected void onDestroy() {

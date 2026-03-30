@@ -28,7 +28,7 @@ android {
         minSdkVersion 28 // 红外模组sdk要求23版本
         versionCode 1
 //        versionName "1.0.0.30"// + buildNumber.toString()
-        versionName "1.0.1.0.3"// + buildNumber.toString()
+        versionName "1.0.1.0.4"// + buildNumber.toString()
         renderscriptTargetApi 18
         renderscriptSupportModeEnabled true
 
