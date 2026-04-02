@@ -431,7 +431,7 @@ public class Camera2Device extends Device {
                 if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
                     Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
 
-                    photoDone.set(true); ///////////// sunwu
+                    photoDone.set(true);
 
                     mCameraPhtotingLock.notifyLock();
                     previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);

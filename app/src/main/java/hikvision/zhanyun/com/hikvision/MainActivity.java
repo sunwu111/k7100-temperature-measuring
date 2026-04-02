@@ -1244,12 +1244,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (deviceConfig.chargeControl == 6) {
                     tempEnvironment = Math.max(tempEnvControl, tempEnvRegion);  // 汇能精电/硕日控制器温度与环境温度框的最高温比较，取最大值
                 }
-                /////
-//                if (tempEnvRegion == Float.NEGATIVE_INFINITY) {
-//                    Log.i(Log.TAG, "控制器温度为" + tempEnvControl + "，环境温度区域未设置。最终的环境温度为控制器温度");
-//                } else {
-//                    Log.i(Log.TAG, "控制器温度为" + tempEnvControl + "，环境温度区域的最高温为" + tempEnvRegion + "。最终的环境温度设置为" + tempEnvironment);
-//                }
 
                 if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                     return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
@@ -1265,6 +1259,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             batPrecent, temperature, aeroStatusText(), Location2String(devLocation)
                     );
                 }
+
                 // 如果是三路板，显示一二路电流
             } else if (deviceConfig.chargeControl == 3) { /////
                 return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA/%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
@@ -2183,22 +2178,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Date date = dateFromString(start);
         long begin = date.getTime();
         long now = new Date().getTime();
-        if (now > begin)  // 如果当前时间 > 定时开始的时刻，需要调整到下一次开始的时刻开始！
+        if (now > begin)
         {
             long diff = now - begin;
             date = addTime(date, msecPeriod * roundUp(1.0 * diff / msecPeriod));
         }
-        if (date.getTime() == now)  // 如果当前时间和闹钟设定的时间相同，可能同时刻触发了多次，调整到下一次
+        if (date.getTime() == now)
             date = addTime(date, msecPeriod);
 
         {
             Log.i(Log.TAG, "\n==============================闹钟：" + start + " 间隔：" + String.valueOf(msecPeriod / 1000) + "秒，来源：" + source + " --> " + dateFormat.format(date));
-/*        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), intent);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(calendar.getTimeInMillis(), intent);
-            alarmManager.setAlarmClock(alarmClockInfo, intent);
-        } else */
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, date.getTime(), intent);
             } else {
@@ -2716,6 +2706,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 PERIOD_DAY, pendingIntent, alarmName);
     }
 
+
+
     private void initPhotoTask(int index) {
 
         long currentTime = System.currentTimeMillis();
@@ -2776,6 +2768,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             setSinglePhotoAlarm(nextIdx, nextItem, title);
         }
     }
+
+
 
     /**
      * 初始化巡检策略定时器， index 为索引位置
@@ -5098,39 +5092,22 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 定时拍照动作
     private void doPhotoAction(Intent intent) {
         int index = intent.getIntExtra("index", 0);
-//        List<PhotoTimeItem> photoTimeTable = deviceConfig.photoCheck ? this.settings.photoTimeTableSmart : this.settings.photoTimeTableLegacy; /////
         if (index >= settings.photoTimeTable.size() || index < 0) {
-//        if (index >= photoTimeTable.size() || index < 0) { /////
             return;
         }
 
         // 当前index对应任务
         final PhotoTimeItem item = settings.photoTimeTable.get(index);
-//        final PhotoTimeItem item = photoTimeTable.get(index); /////
         utilsHandler.post(() -> {
             Log.e(Log.TAG, "进行定时拍照");
             takePhoto(item.channel, item.preset & 0xFF, false, null, true);
-//            takePhoto(item.channel, item.preset & 0xFF, null, false, true, false, 0); ///////
             SystemClock.sleep(5000);
         });
         index++;
 
-        // 闹钟回调后，为了防止闹钟延迟回调，需要把从index到当前时间的任务都运行掉！
-//        Time now = new Time();
-//        now.setToNow();
-//        while (index < settings.photoTimeTable.size()) {
-//            final PhotoTimeItem next = settings.photoTimeTable.get(index);
-//            if (next == null || next.hour > now.hour || next.min > now.minute) break;
-//
-////            Log.i(Log.TAG, "补执行错过的拍照任务[" + index + "]：通道=" + next.channel + ", 预置点=" + (next.preset & 0xFF));
-//            utilsHandler.post(() -> {
-//                takePhoto(next.channel, next.preset & 0xFF, false, null, true);
-//                SystemClock.sleep(5000);
-//            });
-//            index++;
-//        }
         initPhotoTask(index);
     }
+
 
     public void coldReboot() {
         if (deviceConfig.chargeControl != 1 || deviceConfig.chargeControl != 7) /////
@@ -7131,12 +7108,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
+    ///
     @Override
     public void onConfigurationChanged(final Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         Log.i(Log.TAG, "系统配置更改，配置内容：" + newConfig);
     }
-
 
     @Override
     public void onBackPressed() {

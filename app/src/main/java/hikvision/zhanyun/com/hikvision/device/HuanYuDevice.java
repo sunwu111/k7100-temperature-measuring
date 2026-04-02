@@ -2308,12 +2308,40 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     //The requested profile token ProfileToken does not exist
 
+    private String VideoTimeItemIsNone(long session, int deviceId) {
+        String timeItem = "{\"beginTime\":{\"hour\":0,\"min\":0},\"endTime\":{\"hour\":0,\"min\":0},\"recordType\":\"Timing\"}";
+        String timeArray = "[" + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "]";
+
+        StringBuilder alarmSchedule = new StringBuilder();
+        for (int week = 1; week <= 7; week++) {
+            alarmSchedule.append(String.format("{\"timeArray\":%s,\"weekOfDay\":%d},", timeArray, week));
+        }
+        if (alarmSchedule.length() > 0) alarmSchedule.deleteCharAt(alarmSchedule.length() - 1);
+
+        // 最终JSON
+        return String.format("{" +
+                "\"session\":%d," +
+                "\"id\":%d," +
+                "\"call\":{\"service\":\"storage\",\"method\":\"setRecordPlanConfig\"}," +
+                "\"params\":{\"channel\":0,\"table\":{\"BrokenNetworkVideo\":true,\"EncType\":\"main\",\"PostRecordTime\":5,\"PreRecordTime\":0,\"alarmSchedule\":[%s],\"enable\":true,\"rangeCover\":true}}" +
+                "}", session, deviceId, alarmSchedule);
+    }
+
+
     @Override
     public boolean setRecordTimes(List<Settings.VideoTimeItem> list) {
         Log.i(HuanyuDeviceLog, "设置定时录像============");
 
         if (login()){
-            String recordPlanJson =  convertToRecordPlanConfig(list,session,id);
+
+            String recordPlanJson;
+
+            if (list == null || list.isEmpty()) {
+                recordPlanJson = VideoTimeItemIsNone(session, id);
+            } else {
+                // 列表有数据，使用转换后的配置
+                recordPlanJson = convertToRecordPlanConfig(list, session, id);
+            }
 
             Response response = http_request(url, recordPlanJson);
 
