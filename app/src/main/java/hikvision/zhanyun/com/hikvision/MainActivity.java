@@ -1224,7 +1224,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 画面附加信息内容，如电量，流量，电压等
     public static String getStatusText() {
         if (deviceConfig.onlyShowBat) {
-            if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) { ///////
+            if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) {
                 return String.format("余电 %d%%", batPrecent);
             } else {
                 return String.format("余电 %d%%", getBatPercent());

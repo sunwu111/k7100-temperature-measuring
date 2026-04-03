@@ -42,9 +42,15 @@ import java.util.Vector;
 
 import hikvision.zhanyun.com.hikvision.device.Device; /////
 import hikvision.zhanyun.com.hikvision.utils.ByteUtils;
+import hikvision.zhanyun.com.hikvision.utils.ConfigMergeUtil;
+import hikvision.zhanyun.com.hikvision.utils.JsonUtils;
 import hikvision.zhanyun.com.hikvision.utils.Log;
+import hikvision.zhanyun.com.hikvision.utils.SettingsMergeUtil;
+import hikvision.zhanyun.com.hikvision.utils.UpgradeFileUtils;
+import hikvision.zhanyun.com.hikvision.utils.ZipUtils;
 import lyh.Utils;
 
+import static hikvision.zhanyun.com.hikvision.MainActivity.DATA_DIR;
 import static lyh.Utils.FORMAT_DATETIME;
 import static lyh.Utils.PERIOD_MINUTE;
 import static lyh.Utils.PERIOD_SECOND;
@@ -258,6 +264,8 @@ public class SPGProtocol {
     private int uploadPreset;
     private long uploadStart = 0;
     private FILE_TYPE uploadType; /////
+
+    private String upgradeAPPFileName = null;
 
     /////
     // 上传到时候单独设置，上传日志时间过长，如果在上传过程中，设备进行拍照后上传，会修改存在的uploadChannel和uploadFilename，所有修改名字。防止冲突
@@ -3861,37 +3869,72 @@ public class SPGProtocol {
             Log.i(Log.TAG, "升级补包数量：" + count);
             sendPack(ORDER_CDH, null, baoReturn.toByteArray());
 
-            // 无缺包，完成升级
             if (count == 0) {  // 缺包数量为0，传输成功
                 // 上报服务器进度100%
                 sendPack(ORDER_CEH, null, new byte[]{channel, 100});
 
-                String startTimeString = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()); ///////
-                byte[] startTime = getByteTime(startTimeString); ///////
+                byte[] startTime = getByteTime(new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()));
                 byte[] startVersionNames = new byte[128];
                 byte[] endVersionNames = new byte[128];
-                String endTimeString = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()); ///////
-                byte[] endTime = getByteTime(endTimeString); ///////
+                byte[] endTime = getByteTime(new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()));
 
                 boolean ok = false;
                 try {
-                    SystemClock.sleep(5000);  // 等待其他线程写入所有数据包！
+                    SystemClock.sleep(5000); // 等待其他线程写入所有数据包！
                     fosUpgradeFile.close();
                     fosUpgradeFile = null;
+                    /*
+                     * 分为两种情况，zip升级和apk升级
+                     * zip升级，只修改配置文件config和settings，修改成功才能进行后续的install apk，不成功需要回滚
+                     * apk升级和原来一样
+                     * */
+                    if (upgradeFileName.endsWith(".zip")){
+                        // 解压文件
+                        ZipUtils.unzip(upgradeFilePath, upgradeFileName);   // DATA_DIR + upgradeFileName + 文件
+                        // 备份源文件
+                        UpgradeFileUtils.backupConfig(DATA_DIR, "temp");   // 只对config和settings文件进行备份
+                        // 合并文件
+                        String targetDir = DATA_DIR + JsonUtils.getFileNameWithoutExtension(upgradeFileName);
 
+                        Boolean configMergeState =  ConfigMergeUtil.mergeConfig(DATA_DIR + JsonUtils.getFileNameWithoutExtension(upgradeFileName) +"/config.json",DATA_DIR + "config.json");
+                        Boolean SettingsMerge =  SettingsMergeUtil.mergeSettings(DATA_DIR + JsonUtils.getFileNameWithoutExtension(upgradeFileName) +"/settings.json",DATA_DIR + "settings.json");
+                        // 移动APK文件
+                        ZipUtils.moveSameNameApk(targetDir,upgradeFilePath);   // 从解压文件中移动APK文件
 
+                        File upgradeFile = new File(upgradeFilePath, upgradeFileName);
+                        byte[] startVersionName = appVersion(context).getBytes();
+                        System.arraycopy(startVersionName, 0, startVersionNames, 0, startVersionName.length);
+                        byte[] endVersionName = getApkVersion(context, upgradeFile.getPath()).getBytes();
+                        System.arraycopy(endVersionName, 0, endVersionNames, 0, endVersionName.length);
 
-                    File upgradeFile = new File(upgradeFilePath, upgradeFileName);
+                        Log.d(Log.TAG, "升级准备完成，开始安装……");
 
-                    byte[] startVersionName = appVersion(context).getBytes();
-                    System.arraycopy(startVersionName, 0, startVersionNames, 0, startVersionName.length);
+                        upgradeAPPFileName = upgradeFileName.replace(".zip", ".apk");   // 获取APK的名字
 
-                    byte[] endVersionName = getApkVersion(context, upgradeFile.getPath()).getBytes();
-                    System.arraycopy(endVersionName, 0, endVersionNames, 0, endVersionName.length);
+                        if (configMergeState && SettingsMerge){
+                            ok = apkInstall(upgradeFilePath + upgradeAPPFileName);
+                            if (ok){
+                                UpgradeFileUtils.clearTemp(DATA_DIR,"temp");
+                            }else {
+                                UpgradeFileUtils.rollbackConfig(DATA_DIR, "temp");
+                            }
+                        }else {
+                            ok = false;
+                            UpgradeFileUtils.rollbackConfig(DATA_DIR, "temp");
+                        }
+                    }else {
+                        //// 只用APK进行升级
+                        File upgradeFile = new File(upgradeFilePath, upgradeFileName);
+                        byte[] startVersionName = appVersion(context).getBytes();
+                        System.arraycopy(startVersionName, 0, startVersionNames, 0, startVersionName.length);
+                        byte[] endVersionName = getApkVersion(context, upgradeFile.getPath()).getBytes();
+                        System.arraycopy(endVersionName, 0, endVersionNames, 0, endVersionName.length);
+                        Log.d(Log.TAG, "升级准备完成，开始安装……");
+                        upgradeAPPFileName = upgradeFileName;
+                        ok = apkInstall(upgradeFilePath + upgradeAPPFileName);
+                    }
 
-                    Log.d(Log.TAG, "升级准备完成，开始安装……");
-                    ok = apkInstall(upgradeFilePath + upgradeFileName);
-                    //if (ok)
+                    //if (ok)升级补包数量
                     {
                         // 升级成功要重启apk生效，升级失败也要重启apk，这样可以删除下载的不正确的apk
                         new Timer().schedule(new TimerTask() {
@@ -3902,10 +3945,10 @@ public class SPGProtocol {
                             }
                         }, 20 * PERIOD_SECOND);
                     }
-                    Log.d(Log.TAG, "升级安装结果：" + ok);
+                    Log.d(Log.TAG, "升级安装结果: " + ok);
                     endTime = getByteTime(new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()));
                 } catch (Exception e) {
-                    Log.e(Log.TAG, "解包和安装APK失败：" + e.getMessage());
+                    Log.e(Log.TAG, "解包和安装APK失败: " + e.getMessage());
                 }
 
                 // 发送升级结果
