@@ -69,7 +69,7 @@ public class Settings {
         float WindSpeed;         // 瞬时风速，米/秒
         int WindDirection;    // 瞬时风向，与正北方向夹角
         float RainFall;          // 雨量，采样前一小时累计雨量，毫升
-        float AtomosPress;        // 气压，Pa
+        float AtomosPress;        // 气压，hPa
         float Sunshine = -999;           // 日照
         float WindSpeedByMin;     // 1分钟平均风速
         int WindDirectionByMin; // 1分钟平均风向
@@ -78,9 +78,10 @@ public class Settings {
         float MaxWindSpeedBy10Min;    // 10分钟最大风速;
 
         public String toString() {
-            return String.format("气象数据: %.2f ℃, 湿度: %.2f%%, 风向: %d°, 风速: %.2fm/s, 气压: %.2fPa, 雨量: %.2fml/h, 日照: %.2fW/㎡",
+            return String.format("气象数据: %.2f ℃, 湿度: %.2f%%, 风向: %d°, 风速: %.2fm/s, 气压: %.2fhPa, 雨量: %.2fmm, 日照: %.2fW/㎡",
                     Temp, Humidity, WindDirection, WindSpeed, AtomosPress, RainFall, Sunshine);
         }
+
     }
 
     // 电量上报信息

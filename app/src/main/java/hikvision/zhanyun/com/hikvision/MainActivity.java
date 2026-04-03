@@ -1192,9 +1192,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 case 5:
                     //                return String.format("气象仪%.1f℃ 湿度%.1f%% %.0fPa 风速%.1fm/s\n",
                     //                        aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);    // 这个地方需要兼容富奥通6要素
-                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.RainFall);
+//                    return String.format("%.1f℃ %.1f%%RH %.0fhPa %.1fm/s %d° %.1fmm\n",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.RainFall);
+
+                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.0fhPa\n",
+                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
 
                 //            return String.format("微气象%.1f℃ %.1f%Rh %.0fhPa %.1fm/s %d° %.1fmm/min\n",
                 //                    aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
@@ -1202,9 +1206,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 /////
                 case 6:
-                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.RainFall);
+//                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.RainFall);
+                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.0fhPa\n",
+                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
                 default:
                     return "";
             }
