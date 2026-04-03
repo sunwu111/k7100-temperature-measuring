@@ -41,6 +41,7 @@ import static lyh.Utils.PERIOD_DAY;
 import static lyh.Utils.PERIOD_HOUR;
 import static lyh.Utils.PERIOD_MINUTE;
 import static lyh.Utils.PERIOD_SECOND;
+import static lyh.Utils.TAG;
 import static lyh.Utils.addTime;
 import static lyh.Utils.dateFromString;
 import static lyh.Utils.exec;
@@ -337,6 +338,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static boolean usbPowerState = false;
 
 
+    // 电源分级管理的相关参数
+    public static final int MODE_FULL   = 0;
+    public static final int MODE_WAKEUP = 1;
+    public static final int MODE_SLEEP  = 2;
+
+    public static int currentMode = MODE_FULL;
+    private int pendingMode = -1;
+    private long pendingStartTime = 0;
+    //    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+    private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
+
+
+
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -553,20 +568,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 } else if (action.equals(ACTION_VIDEO)) {
                     doVideoAction(intent);
                 } else if (action.equals(ACTION_RECORD)) { /////
-                    int recordChannel = intent.getByteExtra("channel", (byte) 1);  // 默认录像通道号是1
-                    int recordAction = intent.getByteExtra("action", (byte) 0);
-                    int recordPara = intent.getByteExtra("para", (byte) 0);
+                    if(isWorkHour()){    // 是工作时间才转动到预置位
+                        int recordChannel = intent.getByteExtra("channel", (byte) 1);  // 默认录像通道号是1
+                        int recordAction = intent.getByteExtra("action", (byte) 0);
+                        int recordPara = intent.getByteExtra("para", (byte) 0);
 //                    doWakeup("定时开启所有云台与红外", 23);
-                    serialHandler.postDelayed(() -> {
-                        if (recordAction == 0) {  // 调用预置位
-                            runMove(2, recordChannel, recordPara);
-                        } else if (recordAction == 1) {  // 调用巡航
-                            runCruise(recordChannel, recordPara);
-                        } else if (recordAction == 2) {  // 调用巡检
-                            runCheckLine(recordChannel, recordPara - 1, 1);
-                        }
-                    }, 2 * PERIOD_MINUTE); /////
-                    /////
+                        serialHandler.postDelayed(() -> {
+                            if (recordAction == 0) {  // 调用预置位
+                                runMove(2, recordChannel, recordPara);
+                            } else if (recordAction == 1) {  // 调用巡航
+                                runCruise(recordChannel, recordPara);
+                            } else if (recordAction == 2) {  // 调用巡检
+                                runCheckLine(recordChannel, recordPara - 1, 1);
+                            }
+                        }, 2 * PERIOD_MINUTE);
+                    }
                 } else if (action.equals(POWERON_INTENT)) {
                     doWakeup("定时开启所有云台与红外", 23);
                 } else if (action.equals(POWEROFF_INTENT)) {
@@ -590,22 +606,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 } else if (action.equals(BATCOM_SAMPLE_ACTION)) {
                     haveSolarCharger = true;
                     batVoltage = intent.getFloatExtra("batVoltage", batVoltage);
+
                     solarVoltage = intent.getFloatExtra("solarVoltage", solarVoltage);
                     batAmper = intent.getFloatExtra("batAmpler", batAmper);
                     temperature = intent.getFloatExtra("temperature", temperature);
-                    if (deviceConfig.chargeControl == 3 || deviceConfig.chargeControl == 7) { /////
+                    if (deviceConfig.chargeControl != 6) {
                         humidity = intent.getFloatExtra("humidity", humidity);
                     }
                     loadAmpler = intent.getFloatExtra("loadAmpler", loadAmpler);
-                    /////
-                    if (deviceConfig.chargeControl == 3) {
-                        loadAmpler1 = intent.getFloatExtra("loadAmpler1", loadAmpler1);
-                        loadAmpler2 = intent.getFloatExtra("loadAmpler2", loadAmpler2);
-                    }
-                    /////
                     solarAmpler = intent.getFloatExtra("solarAmpler", solarAmpler);
                     amplerHours = intent.getFloatExtra("amplerHours", amplerHours);
-                    if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) { ///////
+                    if (deviceConfig.chargeControl == 6) {
                         batPrecent = intent.getIntExtra("batPrecent", batPrecent);
                     }
 
@@ -615,21 +626,38 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     String text = getStatusText();
                     for (Device dev : channels.values()) {
                         if (dev.isLiving()) {
-                            ////////
-                            utilsHandler.post(() -> {
-                                if (dev.type == DEVICE_DVR_AIPU) {
-                                    if (dev.isOldCamera) {
-                                        utilsHandler.post(() -> dev.updateStatusText(getStatusText(), false));
-                                    } else {
-                                        utilsHandler.post(() -> dev.updateStatusText(getStatusText(), true));
-                                    }
-                                } else {
-                                    dev.updateStatusText(dev.osd, text, false);
-                                }
-                            });
-                            ////////
+                            utilsHandler.post(()->dev.updateStatusText(text,false));
                         }
                     }
+
+                    Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
+
+                    int oldMode = currentMode;
+                    handlePowerModeByVoltage(batVoltage);
+                    int newMode = currentMode;
+
+                    if ((oldMode != newMode) && isFullMode()) {
+                        interfacePowerOn();
+                        Log.i(TAG, "切换到全工作模式：工作时间开启云台");   /// 这个地方不是根据录像策略来设置云台开关的，云台是全天开启状态
+
+                        if (isWorkHour()){
+                            openShare("模式切换为全工作模式且在工作时间段");
+                            doWakeup("模式切换为全工作模式且在工作时间段", 23);
+                        }
+                    }
+
+                    if ((oldMode != newMode) && isWakeupMode()) {
+                        Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
+                        interfacePowerOn();
+                        doSleep("切换为唤醒模式", 23);
+                    }
+
+                    if (isSleepMode()) {
+                        Log.i(TAG, "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");     //这个地方需要对RJ45和USB下电，切换到其他模式需要上电
+                        interfacePowerOff();
+                        doSleep("切换为休眠模式", 23);
+                    }
+
                 } else if (action.equals(ACTION_TIME_CHANGED)) {
                     doTimeChangedAction(context, intent);
                 } else if (action.equals(ACTION_PROTECT)) {
@@ -688,6 +716,240 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     };
+
+
+    private void interfacePowerOn(){
+        if (!usbPowerState) {
+            for (int i = 0; i < 3; i++) {
+                boolean errcode = RS485Impl.Instance().gpioOpenUSB();
+                Log.i(Log.TAG, String.format("USB上电%s", errcode ? "成功" : "失败"));
+                if (errcode) {
+                    usbPowerState = true;
+                    writeUsbPowerState(true);
+                    break;
+                }
+            }
+        }
+
+        for (int i = 0; i < 3; i++) {
+            boolean errcode = RS485Impl.Instance().gpioOpenRJ45();
+            Log.i(Log.TAG, String.format("RJ45上电%s", errcode ? "成功" : "失败"));
+            if (errcode) {
+                isRJ45Powered = true;
+                break;
+            }
+        }
+    }
+
+
+    private void interfacePowerOff(){
+        for (int i = 0; i < 3; i++) {
+            boolean errcode = RS485Impl.Instance().gpioCloseRJ45();
+            Log.i(Log.TAG, String.format("RJ45下电%s", errcode ? "成功" : "失败"));
+            if (errcode) {
+                isRJ45Powered = false; // 更新状态位
+                break;
+            }
+        }
+
+        for (int i = 0; i < 3; i++) {
+            boolean errcode = RS485Impl.Instance().gpioCloseUSB();
+            Log.i(Log.TAG, String.format("USB下电%s", errcode ? "成功" : "失败"));
+            if (errcode) {
+                usbPowerState = false;
+                writeUsbPowerState(false);
+                break;
+            }
+        }
+    }
+
+
+    private int decideModeByVoltage(float voltage) {
+        if (voltage > 13.1f) {
+            return MODE_FULL;
+        } else if (voltage > 12.9f) {
+            return MODE_WAKEUP;
+        } else {
+            return MODE_SLEEP;
+        }
+    }
+
+    private void handlePowerModeByVoltage(float voltage) {
+
+        int newMode = decideModeByVoltage(voltage);  // 2分钟一次
+
+        long now = System.currentTimeMillis();
+
+        // 时间异常保护
+        if (pendingStartTime > now) {
+            pendingMode = -1;
+            pendingStartTime = 0;
+            savePowerStateToFile();
+        }
+
+        if (pendingMode == newMode && pendingStartTime > 0) {
+            long duration = now - pendingStartTime;
+            Log.i(TAG,
+                    "Pending mode "
+                            + modeToString(pendingMode)
+                            + " duration=" + (duration / 1000) + "s");
+            if (duration >= MODE_CONFIRM_TIME) {
+                switchMode(newMode);                // 进行模式的切换
+                pendingMode = -1;
+                pendingStartTime = 0;
+                savePowerStateToFile();
+                return;
+            }
+        }
+
+        // 当前模式不变
+        if (newMode == currentMode) {
+            pendingMode = -1;
+            pendingStartTime = 0;
+            savePowerStateToFile();
+            return;
+        }
+
+        // 第一次进入候选模式
+        if (pendingMode == -1 || pendingMode != newMode) {
+            pendingMode = newMode;
+            pendingStartTime = now;
+            savePowerStateToFile();
+            Log.i(TAG, "Enter pending mode: " + modeToString(newMode));
+            return;
+        }
+
+
+        // 候选模式持续中
+        long duration = now - pendingStartTime;
+        if (duration >= MODE_CONFIRM_TIME) {
+            switchMode(newMode);                   // 进行模式的切换
+            pendingMode = -1;
+            pendingStartTime = 0;
+            savePowerStateToFile();
+        }
+    }
+
+
+    // TODO 状态是如何进行切换的
+    private void switchMode(int newMode) {
+        if (newMode == currentMode) return;
+
+        Log.w(TAG, "Power mode switch: "
+                + modeToString(currentMode)
+                + " -> "
+                + modeToString(newMode));
+
+        currentMode = newMode; // 根据当前的工作模式来选择不同的业务逻辑
+    }
+
+
+    private String modeToString(int mode) {
+        switch (mode) {
+            case MODE_FULL:
+                return "FULL";
+            case MODE_WAKEUP:
+                return "WAKEUP";
+            case MODE_SLEEP:
+                return "SLEEP";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
+    public static boolean isFullMode() {
+        return currentMode == MODE_FULL;
+    }
+
+    public static boolean isWakeupMode() {
+        return currentMode == MODE_WAKEUP;
+    }
+
+    public static boolean isSleepMode() {
+        return currentMode != MODE_FULL && currentMode != MODE_WAKEUP;
+    }
+
+
+    private void savePowerStateToFile() {
+        try {
+            JSONObject obj = new JSONObject();
+            obj.put("currentMode", currentMode);
+            obj.put("pendingMode", pendingMode);
+            obj.put("pendingStartTime", pendingStartTime);
+
+            File file = new File(STATE_FILE);
+            FileWriter writer = new FileWriter(file, false);
+            writer.write(obj.toString());
+            writer.flush();
+            writer.close();
+
+            Log.i(TAG, "Power state saved: " + obj.toString());
+
+        } catch (Exception e) {
+            Log.e(TAG, "savePowerStateToFile failed"+e);
+        }
+    }
+
+    private void loadPowerStateFromFile() {
+        File file = new File(STATE_FILE);
+        if (!file.exists()) {
+            Log.i(TAG, "state file not exists, skip restore");
+            return;
+        }
+
+        BufferedReader reader = null;
+        try {
+            reader = new BufferedReader(new FileReader(file));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+
+            restorePowerState(sb.toString());
+
+        } catch (Exception e) {
+            Log.e(TAG, "loadPowerStateFromFile failed"+e);
+        } finally {
+            try {
+                if (reader != null) reader.close();
+            } catch (Exception ignore) {}
+        }
+    }
+
+    private void restorePowerState(String json) {
+        try {
+            com.alibaba.fastjson.JSONObject obj =
+                    com.alibaba.fastjson.JSON.parseObject(json);
+
+            if (obj.containsKey("currentMode")) {
+                currentMode = obj.getIntValue("currentMode");
+            } else {
+                currentMode = MODE_FULL;
+            }
+
+            if (obj.containsKey("pendingMode")) {
+                pendingMode = obj.getIntValue("pendingMode");
+            } else {
+                pendingMode = -1;
+            }
+
+            if (obj.containsKey("pendingStartTime")) {
+                pendingStartTime = obj.getLongValue("pendingStartTime");
+            } else {
+                pendingStartTime = 0;
+            }
+
+            Log.i(TAG,
+                    "Power state restored: currentMode=" + currentMode +
+                            ", pendingMode=" + pendingMode +
+                            ", pendingStartTime=" + pendingStartTime);
+
+        } catch (Exception e) {
+            Log.e(TAG, "restorePowerState failed"+e);
+        }
+    }
+
 
 
     private static final String KEY_USB_POWER = "usbPowerState";
@@ -1156,17 +1418,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private static String Location2String(Location location) {
+
+        //        return "位置000000E 000000EN";  // 测试用例
+
         /////
         if (settings.location == null || settings.location.isEmpty()) {
             loadLocationFromConfig();
         }
         return settings.location != null ? settings.location : "";
         /////
-
-//        return "位置000000E 000000EN";  // test
     }
 
     private static String aeroStatusText() {
+
+
+//        return"28.3℃36.1%%RH20.1m/s50°22.0mm1001.1hPa\n";   // 测试用例
+
+
         AeroInfo aeroInfo = aeroInfoAtomicReference.get();
 
         if (aeroInfo == null) return "";
@@ -1196,7 +1464,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
 //                            aeroInfo.WindDirection, aeroInfo.RainFall);
 
-                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.0fhPa\n",
+                    return String.format("%.1f℃%.1f%%RH%.1fm/s%d°%.1fmm%.0fhPa\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
 
@@ -1209,6 +1477,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
 //                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
 //                            aeroInfo.WindDirection, aeroInfo.RainFall);
+
                     return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.0fhPa\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
@@ -1462,6 +1731,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 ? Math.round((amplerHours * 100 / batteryCapability)) : 100;
     }
 
+
     private static void powerControlNVR(final boolean powerOn, int load) {
         /////
         if (deviceConfig.chargeControl <= 1) return;
@@ -1500,7 +1770,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
                 ///////
             }
-        } else if (deviceConfig.chargeControl >= 6) { /////
+        } else if (deviceConfig.chargeControl >= 6) {
             if (powerOn) {
                 if (load == 2) {
                     ////////
@@ -1821,6 +2091,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.i(Log.TAG, "程序启动，版本：" + appVersion(this));
         Log.i(Log.TAG, "数据存储目录：" + DATA_DIR);
 
+        Log.e(Log.TAG,"开机读取电源管理模块参数============");
+        loadPowerStateFromFile();  // 开机读取配置文件，候选模式切换时间，以及当前的模式。
+
+
         utilsThread.start();
         sendThread.start();
         uploadThread.start();
@@ -1843,10 +2117,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         wakeLock = powerManager.newWakeLock(
                 PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
-
         AndroidThermalMonitor.logAllThermalTemperatures();
         startTemperatureMonitoring();
-
 
         SystemSettings.sleepAfter(this, 15);
 
@@ -1896,13 +2168,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         su("netcfg >> " + LOG_FILE);                         // 输出磁盘可用空间信息到日志
         su("rm " + DATA_DIR + "*.apk");                      // 清理升级文件
 
-        ///////
+
         if (deviceConfig.toCheck) {
             applyPowerTuning();
-        } else {
-//            revertPowerTuning();
         }
-        ///////
 
         // 注册广播消息接收器
         registerBoradcastReceiver();
@@ -1914,7 +2183,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         initView();
         initCore();
-
 
         new Thread(() -> {
             wifiInit();
@@ -1930,7 +2198,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 loadCloseTime = "23:58:30";  // 三路板每天开安卓板时刻
             } else if (deviceConfig.chargeControl >= 6) {
                 serialHandler.post(() -> powerControlNVR(isWorkHour(), 2));  // 开启云台
-                SystemClock.sleep(3000);  // 等待3秒
+                SystemClock.sleep(3000);
                 if (!deviceConfig.toCheck) {
                     serialHandler.post(() -> powerControlNVR(isWorkHour(), 3));  // 开启红外
                 } else {
@@ -2259,12 +2527,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Settings settings = loadSettings(this.settings, SETTING_FILE);
         /////
         try {
-            RECORD_TABLE = adjustOverlappingItems(settings.videoTimeTable); /////
-//            POWER_ON = extractPowerOnStrings();
-//            POWER_OFF = extractPowerOffStrings();
-            POWER_ON = new String[]{settings.powerOn};
-            POWER_OFF = new String[]{settings.powerOff};
-            recordPreset = extractRecordPreset(RECORD_TABLE); /////
+            RECORD_TABLE = adjustOverlappingItems(settings.videoTimeTable);
+            POWER_ON = new String[]{settings.powerOn};      // 配置文件中的时间
+            POWER_OFF = new String[]{settings.powerOff};    // 配置文件中的时间
+            recordPreset = extractRecordPreset(RECORD_TABLE);
         } catch (Exception e) {
             RECORD_TABLE = new ArrayList<>(); /////
             VideoTimeItem videoTimeItem = new VideoTimeItem();
@@ -2984,8 +3250,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.i(Log.TAG, "初始化和创建系统所有闹钟事件");
 //        initReboot(-1);
 //        initProtect();
-        initAlarmPowerOn();
-        initAlarmPowerOff();
+
         initRecordTask(); /////
 
 //        initVideoTask(0);  // 关闭本地定时录像
@@ -5422,12 +5687,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     /////
     // 开启云台与红外
     public void doWakeup(String reason, int load) {
+
+        if (isSleepMode()){
+            return;
+        }
+
         if (load == 2 || load == 23) {
             for (Device dev : channels.values()) {
                 if (dev.isDVR() && !dev.isUSB()) {
                     Log.e(Log.TAG, "开启云台：" + reason);
                     serialHandler.post(() -> {
-                        powerControlNVR(true, load);
+                        powerControlNVR(true, 2);
                     });
                     SystemClock.sleep(3000);
                 }
@@ -5438,7 +5708,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (dev.isUSB()) {
                     Log.e(Log.TAG, "开启红外：" + reason);
                     serialHandler.post(() -> {
-                        powerControlNVR(true, load);
+                        powerControlNVR(true, 3);
                     });
                     SystemClock.sleep(3000);
                 }
@@ -5446,37 +5716,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
-    /////
-    // 新增工具函数，用于检测未来 minutesWindow 分钟内是否有指定通道的拍照任务
-    private boolean hasUpcomingPhotoTaskForChannel(int channel, int minutesWindow) {
-        if (settings.photoTimeTable.isEmpty()) {
-            return false;
-        }
-        long now = System.currentTimeMillis();
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        for (PhotoTimeItem item : settings.photoTimeTable) {
-            // 只关心匹配通道
-            if (item == null || item.channel != channel) continue;
-            cal.set(java.util.Calendar.HOUR_OF_DAY, item.hour);
-            cal.set(java.util.Calendar.MINUTE, item.min);
-            cal.set(java.util.Calendar.SECOND, item.sec);
-            cal.set(java.util.Calendar.MILLISECOND, 0);
-            long when = cal.getTimeInMillis();
-            // 如果今天的时间点已过，则取下一天的同一时刻
-            if (when < now) {
-                when += java.util.concurrent.TimeUnit.DAYS.toMillis(1);
-            }
-            long diff = when - now;
-            if (diff >= 0 && diff <= java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
-                return true;
-            }
-            // 由于时间表有序且我们只需要窗口内的任务，超过窗口即可提前结束
-            if (diff > java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
-                break;
-            }
-        }
-        return false;
-    }
 
     /////
     // 关闭云台与红外
@@ -5532,6 +5771,41 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     }
+
+
+
+    /////
+    // 新增工具函数，用于检测未来 minutesWindow 分钟内是否有指定通道的拍照任务
+    private boolean hasUpcomingPhotoTaskForChannel(int channel, int minutesWindow) {
+        if (settings.photoTimeTable.isEmpty()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        for (PhotoTimeItem item : settings.photoTimeTable) {
+            // 只关心匹配通道
+            if (item == null || item.channel != channel) continue;
+            cal.set(java.util.Calendar.HOUR_OF_DAY, item.hour);
+            cal.set(java.util.Calendar.MINUTE, item.min);
+            cal.set(java.util.Calendar.SECOND, item.sec);
+            cal.set(java.util.Calendar.MILLISECOND, 0);
+            long when = cal.getTimeInMillis();
+            // 如果今天的时间点已过，则取下一天的同一时刻
+            if (when < now) {
+                when += java.util.concurrent.TimeUnit.DAYS.toMillis(1);
+            }
+            long diff = when - now;
+            if (diff >= 0 && diff <= java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
+                return true;
+            }
+            // 由于时间表有序且我们只需要窗口内的任务，超过窗口即可提前结束
+            if (diff > java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
+                break;
+            }
+        }
+        return false;
+    }
+
 
     @Override
     public void ptzControl(int channelNum, final int order, final int para) {
@@ -6137,6 +6411,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     public short startLiveVideo(int channel, final int streamType, int network, final int ssrc, final String server, final int port) {
+
+        if (isSleepMode()){
+            return 2;
+        }
+
         final Device dev = channels.get(String.valueOf(channel));
 
 //        if (电量不够) return 2;
@@ -6303,6 +6582,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     public void startLocalPlay(int channel, int preset) {
+
+
+        if (isSleepMode()){
+            Log.e(TAG,"设备处于休眠模式，不响应拉流");
+            return;
+        }
+
+
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return;
         if (dev.isLiving()) return;
@@ -6777,6 +7064,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 initAlarmPowerOn();
                 initAlarmPowerOff();
             } catch (NumberFormatException e) {
+
             }
             /////
         } else {
@@ -7012,15 +7300,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // TODO 这个地方可能需要在结束的时候减1s [startTime, endTime)
         List<VideoTimeItem> splitList = adjustOverlappingItems(list);
 
-//        for (Settings.VideoTimeItem item : splitList) {
-//            Log.e(Log.TAG,"item"+item);
-//        }
+        RECORD_TABLE = splitList;
 
-        RECORD_TABLE = splitList; /////
-
-//        initAlarmPowerOn();
-//        initAlarmPowerOff();
-        initRecordTask(); /////
+        initRecordTask();
 
         if (isWorkHour()) {
             // 先设置录像时间段
@@ -7563,6 +7845,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
     private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert) {
 //    private void takePhoto(int channel, int preset, String filename, boolean manual, boolean alert, boolean photoCheck, int captureType) { ///////
+
+        if (isSleepMode()){
+            Log.e(TAG,"设备处于休眠模式，不响应拍照");
+            return;
+        }
+
         byte imageStitch = iRSetting.imageStitch;
         Log.i(Log.TAG, "抓拍通道：" + channel + "，预置位：" + preset);
         Device dev = channels.get(String.valueOf(channel));
@@ -8323,6 +8611,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * @return
      */
     private boolean isWorkHour() {
+
+        if (isWakeupMode() || isSleepMode()){    // 如果是非full模式，设备处于非工作状态
+            return false;
+        }
+
+
         Date now = new Date();
 //        Date start = Utils.dateFromString(POWER_ON);
 //        Date end = Utils.dateFromString(POWER_OFF);
