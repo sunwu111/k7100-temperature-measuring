@@ -373,7 +373,19 @@ public class Settings {
         public byte min = 0;
         public byte sec = 0;
         public byte preset = 0;
+
+        @Override
+        public String toString() {
+            return "PhotoTimeItem{" +
+                    "channel=" + channel +
+                    ", hour=" + hour +
+                    ", min=" + min +
+                    ", sec=" + sec +
+                    ", preset=" + preset +
+                    '}';
+        }
     }
+
 
     public static class PhotoConfig {
         public byte color = 1;     // 色彩 0: 黑白， 1: 彩色

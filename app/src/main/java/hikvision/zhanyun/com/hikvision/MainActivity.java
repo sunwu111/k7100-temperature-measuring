@@ -2954,6 +2954,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         photoAlarms.clear();
     }
 
+
     private int buildPhotoRequestCode(int channel, int index) {
         if (channel <= 0) channel = 0;
         if (index < 0) index = 0;
@@ -3080,11 +3081,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private void initAlarmPowerOff() {
         for (int i = 0; i < POWER_OFF.length; i++) {
             alarmInitTask(POWER_OFF[i], PERIOD_DAY, powerOffIntent, "关闭云台和红外");
         }
     }
+
 
     private void initRecordTask() { /////
         for (int i = 0; i < RECORD_TABLE.size(); i++) { /////
@@ -3109,10 +3112,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private void initHeartBeat() {
         heartBeatIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_HEART), PendingIntent.FLAG_UPDATE_CURRENT);
         alarmInitTask(heartBeatIntent, "心跳", settings.onlineCfg.heart * PERIOD_MINUTE);
     }
+
 
     private void initSample() {
         sampleIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_SAMPLE), PendingIntent.FLAG_UPDATE_CURRENT);

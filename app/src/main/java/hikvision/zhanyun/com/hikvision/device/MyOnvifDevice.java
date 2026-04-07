@@ -808,7 +808,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             Log.i(OnvifLog, "isDeviceReady()："+isDeviceReady());
 
             if (isDeviceReady()) {
-                if (deviceModel.isEmpty()) {
+                if (deviceModel == null || deviceModel.isEmpty()) {
                     onvifManager.getDeviceInformation(device, (onvifDevice, onvifDeviceInformation) -> {
                         deviceModel = onvifDeviceInformation.getModel();
                         Log.i(OnvifLog, "摄像头型号：" + deviceModel);
