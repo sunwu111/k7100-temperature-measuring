@@ -174,6 +174,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -2116,6 +2117,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         wakeLock = powerManager.newWakeLock(
                 PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
+
+
         AndroidThermalMonitor.logAllThermalTemperatures();
         startTemperatureMonitoring();
 
@@ -2947,27 +2950,88 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
     }
 
-    private void cancelAllPhotoAlarms() {
-        for (PendingIntent pi : photoAlarms.values()) {
-            if (pi != null) {
-                alarmManager.cancel(pi);
-            }
-        }
-        photoAlarms.clear();
+    public void refreshPhotoSchedule() {
+        forceRescheduleAllPhotoTasks();
     }
 
 
-    private int buildPhotoRequestCode(int channel, int index) {
-        if (channel <= 0) channel = 0;
-        if (index < 0) index = 0;
-        return RC_PHOTO_BASE + channel * RC_PHOTO_STRIDE + (index % RC_PHOTO_STRIDE);
+    private void forceRescheduleAllPhotoTasks() {
+        cancelAllPhotoAlarms();
+        doInitPhotoTask(0);
+    }
+
+
+    private void initPhotoTask(int startIndex) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastInitTime < MIN_INIT_INTERVAL) {
+            return;
+        }
+        lastInitTime = currentTime;
+        cancelAllPhotoAlarms();
+        doInitPhotoTask(startIndex);
+    }
+
+
+    private void doInitPhotoTask(int startIndex) {
+        Time now = new Time();
+        now.setToNow();
+
+        // 按精确时间 "HH:MM:SS" 分组，保留所有同时刻任务
+        Map<String, List<PhotoTimeItem>> tasksByTime = new LinkedHashMap<>();
+
+        for (int i = startIndex; i < settings.photoTimeTable.size(); i++) {
+            PhotoTimeItem item = settings.photoTimeTable.get(i);
+            if (item == null) continue;
+
+            // 跳过已过时的任务（基于小时和分钟，不考虑秒）
+            if (now.hour > item.hour || (now.hour == item.hour && now.minute >= item.min)) {
+                continue;
+            }
+
+            String timeKey = String.format("%02d:%02d:%02d", item.hour, item.min, item.sec);
+            List<PhotoTimeItem> list = tasksByTime.get(timeKey);
+
+            if (list == null) {
+                list = new ArrayList<>();
+                tasksByTime.put(timeKey, list);
+            }
+            list.add(item);     // 同一时间的多个拍照任务会被聚合
+        }
+
+
+        for (Map.Entry<String, List<PhotoTimeItem>> entry : tasksByTime.entrySet()) {
+            List<PhotoTimeItem> items = entry.getValue();
+            for (PhotoTimeItem item : items) {
+                int realIndex = findItemIndex(item);
+                if (realIndex != -1) {
+                    setSinglePhotoAlarm(realIndex, item, "定时拍照_" + item.channel + "_" + item.preset);
+                }
+            }
+        }
+    }
+
+    private int findItemIndex(PhotoTimeItem target) {
+        for (int i = 0; i < settings.photoTimeTable.size(); i++) {
+            PhotoTimeItem item = settings.photoTimeTable.get(i);
+            if (item != null &&
+                    item.channel == target.channel &&
+                    item.hour == target.hour &&
+                    item.min == target.min &&
+                    item.sec == target.sec &&
+                    item.preset == target.preset) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void setSinglePhotoAlarm(int index, PhotoTimeItem item, String alarmName) {
         Intent vi = new Intent(ACTION_PHOTO);
         vi.putExtra("index", index);
 
-        int requestCode = buildPhotoRequestCode(item.channel, index); /////
+        // 生成唯一的 requestCode，避免 PendingIntent 覆盖
+        int requestCode = (item.channel * 10000) + index;
+
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, requestCode, vi,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
@@ -2975,74 +3039,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (!isWorkHour(item.hour, item.min, item.sec)) {
             wakeupTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
-                    PERIOD_DAY, index, "", item.channel); /////
+                    PERIOD_DAY, index, "定时开启云台", item.channel);
         }
 
         alarmInitTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
                 PERIOD_DAY, pendingIntent, alarmName);
     }
 
-
-
-    private void initPhotoTask(int index) {
-
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastInitTime < MIN_INIT_INTERVAL) {
-            return;
-        }
-        lastInitTime = currentTime;
-
-        // 取消所有已存在的拍照闹钟
-        cancelAllPhotoAlarms();
-
-        Time now = new Time();
-        now.setToNow();
-
-
-        int channelCount = channels != null ? channels.values().size() : 0;
-
-        // key: channelId, value: next index / item
-        java.util.Map<Integer, Integer> nextIndexMap = new java.util.HashMap<>();
-        java.util.Map<Integer, PhotoTimeItem> nextItemMap = new java.util.HashMap<>();
-
-        // 从 index 往后扫描，找到每个 channel 的下一个任务
-        for (int i = Math.max(0, index); i < settings.photoTimeTable.size(); i++) {
-            PhotoTimeItem item = settings.photoTimeTable.get(i);
-            if (item == null) continue;
-
-            // 过滤无效 channel
-            int ch = item.channel;
-            if (ch <= 0) continue;
-
-            // 如果这个 channel 已经找到 next 了，就跳过
-            if (nextIndexMap.containsKey(ch)) continue;
-
-            // 过滤掉当前时间之前（或等于）的任务
-            if (now.hour > item.hour || (now.hour == item.hour && now.minute >= item.min)) {
-                continue;
-            }
-
-            // 记录这个 channel 的第一个未来任务
-            nextIndexMap.put(ch, i);
-            nextItemMap.put(ch, item);
-
-            // 如果你希望“最多只处理 channelCount 个通道”，可以提前结束
-            if (channelCount > 0 && nextIndexMap.size() >= channelCount) {
-                break;
+    /**
+     * 取消所有已注册的拍照闹钟
+     */
+    private void cancelAllPhotoAlarms() {
+        for (PendingIntent pi : photoAlarms.values()) {
+            if (pi != null) {
+                alarmManager.cancel(pi);
             }
         }
-
-        // 逐通道设置闹钟
-        for (java.util.Map.Entry<Integer, Integer> entry : nextIndexMap.entrySet()) {
-            int ch = entry.getKey();
-            int nextIdx = entry.getValue();
-            PhotoTimeItem nextItem = nextItemMap.get(ch);
-            if (nextItem == null) continue;
-
-            // 你原来是用固定文案，这里建议按通道生成
-            String title = "通道" + ch + "定时拍照";
-            setSinglePhotoAlarm(nextIdx, nextItem, title);
-        }
+        photoAlarms.clear();
     }
 
 
@@ -5369,23 +5382,44 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     // 定时拍照动作
+//    private void doPhotoAction(Intent intent) {
+//        int index = intent.getIntExtra("index", 0);
+//        if (index >= settings.photoTimeTable.size() || index < 0) {
+//            return;
+//        }
+//
+//        // 当前index对应任务
+//        final PhotoTimeItem item = settings.photoTimeTable.get(index);
+//        utilsHandler.post(() -> {
+//            Log.e(Log.TAG, "进行定时拍照");
+//            takePhoto(item.channel, item.preset & 0xFF, false, null, true);
+//            SystemClock.sleep(5000);
+//        });
+//        index++;
+//
+//        initPhotoTask(index);
+//    }
+
     private void doPhotoAction(Intent intent) {
-        int index = intent.getIntExtra("index", 0);
-        if (index >= settings.photoTimeTable.size() || index < 0) {
+        int index = intent.getIntExtra("index", -1);
+        if (index < 0 || index >= settings.photoTimeTable.size()) {
             return;
         }
 
-        // 当前index对应任务
         final PhotoTimeItem item = settings.photoTimeTable.get(index);
+        if (item == null) return;
+
         utilsHandler.post(() -> {
-            Log.e(Log.TAG, "进行定时拍照");
+            String scheduledTime = String.format("%02d:%02d:%02d", item.hour, item.min, item.sec);
+            Log.e(Log.TAG, "------定时拍照 - 时间:" + scheduledTime
+                    + " 通道:" + item.channel
+                    + " 预置位:" + (item.preset & 0xFF)+"------");
             takePhoto(item.channel, item.preset & 0xFF, false, null, true);
             SystemClock.sleep(5000);
         });
-        index++;
-
-        initPhotoTask(index);
     }
+
+
 
 
     public void coldReboot() {
@@ -5652,7 +5686,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
         // 保存 & 初始化
         boolean b = saveSettings(settings, SETTING_FILE);
-        if (b) initPhotoTask(0);
+        if (b) refreshPhotoSchedule();
         return b;
     }
 
