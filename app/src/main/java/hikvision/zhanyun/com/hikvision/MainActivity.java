@@ -1203,6 +1203,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
 
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+            tryStartNextVideoTask();
+
             /////
         }
 
