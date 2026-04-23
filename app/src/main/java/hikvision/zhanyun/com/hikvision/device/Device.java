@@ -214,13 +214,12 @@ public abstract class Device {
     private static final int PAYLOAD_TYPE_VIDEO = 96;
     private static final int PAYLOAD_TYPE_AUDIO = 104;
 
-    // 在类中添加成员变量
     protected long recordingStartTime = -1;
-    private long firstVideoTimestamp = -1;
-    private long firstAudioTimestamp = -1;
+
 
 
     public void timeSync() {
+
     }
 
     protected void onPreview(Bitmap bitmap) {
