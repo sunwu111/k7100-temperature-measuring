@@ -215,7 +215,7 @@ public abstract class Device {
     private static final int PAYLOAD_TYPE_AUDIO = 104;
 
     // 在类中添加成员变量
-    private long recordingStartTime = -1;
+    protected long recordingStartTime = -1;
     private long firstVideoTimestamp = -1;
     private long firstAudioTimestamp = -1;
 
@@ -283,82 +283,76 @@ public abstract class Device {
 
                         final byte[] data = new byte[len];
                         System.arraycopy(packet, 0, data, 0, len);
-                        data[8] = (byte) (ssrcLive >> 24);
-                        data[9] = (byte) (ssrcLive >> 16);
-                        data[10] = (byte) (ssrcLive >> 8);
-                        data[11] = (byte) (ssrcLive & 0xFF);
 
                         if (isRecording()) {
 
-                            byte[] pack = ByteBuffer.wrap(data).array();
-                            byte[] frame = rtph264.rtpToNalu(pack, pack.length);
+                            byte[] frame = rtph264.rtpToNalu(data, data.length);
 
-//                            byte[] frame = rtph264.rtpToNalu(packet, packet.length);
+                            if (frame != null && rtph264.sps != null && rtph264.pps != null) {
 
-
-                            if (frame != null && rtph264.sps != null && rtph264.pps != null) {     // TODO 音视频的时间不同步
                                 muxerHandler.post(() -> {
+
+                                    // ⭐ 初始化 muxer（只执行一次）
+                                    if (!isMuxerInited) {
+                                        initMuxer(rtph264.sps, rtph264.pps);
+                                        isMuxerInited = true;
+                                    }
+
+                                    // ⭐ 尝试启动 muxer
+                                    tryStartMuxerOnvif();
+
+                                    if (!muxerStarted) return;
 
                                     bufferInfo.size = frame.length;
                                     bufferInfo.offset = 0;
                                     bufferInfo.flags = 0;
 
-                                    // 使用系统时间同步
                                     long currentTime = System.currentTimeMillis();
-                                    long elapsedSinceStart = currentTime - recordingStartTime;
+                                    long elapsed = currentTime - recordingStartTime;
+                                    bufferInfo.presentationTimeUs = elapsed * 1000L;
 
-                                    bufferInfo.presentationTimeUs = elapsedSinceStart * 1000L; // 转换为微秒
+                                    int type = rtph264.frameType(frame);
 
-//                                    Log.e(Log.TAG,"Video sync time: " + bufferInfo.presentationTimeUs);
-
-                                    if (rtph264.frameType(frame) == 6 || rtph264.frameType(frame) == 7 || rtph264.frameType(frame) == 8) {
+                                    if (type == 7 || type == 8) {
                                         bufferInfo.flags = MediaCodec.BUFFER_FLAG_CODEC_CONFIG;
-                                    } else if (rtph264.frameType(frame) == 1 || rtph264.frameType(frame) == 28)
+                                    } else if (type == 5) {
                                         bufferInfo.flags = MediaCodec.BUFFER_FLAG_KEY_FRAME;
-                                    if (!isMuxerInited) {
-                                        // 获取到sps pps才能初始化Muxer
-                                        initMuxer(rtph264.sps, rtph264.pps);
                                     }
-                                    if (muxerStarted) mediaMuxer.writeSampleData(videoTrackIndex, ByteBuffer.wrap(frame), bufferInfo);
+
+                                    mediaMuxer.writeSampleData(
+                                            videoTrackIndex,
+                                            ByteBuffer.wrap(frame),
+                                            bufferInfo
+                                    );
                                 });
                             }
                         }
 
                         onVideoFrame(data);
-
                     } else if (payloadType == PAYLOAD_TYPE_AUDIO) {
 
                         if (isRecording()) {
 //
                             byte[] aac = rtpaac.rtpToAac(packet, packet.length);
-                            if (aac != null && muxerStarted) {
-
-                                final byte[] audioFrame = aac.clone();
-                                final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-
-                                long ptsUs = rtpaac.getPtsUs();
-                                if (ptsUs <= lastAudioPtsUs) ptsUs = lastAudioPtsUs + 1;
-                                lastAudioPtsUs = ptsUs;
-
-                                info.offset = 0;
-                                info.size = audioFrame.length;
-
-                                // 使用系统时间同步
-                                long currentTime = System.currentTimeMillis();
-                                long elapsedSinceStart = currentTime - recordingStartTime;
-
-                                info.offset = 0;
-                                info.size = audioFrame.length;
-                                info.presentationTimeUs = elapsedSinceStart * 1000L;  // 转换为微秒
-//                                Log.e(Log.TAG,"Audio sync time: " + info.presentationTimeUs);
-
-                                info.flags = 0;
+                            if (aac != null) {
 
                                 muxerHandler.post(() -> {
-                                    if (!recording || !muxerStarted || audioTrackIndex < 0) return;
+
+                                    if (!muxerStarted || audioTrackIndex < 0) return;
+
+                                    MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+
+                                    long currentTime = System.currentTimeMillis();
+                                    long elapsed = currentTime - recordingStartTime;
+
+                                    info.offset = 0;
+                                    info.size = aac.length;
+                                    info.presentationTimeUs = elapsed * 1000L;
+                                    info.flags = 0;
+
                                     mediaMuxer.writeSampleData(
                                             audioTrackIndex,
-                                            ByteBuffer.wrap(audioFrame),
+                                            ByteBuffer.wrap(aac),
                                             info
                                     );
                                 });
@@ -1125,21 +1119,22 @@ public abstract class Device {
 
 
     void tryStartMuxerOnvif() {
-        muxerHandler.post(() -> {
-            if (muxerStarted) return;
 
-            if (useAudio) {
-                if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
-                    mediaMuxer.start();
-                    muxerStarted = true;
-                }
-            } else {
-                if (videoTrackIndex >= 0) {
-                    mediaMuxer.start();
-                    muxerStarted = true;
-                }
+        if (muxerStarted || mediaMuxer == null) return;
+
+        if (useAudio) {
+            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
+                mediaMuxer.start();
+                muxerStarted = true;
+                muxerEverStarted = true;
             }
-        });
+        } else {
+            if (videoTrackIndex >= 0) {
+                mediaMuxer.start();
+                muxerStarted = true;
+                muxerEverStarted = true;
+            }
+        }
     }
 
 //    void tryStartMuxerOnvif() {
