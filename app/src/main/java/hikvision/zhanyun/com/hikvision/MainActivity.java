@@ -164,6 +164,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -2082,6 +2083,45 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
+    private void loadVideoCodes() {
+        try {
+            String json = new String(Files.readAllBytes(new File(SETTING_FILE).toPath()), "UTF-8");
+
+            JSONObject root = JSON.parseObject(json);
+
+            JSONObject vcObj = root.getJSONObject("videoCodecs");
+
+            for (String key : vcObj.keySet()) {
+                JSONObject obj = vcObj.getJSONObject(key);
+
+                VideoCodec v = obj.toJavaObject(VideoCodec.class);
+
+                settings.videoCodecs.put(key, v);
+            }
+
+//            for (Map.Entry<String, VideoCodec> entry : settings.videoCodecs.entrySet()) {
+//                String key = entry.getKey();
+//                VideoCodec v = entry.getValue();
+//
+//                Point p = VideoCodec.getResolution(v.resolution);
+//
+//                Log.i(Log.TAG,
+//                        "videoCodec -> key=" + key +
+//                                ", resolutionIndex=" + v.resolution +
+//                                ", width=" + p.x +
+//                                ", height=" + p.y
+//                );
+//            }
+
+        } catch (Exception e) {
+            Log.e(Log.TAG, "解析videoCodecs失败"+e);
+        }
+    }
+
+
+
+
+
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -2140,6 +2180,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         initTrafficData();
         loadConfig();
+
+
+        // loadConfig加载videocodec为空，这里添加一个函数进行加载
+        loadVideoCodes();
+
+
         ///////
         if (!deviceConfig.toCheck) {
             boolean useRJ45 = false;
@@ -2519,14 +2565,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-    // 在线超时后，关闭视频和share，节省流量和电量
-//    public void doOnlineTimeout(String reason) {
-//        Log.e(Log.TAG,reason);
-//        for (Device dev : channels.values()) {
-//            if (dev.isLiving()) stopLiveVideo(dev.id, 0, dev.ssrcLive);
-//            if (dev.isPlaybacking()) stopPlayCallBack(dev.id, dev.ssrcPlayback);
-//        }
-//    }
 
     private void loadConfig() {
         Settings settings = loadSettings(this.settings, SETTING_FILE);
@@ -2647,6 +2685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         ) == PackageManager.PERMISSION_GRANTED;
     }
 
+
     private void initDevice() {
         channels.clear();
         Device dvr = null;
@@ -2719,7 +2758,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 dev.osd = settings.osds.get(String.valueOf(dev.id));
                 if (dev.osd == null) dev.osd = new OSD();
-                for (int i = 0; i <= 1; i++) {
+                for (int i = 0; i <= 2; i++) {
                     VideoCodec codec = settings.videoCodecs.get(dev.id + ":" + i);
                     if (codec == null) {
                         codec = new VideoCodec();

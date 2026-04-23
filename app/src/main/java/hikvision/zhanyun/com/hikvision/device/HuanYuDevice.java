@@ -1948,14 +1948,30 @@ public class HuanYuDevice extends MyOnvifDevice {
                     }
                 }
                 // 非主码流只能设置(720, 576)分辨率
-            } else if (v.streamType == 1) {
+            } else if (v.streamType == 1) {    // {{252,288},{640,480},{704,576},{1280,720}}
                 stream = "extra1";
-                y = 576;
-                x = 704;
-            } else if (v.streamType == 2) {
+                int[][] resolutions = {{252,288},{640,480},{704,576},{1280,720}};
+                double minDistance = Float.MAX_VALUE;
+                for (int[] res : resolutions) {
+                    float distance = (float) Math.sqrt(Math.pow(size.x - res[0], 2) + Math.pow(size.y - res[1], 2));
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        y = res[1];
+                        x = res[0];
+                    }
+                }
+            } else if (v.streamType == 2) {       // {{352,288},{640,480},{704,576}}
                 stream = "extra2";
-                y = 288;
-                x = 352;
+                int[][] resolutions = {{352,288},{640,480},{704,576}};
+                double minDistance = Float.MAX_VALUE;
+                for (int[] res : resolutions) {
+                    float distance = (float) Math.sqrt(Math.pow(size.x - res[0], 2) + Math.pow(size.y - res[1], 2));
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        y = res[1];
+                        x = res[0];
+                    }
+                }
             }
 
             // 限制帧率与I帧间隔在集光机芯可设置范围内
