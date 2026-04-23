@@ -203,6 +203,8 @@ public abstract class Device {
     public Handler muxerHandler;
     public boolean isMuxerInited = false;
 
+    protected volatile boolean muxerEverStarted = false;
+
 
     public void initMuxer(byte[] sps, byte[] pps) {
 
@@ -1140,6 +1142,24 @@ public abstract class Device {
         });
     }
 
+//    void tryStartMuxerOnvif() {
+//
+//        if (muxerStarted || mediaMuxer == null) return;
+//
+//        if (useAudio) {
+//            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
+//                mediaMuxer.start();
+//                muxerStarted = true;
+//            }
+//        } else {
+//            if (videoTrackIndex >= 0) {
+//                mediaMuxer.start();
+//                muxerStarted = true;
+//            }
+//        }
+//    }
+
+
 
 
     // 指令和参数，参考南网规约 88H
@@ -1948,7 +1968,7 @@ public abstract class Device {
     }
 
     protected void unInitVideoCodec() {
-        uninitVideoDecoder(); /////
+        uninitVideoDecoder();
         codecReady = false;
     }
 

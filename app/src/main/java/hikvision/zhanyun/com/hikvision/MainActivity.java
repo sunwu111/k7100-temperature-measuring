@@ -475,9 +475,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private boolean isVideoTaskRunning = false;
 
 
-
-
-
     /*
       初始化闹钟
       start: 启动时间: hh:nn:ss 格式，严格按照给出的开始时间间隔设定闹钟
@@ -2202,8 +2199,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
 
-
-
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -2236,9 +2231,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-        wakeLock = powerManager.newWakeLock(
-                PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
-
+//        wakeLock = powerManager.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
 
         AndroidThermalMonitor.logAllThermalTemperatures();
@@ -2266,6 +2260,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         // loadConfig加载videocodec为空，这里添加一个函数进行加载
         loadVideoCodes();
+
+        if (deviceConfig.chargeControl != 6){
+            currentMode = MODE_FULL;
+        }
+
 
 
         ///////
@@ -2314,10 +2313,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         initView();
         initCore();
 
+
         new Thread(() -> {
             wifiInit();
 
             switchSimCard(0);
+
 
             /////
             if (deviceConfig.chargeControl <= 1)
@@ -2366,6 +2367,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
             /////
+
+
 
             initProtect();
             initReboot(-1);

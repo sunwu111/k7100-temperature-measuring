@@ -622,7 +622,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
         muxerThread = new HandlerThread("MuxerThread");
         muxerThread.start();
-        muxerHandler = new Handler(muxerThread.getLooper());   // 同一线程是关键
+        muxerHandler = new Handler(muxerThread.getLooper());
 
         if (!onvifReady) return false;
 
@@ -869,7 +869,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             rtspLiveClient = null;
         }
 
-        clearState(DevState.LIVING);// 置拉流位为低
+        clearState(DevState.LIVING);
         Log.i(OnvifLog, "停止ONVIF预览成功");
         return true;
     }
