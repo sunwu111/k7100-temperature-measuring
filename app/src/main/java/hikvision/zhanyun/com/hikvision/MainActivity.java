@@ -346,12 +346,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    //    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
-
-
+    
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -2395,6 +2394,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return iccid;
     }
 
+
     private void getBatInfo() {
         String s = Utils.stringFromFile("/sys/class/power_supply/battery/device/FG_Battery_CurrentConsumption");
         batAmper = (s == null) ? 0.f : Integer.parseInt(s.trim()) / 100000.0f;
@@ -2436,6 +2436,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     public <Type> Type loadSettings(Type type, String filename) {
         try {
             String s = stringFromFile(filename);
@@ -2448,6 +2449,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         return null;
     }
+
 
     public void alarmInitTask(String start, long msecPeriod, PendingIntent intent, String source) {
         Date date = dateFromString(start);
@@ -2996,7 +2998,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Time now = new Time();
         now.setToNow();
 
-        // n 个通道数量（如果你只是想限制最多调度多少个通道，可以用它）
+
         int channelCount = channels != null ? channels.values().size() : 0;
 
         // key: channelId, value: next index / item
@@ -7077,6 +7079,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             osd.text = truncateText(osd.text);
 
             settings.osds.put(String.valueOf(channel), osd);
+
             device.osd = osd;
             for (int i = 0; i < 3; i++) {
                 ////////

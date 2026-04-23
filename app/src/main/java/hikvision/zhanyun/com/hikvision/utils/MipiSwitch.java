@@ -13,17 +13,17 @@ public class MipiSwitch {
         switch (id) {
             case 0:
             case 1:
-                setGpiolow("91");
-                setGpiolow("4");
-                setGpioHigh("94");
-                setGpioHigh("5");
-                break;
-            case 2:
-            case 3:
                 setGpiolow("94");
                 setGpiolow("5");
                 setGpioHigh("91");
                 setGpioHigh("4");
+                break;
+            case 2:
+            case 3:
+                setGpiolow("91");
+                setGpiolow("4");
+                setGpioHigh("94");
+                setGpioHigh("5");
                 break;
             default:
                 break;
