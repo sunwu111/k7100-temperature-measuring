@@ -180,6 +180,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Vector;
@@ -453,6 +454,30 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     ///////
     /////
     private int PREFIX_LEN = 6;
+
+
+    /// 短视频录制请求过快，会导致问题
+    class VideoTask {
+        int channel;
+        int stream;
+        int time;
+        boolean upload;
+
+        public VideoTask(int channel, int stream, int time, boolean upload) {
+            this.channel = channel;
+            this.stream = stream;
+            this.time = time;
+            this.upload = upload;
+        }
+    }
+
+    private final Queue<VideoTask> videoQueue = new LinkedList<>();
+    private boolean isVideoTaskRunning = false;
+
+
+
+
+
     /*
       初始化闹钟
       start: 启动时间: hh:nn:ss 格式，严格按照给出的开始时间间隔设定闹钟
@@ -6256,16 +6281,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private void takeVideo(final int channel, final int stream, final int time, boolean upload) {
-//    private void takeVideo(final int channel, final int stream, final int time, boolean upload, int captureType) { ///////
         final Device dev = channels.get(String.valueOf(channel));
-        if (dev == null) {
-            Log.i(Log.TAG, "录制视频失败，无设备");
+
+        if (dev == null || dev.isRecording()) {
+            Log.e(Log.TAG, "任务执行失败，跳过");
+
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+
+            tryStartNextVideoTask();
             return;
         }
-        if (dev.isRecording()) {
-            Log.i(Log.TAG, "录制视频失败，正在录制中");
-            return;
-        }
+
         if (dev.isLiving()) {
             dev.liveStop();
         }
@@ -6427,18 +6455,48 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
     }
 
+//    @Override
+//    public short startShortVideo(final int channel, final int stream, final int time) {
+//        final Device dev = channels.get(String.valueOf(channel));
+//        if (dev.isRecording()) return 1;   // 当前通道正在拍摄
+//
+////        if (电量不足) return 3;    // 当前电量不够；
+//        if (dev == null) return 3;
+//
+//        utilsHandler.post(() -> takeVideo(channel, stream, time, true));
+////        utilsHandler.post(() -> takeVideo(channel, stream, time, true, 1)); ///////
+//        return 0;
+//    }
+
+
+
     @Override
     public short startShortVideo(final int channel, final int stream, final int time) {
         final Device dev = channels.get(String.valueOf(channel));
-        if (dev.isRecording()) return 1;   // 当前通道正在拍摄
-
-//        if (电量不足) return 3;    // 当前电量不够；
         if (dev == null) return 3;
 
-        utilsHandler.post(() -> takeVideo(channel, stream, time, true));
-//        utilsHandler.post(() -> takeVideo(channel, stream, time, true, 1)); ///////
+        synchronized (videoQueue) {
+            videoQueue.offer(new VideoTask(channel, stream, time, true));
+        }
+        tryStartNextVideoTask();
         return 0;
     }
+
+
+    private void tryStartNextVideoTask() {
+        utilsHandler.post(() -> {
+            synchronized (videoQueue) {
+                if (isVideoTaskRunning) return;
+                VideoTask task = videoQueue.poll();
+                if (task == null) return;
+                isVideoTaskRunning = true;
+                Log.i(Log.TAG, "开始执行视频任务: channel=" + task.channel + ", stream=" + task.stream);
+                takeVideo(task.channel, task.stream, task.time, task.upload);
+            }
+        });
+    }
+
+
 
     @Override
     public void rebootDevice() {
@@ -7149,7 +7207,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             /////
         } else {
             // 对osd进行截断，显示通道名不能太长
-            osd.text = truncateText(osd.text);
+            if (channel ==  1){
+                osd.text = truncateText(osd.text);       // 通道二不进行截断
+            }
 
             settings.osds.put(String.valueOf(channel), osd);
 
