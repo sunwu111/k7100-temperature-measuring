@@ -2211,7 +2211,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.e(Log.TAG,"开机读取电源管理模块参数============");
         loadPowerStateFromFile();  // 开机读取配置文件，候选模式切换时间，以及当前的模式。
 
-
         utilsThread.start();
         sendThread.start();
         uploadThread.start();
@@ -2240,7 +2239,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         SystemSettings.sleepAfter(this, 15);
 
-
         float cpuTemp = readCpuTemp();
         if (cpuTemp >= 0) {
             Log.e(Log.TAG, "CPU温度: " + cpuTemp + "°C");
@@ -2257,17 +2255,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         initTrafficData();
         loadConfig();
 
-
         // loadConfig加载videocodec为空，这里添加一个函数进行加载
         loadVideoCodes();
 
+        // 非汇能精电控制器，不使用电源模块管理
         if (deviceConfig.chargeControl != 6){
             currentMode = MODE_FULL;
         }
 
 
-
-        ///////
         if (!deviceConfig.toCheck) {
             boolean useRJ45 = false;
             for (Device dev : channels.values()) {
@@ -2283,7 +2279,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         } else {
             closeShare("开机关闭Share");
         }
-        ///////
+
 
         startService(new Intent(this, WatchDog.class));   // 启动看门狗服务，防止主程序崩溃不启动
 
@@ -2320,7 +2316,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             switchSimCard(0);
 
 
-            /////
             if (deviceConfig.chargeControl <= 1)
                 return;
             RS485Impl.Instance().gpioInit(deviceConfig.mainBoard);  // 兼容一二代板
@@ -2367,7 +2362,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
             /////
-
 
 
             initProtect();
