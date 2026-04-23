@@ -669,6 +669,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         if (isWorkHour()){
                             openShare("模式切换为全工作模式且在工作时间段");
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
+
+                            setRecordingPolicy(settings.videoTimeTable);   // 这个地方设置录像策略
                         }
                     }
 
@@ -976,6 +978,56 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
+    private void setRecordingPolicy(List<Settings.VideoTimeItem> list){
+        if (list == null) {
+            Log.i("RecordingPolicy", "list is null");
+            return;
+        }
+        Log.i("RecordingPolicy", "list size: " + list.size());
+        for (int i = 0; i < list.size(); i++) {
+            Settings.VideoTimeItem item = list.get(i);
+            Log.i("RecordingPolicy", "item[" + i + "]: " + item);
+        }
+        if (isWorkHour()) {
+            for (VideoTimeItem item : list) {
+                // 判断当前时间是否在该策略时间段内
+                Calendar now = Calendar.getInstance();
+                int nowSeconds = now.get(Calendar.HOUR_OF_DAY) * 3600 +
+                        now.get(Calendar.MINUTE) * 60 +
+                        now.get(Calendar.SECOND);
+                int startSeconds = item.hour * 3600 + item.min * 60 + item.sec;
+                int endSeconds = startSeconds + item.duration;
+                if (nowSeconds >= startSeconds && nowSeconds <= endSeconds) {
+                    // 命中当前时间段，提取信息执行动作
+                    int recordChannel = item.channel;
+                    int recordAction = item.action;
+                    int recordPara = item.para;
+                    if (sleeping) {
+                        doWakeup("开启云台与红外", -1);
+                        serialHandler.postDelayed(() -> {
+                            if (recordAction == 0) {  // 调用预置位
+                                runMove(2, recordChannel, recordPara);
+                            } else if (recordAction == 1) {  // 调用巡航
+                                runCruise(recordChannel, recordPara);
+                            } else if (recordAction == 2) {  // 调用巡检
+                                runCheckLine(recordChannel, recordPara - 1, 1);
+                            }
+                        }, 2 * PERIOD_MINUTE); /////
+                    } else {
+                        if (recordAction == 0) {  // 调用预置位
+                            runMove(2, recordChannel, recordPara);
+                        } else if (recordAction == 1) {  // 调用巡航
+                            runCruise(recordChannel, recordPara);
+                        } else if (recordAction == 2) {  // 调用巡检
+                            runCheckLine(recordChannel, recordPara - 1, 1);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
 
     private static final String KEY_USB_POWER = "usbPowerState";
