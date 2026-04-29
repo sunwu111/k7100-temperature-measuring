@@ -32,6 +32,7 @@ import android.media.MediaMuxer;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.util.Range;
 import android.util.Size;
 
 import androidx.annotation.NonNull;
@@ -469,8 +470,6 @@ public class Camera2Device extends Device {
     };
 
 
-
-
     private void toolTakePhoto(Bitmap previewBitmap) {
         try {
             byte[] picByte = ImageUtils.bitmap2Bytes(NettyUtils.matrixBitmap(previewBitmap, 0.5f));
@@ -668,6 +667,9 @@ public class Camera2Device extends Device {
             //Log.i(Log.TAG, "开始自动对焦");
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
+
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); /////
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             mState = STATE_WAITING_AF_LOCK;
@@ -715,7 +717,7 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]");
                 return;
             }
-            mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);
+            mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
             mCameraDevice.createCaptureSession(Arrays.asList(mImageReader.getSurface()), new CameraCaptureSession.StateCallback() {
                 @Override

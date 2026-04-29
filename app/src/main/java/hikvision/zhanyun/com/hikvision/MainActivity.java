@@ -2230,7 +2230,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
-//        wakeLock = powerManager.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
+
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
 
@@ -2263,7 +2263,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             currentMode = MODE_FULL;
         }
 
-
         if (!deviceConfig.toCheck) {
             boolean useRJ45 = false;
             for (Device dev : channels.values()) {
@@ -2279,7 +2278,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         } else {
             closeShare("开机关闭Share");
         }
-
 
         startService(new Intent(this, WatchDog.class));   // 启动看门狗服务，防止主程序崩溃不启动
 
@@ -2314,7 +2312,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             wifiInit();
 
             switchSimCard(0);
-
 
             if (deviceConfig.chargeControl <= 1)
                 return;
