@@ -337,6 +337,11 @@ public class HuanYuDevice extends MyOnvifDevice {
 //                Log.i(HuanyuDeviceLog, String.format("登录请求第 %d 次尝试", requestRetryCount + 1));
 
                 Response response = http_request(url, JSON.toJSONString(body));
+                if (response == null){
+                    Log.e(HuanyuDeviceLog,"login::response is null");
+                    return false;
+                }
+
 
                 if (response != null && response.code() == 200) {
                     JSONObject result = JSON.parseObject(response.body().string());
@@ -433,6 +438,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         RequestBody body = new RequestBody(id, session, new Caller("rpc", "logout"));
         try {
             Response response = http_request(url, JSON.toJSONString(body));
+
+
             if (response != null && response.code() == 200) {
                 JSONObject result = JSON.parseObject(response.body().string());
                 if (result.getIntValue("id") == id &&
@@ -557,6 +564,12 @@ public class HuanYuDevice extends MyOnvifDevice {
 
 
     private int parseRecordSearchCountRes(Response response) {
+
+        if (response == null){
+            Log.e(HuanyuDeviceLog,"login::response is null");
+            return 0;
+        }
+
         try {
             String responseBody = response.body().string();
             Log.d(HuanyuDeviceLog, "parseRecordSearchCountRes: " + responseBody);
@@ -622,6 +635,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
 
     private List<Settings.FileItem> parseRecordItemRes(Response response) {
+
         List<Settings.FileItem> fileItems = new ArrayList<>();
 
         try {
@@ -1130,6 +1144,12 @@ public class HuanYuDevice extends MyOnvifDevice {
             try {
 
                 Response response = http_request(url,getPTZPosParamJson());
+
+                if (response == null){
+                    Log.e(HuanyuDeviceLog,"login::response is null");
+                    return null;
+                }
+
                 String  responseBody = response.body().string();
 
                 Log.e(HuanyuDeviceLog, "获取PTZ位置response: " + responseBody);
@@ -1278,18 +1298,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-    private void getPresetPointConfig(){
-        Response response = http_request(url,presetPointConfigJson());
-        try {
-            String responseBody = response.body().string();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-
     // 设备重启的json  delay 范围 [5,20]s
     private String restartDeviceJson(int delay){
         Map<String, Object> call = new HashMap<>();
@@ -1360,9 +1368,10 @@ public class HuanYuDevice extends MyOnvifDevice {
         if (login()){
             Response response = http_request(url, getTimeJson());
 
+
             if (response == null || !response.isSuccessful()) {
                 Log.e(HuanyuDeviceLog, "获取时间请求失败，响应为空或状态异常");
-                return null;
+                return "";
             }
 
             try {
@@ -1372,20 +1381,20 @@ public class HuanYuDevice extends MyOnvifDevice {
                 JSONObject responseJson = JSONObject.parseObject(responseBody);
                 if (responseJson == null) {
                     Log.e(HuanyuDeviceLog, "responseJson解析为null");
-                    return null;
+                    return "null";
                 }
 
 
                 if (!responseJson.containsKey("result") || !responseJson.getBoolean("result")) {
                     Log.e(HuanyuDeviceLog, "获取时间失败，result为false");
-                    return null;
+                    return "null";
                 }
 
 
                 JSONObject paramsJson = responseJson.getJSONObject("params");
                 if (paramsJson == null || !paramsJson.containsKey("time")) {
                     Log.e(HuanyuDeviceLog, "响应中未找到有效的time字段");
-                    return null;
+                    return "null";
                 }
 
                 String timeStr = paramsJson.getString("time");
@@ -1397,10 +1406,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             } catch (JSONException e) {
                 Log.e(HuanyuDeviceLog, "解析JSON失败: " + e.getMessage());
             }
-
-        return null;
+            return "null";
         }
-        return null;
+        return "null";
     }
 
 
@@ -1421,46 +1429,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
-
-
-
-
-
-
-//    private boolean setTime(String time, int timeZone) {
-//        Response response = http_request(url, setTimeJson(time, timeZone));
-//
-//
-//        if (response == null || !response.isSuccessful()) {
-//            Log.e(HuanyuDeviceLog, "设置时间请求失败，响应为空或状态异常");
-//            return false;
-//        }
-//
-//        try {
-//            String responseBody = response.body().string();
-//            Log.d(HuanyuDeviceLog, "设置时间返回的response: " + responseBody);
-//
-//            JSONObject responseJson = JSONObject.parseObject(responseBody);
-//            if (responseJson == null) {
-//                Log.e(HuanyuDeviceLog, "responseJson解析为null");
-//                return false;
-//            }
-//
-//            if (!responseJson.containsKey("result")) {
-//                Log.e(HuanyuDeviceLog, "响应中未找到result字段");
-//                return false;
-//            }
-//
-//            return responseJson.getBoolean("result");
-//
-//        } catch (IOException e) {
-//            Log.e(HuanyuDeviceLog, "读取响应体失败: " + e.getMessage());
-//        } catch (JSONException e) {
-//            Log.e(HuanyuDeviceLog, "解析JSON失败: " + e.getMessage());
-//        }
-//
-//        return false;
-//    }
 
 
     private String setConfigJson(int brightness,int contrast,int saturation,int sharpness,int hue,String scene,int channel){
@@ -1802,6 +1770,13 @@ public class HuanYuDevice extends MyOnvifDevice {
             // 发送两个请求并获取响应
             Response response_1 = http_request(url, mode);
             Response response_2 = http_request(url, photoParamJson);
+
+
+            if (response_1 == null || response_2 == null){
+                Log.e(HuanyuDeviceLog,"login::response is null");
+                return false;
+            }
+
 
             // 标记两个响应的处理结果
             boolean isResponse1Success = false;
@@ -2797,90 +2772,43 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     @Override
     public boolean updateStatusText(Settings.OSD osd,String content, boolean osdNull) {
-        if(login()){
-            String updateStatusTextosdJson = createStatusTextOsd(session, deviceId, osd,content);
-
-//            Log.e(HuanyuDeviceLog,"updateStatusTextosdJson:"+updateStatusTextosdJson);
-
+        if(login()) {
+            String updateStatusTextosdJson = createStatusTextOsd(session, deviceId, osd, content);
 
             Response response = http_request(url, updateStatusTextosdJson);
 
-            try {
-                String responseBody = response.body().string();
-                JSONObject responseJson = JSONObject.parseObject(responseBody);
+            if (response != null && response.isSuccessful()) {
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject responseJson = JSONObject.parseObject(responseBody);
 
 //                Log.e(HuanyuDeviceLog,"responseJson:"+responseJson);
 
-                if (responseJson == null) {
-                    Log.e(HuanyuDeviceLog, "responseJson解析为null");
-                    return false;
-                } else if (!responseJson.containsKey("result")) {
-                    Log.e(HuanyuDeviceLog, "响应中未找到result字段");
-                    return false;
+                    if (responseJson == null) {
+                        Log.e(HuanyuDeviceLog, "responseJson解析为null");
+                        return false;
+                    } else if (!responseJson.containsKey("result")) {
+                        Log.e(HuanyuDeviceLog, "响应中未找到result字段");
+                        return false;
+                    }
+
+                } catch (IOException e) {
+                    Log.e(HuanyuDeviceLog, "读取响应体失败" + e);
+                } catch (JSONException e) {
+                    Log.e(HuanyuDeviceLog, "解析JSON失败" + e);
                 }
 
-            } catch (IOException e) {
-                Log.e(HuanyuDeviceLog, "读取响应体失败"+e);
-            } catch (JSONException e) {
-                Log.e(HuanyuDeviceLog, "解析JSON失败"+e);
+                return true;
+
+            } else {
+                Log.i(HuanyuDeviceLog, "OSD设置失败，login false");
+                return false;
             }
-
-            return true;
-
-        } else {
-            Log.i(HuanyuDeviceLog, "OSD设置失败，login false");
+        }else {
+            Log.e(HuanyuDeviceLog, "HTTP请求失败");
             return false;
         }
     }
-
-
-// {"error":{"code":268439556,"message":"","prompt":"Transl_InvalidParam"},"id":1,"result":false,"session":2013618544}
-// {"id":1,"result":true,"session":2013634880}
-//    private void goPreset(int para){
-//        if(login()){
-//            String goPresetJson = String.format("{\n" +
-//                    "    \"session\": %d,\n" +
-//                    "    \"id\": %d,\n" +
-//                    "    \"call\": {\n" +
-//                    "        \"service\": \"ptz\",\n" +
-//                    "        \"method\": \"setPresentParam\"\n" +
-//                    "    },\n" +
-//                    "    \"params\": {\n" +
-//                    "        \"action\": \"run\",\n" +
-//                    "        \"preset\": {\n" +
-//                    "            \"presetNum\": %d,\n" +
-//                    "            \"presetName\": \"预置点%d\"\n" +
-//                    "        }\n" +
-//                    "    }\n" +
-//                    "}", session, id, para, para);
-//
-//            Response response = http_request(url, goPresetJson);
-////            parseResponse(response);
-//
-//            if (response == null) {
-//                Log.e(HuanyuDeviceLog, "响应对象为null");
-//            }
-//
-//            try {
-//                String responseBody = response.body().string();
-//                JSONObject responseJson = JSONObject.parseObject(responseBody);
-//
-//                Log.e(HuanyuDeviceLog, "调用预置位，机芯返回的结果:"+responseBody);
-//
-//                if (responseJson == null) {
-//                    Log.e(HuanyuDeviceLog, "responseJson解析为null");
-//                } else if (!responseJson.containsKey("result")) {
-//                    Log.e(HuanyuDeviceLog, "响应中未找到result字段");
-//                }
-//
-//            } catch (IOException e) {
-//                Log.e(HuanyuDeviceLog, "读取响应体失败"+e);
-//            } catch (JSONException e) {
-//                Log.e(HuanyuDeviceLog, "解析JSON失败"+e);
-//            }
-//        }
-//    }
-
 
     private void goPreset(int para) {
         goPreset(para, 0); // 初始重试次数为0
@@ -2971,6 +2899,12 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "}", session, id, para, para);
 
             Response response = http_request(url, goPresetJson);
+
+            if (response == null){
+                Log.e(HuanyuDeviceLog,"setPreset::response is null");
+                return;
+            }
+
             parseResponse(response);
         }
 
@@ -3015,7 +2949,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             String responseBody = response.body().string();
             JSONObject responseJson = JSONObject.parseObject(responseBody);
 
-//            Log.e(HuanyuDeviceLog, "responseBody"+responseBody);
 
             if (responseJson == null) {
                 Log.e(HuanyuDeviceLog, "responseJson解析为null");
