@@ -281,7 +281,13 @@ public abstract class Device {
                     if (payloadType == PAYLOAD_TYPE_VIDEO) {
 
                         final byte[] data = new byte[len];
+
                         System.arraycopy(packet, 0, data, 0, len);
+
+                        data[8] = (byte) (ssrcLive >> 24);
+                        data[9] = (byte) (ssrcLive >> 16);
+                        data[10] = (byte) (ssrcLive >> 8);
+                        data[11] = (byte) (ssrcLive & 0xFF);
 
                         if (isRecording()) {
 
