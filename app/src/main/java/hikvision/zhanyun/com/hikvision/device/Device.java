@@ -1956,7 +1956,7 @@ public abstract class Device {
     protected void initVideoCodec() {
         Settings.VideoCodec vc = getVideoCodec(streamType);
         Point size = Settings.VideoCodec.getResolution(vc.resolution);
-        initVideoEncoder(streamType, size.x, size.y);
+        initVideoEncoder(streamType, size.x, size.y,false);
         initVideoDecoder(size.x, size.y, vc.codec); /////
         codecReady = true;
     }
@@ -1966,14 +1966,20 @@ public abstract class Device {
         codecReady = false;
     }
 
-    private MediaFormat createVideoEncodecMediaFormat(int stream, int w, int h) { /////
+    private MediaFormat createVideoEncodecMediaFormat(int stream, int w, int h, boolean MIPIMark) { /////
         Settings.VideoCodec vc = codec.get(String.valueOf(stream));
         if (vc == null) vc = new Settings.VideoCodec();
 
         MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
         mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
         mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, vc.bps * 1000);
-        mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, vc.frame);
+
+        if (MIPIMark){
+            mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 10);       // 建议与摄像头的帧率一致 ， TODO 如果是mipi的话，这个地方需要修改为10，和摄像头的输出帧率一样，否则后台拉流容易不出图。
+        }else {
+            mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, vc.frame);
+        }
+
         mediaFormat.setInteger(MediaFormat.KEY_BITRATE_MODE, vc.vbr == 0 ? MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR : MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR);
         // 因为我们要加水印，所以用位图了，而位图是默认的ARGB_8888彩色格式，所以编码器用这个格式，需要手机支持！
         mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_Format32bitARGB8888);
@@ -1990,10 +1996,10 @@ public abstract class Device {
         return mediaFormat;
     }
 
-    protected void initVideoEncoder(int stream, int w, int h) { /////
+    protected void initVideoEncoder(int stream, int w, int h, boolean MIPIMark) { /////
         try {
             mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            mediaCodec.configure(createVideoEncodecMediaFormat(stream, w, h), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            mediaCodec.configure(createVideoEncodecMediaFormat(stream, w, h, MIPIMark), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             Log.i(Log.TAG, "视频编码器初始化格式：" + mediaCodec.getOutputFormat());
 
             mediaCodec.start();

@@ -2128,7 +2128,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     // 先释放旧的编码器
                     uninitVideoEncoder(); /////
                     // 初始化新的编码器
-                    initVideoEncoder(v.streamType, (int) size.x, (int) size.y); /////
+                    initVideoEncoder(v.streamType, (int) size.x, (int) size.y,false); /////
                     Log.d(HuanyuDeviceLog, "Codec updated successfully for stream: " + v.streamType);
                 }
             } finally {

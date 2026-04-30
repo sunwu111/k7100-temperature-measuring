@@ -353,65 +353,6 @@ public class Camera2Device extends Device {
     }
 
 
-    // 直播和拍照回调函数 拉流的时候不可以拍照，需要结合takephoto函数
-//    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
-//        @Override
-//        public void onImageAvailable(ImageReader reader) { ///////
-//            Image img = reader.acquireLatestImage();
-//            try {
-//                if (img == null || !previewReady) return;
-//
-//                mCameraParamHandler.post(() -> updateCaptureRequestParameters()); /////
-//
-//                Bitmap previewBitmap = imageDecode(img);
-//                /////
-//                if (rotate == 1) {
-//                    previewBitmap = rotate180WithCanvas(previewBitmap);
-//                }
-//                previewBitmap = preProcessingPhoto(previewBitmap); /////
-//
-//
-//                if (mCameraPhotoing) {
-//                    Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
-//                    mCameraPhtotingLock.notifyLock();
-//                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true); /////
-//                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-//
-//                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////
-//
-//                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
-//                    if (NettyUtils.isTakePhoto()) {
-//                        toolTakePhoto(previewBitmap);
-//                        NettyUtils.setTakePhoto(false);
-//                    }
-//                    if (controllerCallback != null) {
-//                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage)); /////   抓拍成功的回调
-//                    }
-//                } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
-//                    //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
-//                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-//
-//                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////     设置osd
-//
-//                    Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
-//                    procVideoHandler.removeCallbacksAndMessages(null); /////
-//                    procVideoHandler.post(() -> { /////
-//                        encode(finalPreviewBitmap); /////
-//                    });
-//                }
-//
-//                if (mOnShow && controllerCallback != null) {
-//                    controllerCallback.onFrame(previewBitmap); /////
-//                }
-//            } catch (Exception e) {
-//                Log.i(Log.TAG, "图片处理异常：" + e.getMessage());
-//            } finally {
-//                if (img != null) img.close();
-//            }
-//        }
-//    };
-
-
     // 直播和拍照回调函数  拉流的时候可以拍照，需要结合takephoto函数
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
@@ -955,7 +896,7 @@ public class Camera2Device extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, mResolution.x, mResolution.y);
+            initVideoEncoder(stream, mResolution.x, mResolution.y,true);
             /////
 
             new Timer("recordStop").schedule(new TimerTask() { /////
@@ -1078,7 +1019,7 @@ public class Camera2Device extends Device {
                 return;
             }
             { // 直播要打包成rtp包进行发包
-                initVideoEncoder(streamType, mResolution.x, mResolution.y); /////
+                initVideoEncoder(streamType, mResolution.x, mResolution.y,true); /////
                 rtph264 = new RTPH264(ssrc);
             }
             // 先开始播放，然后再对焦，提高后台出流时间

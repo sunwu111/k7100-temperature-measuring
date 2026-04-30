@@ -1908,7 +1908,7 @@ public class GUIDEDev extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, (int) sizeX, (int) sizeY); /////
+            initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
             /////
             startPreview(stream, 0);
             //startTemp(0);
@@ -2015,7 +2015,7 @@ public class GUIDEDev extends Device {
             sizeX = size.x;
             sizeY = size.y;
         }
-        initVideoEncoder(stream, (int) sizeX, (int) sizeY); /////
+        initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
         /////
         rtph264 = new RTPH264(ssrc);            // 创建RTP H264编码器
         startPreview(stream, 0);

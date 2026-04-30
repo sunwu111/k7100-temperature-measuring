@@ -1351,7 +1351,7 @@ public class IRayDev extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, (int) sizeX, (int) sizeY); /////
+            initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
             /////
             startPreview(stream);
             startTemp(0);
@@ -1457,7 +1457,7 @@ public class IRayDev extends Device {
             sizeX = size.x;
             sizeY = size.y;
         }
-        initVideoEncoder(stream, (int) sizeX, (int) sizeY); /////
+        initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
         rtph264 = new RTPH264(ssrc);
         startPreview(stream); /////
         startTemp(0);
