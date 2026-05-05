@@ -215,11 +215,14 @@ public class Camera2Device extends Device {
 //                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
                 Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(streamType)).resolution);
 
+
                 // 由于分辨率大于1920x1080无法拉流，因此设置最大的分辨率为1920x1080
                 if (size.x > 1920 || size.y > 1080) {
                     size = new Point(1920, 1080);
                 }
                 mResolution = size;
+                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
+
             }
             Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
 //            Log.i(Log.TAG, "摄像头设置分辨率为" + mResolution.x + "x" + mResolution.y);
@@ -972,6 +975,7 @@ public class Camera2Device extends Device {
         return false;
     }
 
+
     /////
     public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
         if (isOpening()) {
@@ -997,6 +1001,7 @@ public class Camera2Device extends Device {
     }
     /////
 
+
     public boolean liveStart(int stream, int ssrc) {
         if (isRecording()) {
             Log.i(Log.TAG, "拉流失败，正在录制视频");
@@ -1006,6 +1011,7 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "拉流失败，正在播放视频");
             return false;
         }
+
         scheduledHandler.post(() -> {
             Settings.VideoCodec vc = getVideoCodec(streamType);
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
@@ -1043,6 +1049,7 @@ public class Camera2Device extends Device {
 
         return true;
     }
+
 
     /**
      * 根据相机支持的预览或者图片分辨率列表，以及拍照设定的宽、高，返回最合适的Size
