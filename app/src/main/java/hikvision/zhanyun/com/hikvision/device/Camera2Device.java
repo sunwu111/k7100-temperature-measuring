@@ -382,7 +382,8 @@ public class Camera2Device extends Device {
                     mCameraPhtotingLock.notifyLock();
                     previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////
+                    drawWatermark(previewBitmap,3,streamType,true); // 先AI识别再画OSD //////
+
                     Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
                     if (NettyUtils.isTakePhoto()) {
                         toolTakePhoto(previewBitmap);
@@ -397,7 +398,7 @@ public class Camera2Device extends Device {
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
 
-                    drawWatermark(previewBitmap); // 先AI识别再画OSD //////
+                    drawWatermark(previewBitmap,3,streamType,false); // 先AI识别再画OSD //////
 
                     Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
                     procVideoHandler.removeCallbacksAndMessages(null); /////
@@ -1008,6 +1009,7 @@ public class Camera2Device extends Device {
         scheduledHandler.post(() -> {
             Settings.VideoCodec vc = getVideoCodec(streamType);
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+
             /////
 //            Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);         // 默认使用的是主码流
 

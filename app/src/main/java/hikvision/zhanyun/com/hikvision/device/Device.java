@@ -1040,7 +1040,7 @@ public abstract class Device {
 
 
 
-    protected void drawWatermark(Bitmap bitmap,int channel, int streamType, boolean isPhoto) {
+    protected void drawWatermark(Bitmap bitmap, int channel, int streamType, boolean isPhoto) {
 
 //        Log.e(Log.TAG, "MIPI设置OSD");
 
@@ -1091,16 +1091,24 @@ public abstract class Device {
             float x = leftMargin;
             float y = h - w / osd.size * 2; // 保持原有的Y坐标计算方式
             if (isPhoto){
+
+                Log.e(Log.TAG,"分辨率为" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).y + ":" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).x);
+
                 y = 470 * getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).y / 512;              // 保持原有的Y坐标计算方式   528  // osd不显示就是这个地方的问题
             }  else {
+
+                Log.e(Log.TAG,"分辨率为" + Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).y + ":" +
+                        Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).x);
+
                 y = 470 * Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).y / 512; // 保持原有的Y坐标计算方式   528  // 需要通道和码流
+
             }
 
             while (start < len) {
                 int end = paint.breakText(text, start, len, true, maxWidth, null);
                 String line = text.substring(start, start + end);
                 drawOutlineText(canvas, line, x, y, textSize);
-                y += textSize * 1.2f; // 行间距（可按需调整）
+                y += textSize * 1.2f;
                 start += end;
             }
         }
@@ -1486,7 +1494,6 @@ public abstract class Device {
             Log.i(Log.TAG, "视频帧编码异常：" + e.getMessage());
         }
     }
-    /////
 
     /*
         返回文件名中的时间戳信息
