@@ -211,7 +211,10 @@ public class Camera2Device extends Device {
             if (mCameraPhotoing) {
                 mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
             } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
-                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
+
+//                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
+                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(streamType)).resolution);
+
                 // 由于分辨率大于1920x1080无法拉流，因此设置最大的分辨率为1920x1080
                 if (size.x > 1920 || size.y > 1080) {
                     size = new Point(1920, 1080);
