@@ -1,5 +1,6 @@
 package hikvision.zhanyun.com.hikvision.device;
 
+import static hikvision.zhanyun.com.hikvision.MainActivity.channels;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
 
 import android.Manifest;
@@ -392,7 +393,9 @@ public class Camera2Device extends Device {
                 } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
+
                     drawWatermark(previewBitmap); // 先AI识别再画OSD //////
+
                     Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
                     procVideoHandler.removeCallbacksAndMessages(null); /////
                     procVideoHandler.post(() -> { /////
@@ -1000,15 +1003,16 @@ public class Camera2Device extends Device {
             return false;
         }
         scheduledHandler.post(() -> {
-            //Settings.VideoCodec vc = getVideoCodec(streamType);
-            //mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+            Settings.VideoCodec vc = getVideoCodec(streamType);
+            mResolution = Settings.VideoCodec.getResolution(vc.resolution);
             /////
-            Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
+//            Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);         // 默认使用的是主码流
+
             // 由于分辨率大于1920x1080无法拉流，因此设置最大的分辨率为1920x1080
-            if (size.x > 1920 || size.y > 1080) {
-                size = new Point(1920, 1080);
+            if (mResolution.x > 1920 || mResolution.y > 1080) {
+                mResolution = new Point(1920, 1080);
             }
-            mResolution = size;
+//            mResolution = size;
             /////
 
             Log.i(Log.TAG, "视频设置的宽高===>：" + mResolution.x + "x" + mResolution.y);

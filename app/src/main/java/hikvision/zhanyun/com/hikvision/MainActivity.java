@@ -1510,12 +1510,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
     }
 
+
     private static String aeroStatusText() {
-
-
 //        return"28.3℃36.1%%RH20.1m/s50°22.0mm1001.1hPa\n";   // 测试用例
-
-
         AeroInfo aeroInfo = aeroInfoAtomicReference.get();
 
         if (aeroInfo == null) return "";
@@ -1586,13 +1583,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
 
                 if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
-                    return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
+                    return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA %d%% 温度%3.1f℃\n%s",
                             netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                             BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                             batPrecent, temperature, Location2String(devLocation)
                     );
                 } else {
-                    return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s%s",
+                    return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA %d%% 温度%3.1f℃\n%s%s",
                             netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                             BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                             batPrecent, temperature, aeroStatusText(), Location2String(devLocation)
@@ -2174,6 +2171,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private void loadVideoCodes() {
+
+
         try {
             String json = new String(Files.readAllBytes(new File(SETTING_FILE).toPath()), "UTF-8");
 
@@ -6499,6 +6498,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public short startLiveVideo(int channel, final int streamType, int network, final int ssrc, final String server, final int port) {
 
         if (isSleepMode()){
+            Log.e(Log.TAG,"设备处于休眠模式");
             return 2;
         }
 
@@ -6535,7 +6535,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (dev.streamClient == null) {
             dev.streamClient = new SocketClient(server, port, network == 0);
-            if (!dev.streamClient.open()) return 4;  // ？？？
+            if (!dev.streamClient.open()) return 4;
         }
 
         OSD osd = settings.osds.get(String.valueOf(channel));
