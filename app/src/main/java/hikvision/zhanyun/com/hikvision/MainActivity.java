@@ -685,6 +685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 } else if (action.equals(ACTION_TIME_CHANGED)) {
                     doTimeChangedAction(context, intent);
+
                 } else if (action.equals(ACTION_PROTECT)) {
                     if (!deviceConfig.toCheck) {
                         performSoftShutdown(context);
@@ -1532,12 +1533,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     return String.format("气象仪%.1f℃ 湿度%.1f%% %.0fhPa 风速%.1fm/s\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
                 case 5:
-
                     return String.format("%.1f℃%.1f%%RH%.1fm/s%d°%.1fmm%.0fhPa\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
                 case 6:
-                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.0fhPa\n",
+                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.0fhPa\n",
+                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                            aeroInfo.WindDirection, aeroInfo.AtomosPress);
+                case 7:
+                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d°%.1fmm %.0fhPa\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
                 default:
@@ -2237,11 +2241,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
+
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
-
-        AndroidThermalMonitor.logAllThermalTemperatures();
-        startTemperatureMonitoring();
 
         SystemSettings.sleepAfter(this, 15);
 
@@ -2269,6 +2271,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.i(Log.TAG, "deviceConfig.chargeControl：" + deviceConfig.chargeControl);
             currentMode = MODE_FULL;
         }
+
+        AndroidThermalMonitor.logAllThermalTemperatures();
+        startTemperatureMonitoring();
+
 
         if (!deviceConfig.toCheck) {
             boolean useRJ45 = false;
@@ -5438,7 +5444,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel) + ":0"));
 //                ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel)+ ":0"));
 
-
                 ret4 = dev.setRecordTimes(settings.videoTimeTable);
                 if (ret1 && ret2 && ret3 && ret4) {
                     break;
@@ -5566,17 +5571,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     public void rebootSystem(final String reason) {
         saveTrafficData();
-        /////
-//        try {
-//            // 写入 shutdown.flag 标记
-//            Log.i(Log.TAG, "写入 shutdown.flag");
-//            File flagFile = new File("/mnt/sdcard/shutdown.flag");
-//            FileOutputStream fos = new FileOutputStream(flagFile);
-//            fos.write("OK".getBytes());
-//            fos.close();
-//        } catch (Exception e) {
-//            Log.i(Log.TAG, "写入 shutdown.flag 失败");
-//        }
+
         /////
         new Thread(() -> {
             Log.w(Log.TAG, "软重启系统：" + reason);
@@ -5673,30 +5668,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     @Override
     public PhotoTimeItem[] getPhotoTimeTable(int channel) {
-        /////
-//        long now = System.currentTimeMillis();
-//        // 如果存在关键图像模块故障，则直接返回 null
-//        for (FaultInfo faultInfo : settings.faultInfos) {
-//            if ((faultInfo.faultCode & 0x80) == 0 && faultInfo.functionCode == 0x04 &&
-//                    (faultInfo.faultCode == 0x01 || faultInfo.faultCode == 0x02 || faultInfo.faultCode == 0x15)) {
-//                // 如果从故障记录时间至今已超24小时，且无恢复 → 删除策略
-//                if (now - faultInfo.time.timestamp >= 86400 * 1000L) {
-//                    Log.i(Log.TAG, "图像模块存在关键故障达到一天，通道" + channel + "不提供拍照策略");
-//                    // 主动上传空的拍照策略
-//                    byte[] data = new byte[11];
-//                    data[10] = (byte) channel;
-//                    spgProtocol.doGetPhotoTimeTable(data);
-//                    return null;
-//                }
-//            }
-//        }
-//        List<PhotoTimeItem> photoTimeTable = deviceConfig.photoCheck ? settings.photoTimeTableSmart : settings.photoTimeTableLegacy;
-//
-//        PhotoTimeItem[] ret = new PhotoTimeItem[table.size()];
-//        for (int i = 0; i < table.size(); i++)
-//            ret[i] = table.get(i);
-//        return ret;
-        /////
 
         List<PhotoTimeItem> table = new ArrayList<>();
         for (PhotoTimeItem item : settings.photoTimeTable)
@@ -5741,72 +5712,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             });
         }
-//        }
-//        } else {
-//            // === 新策略逻辑 ===
-//            // 移除旧的 channel 对应的任务（临时列表中操作）
-//            List<PhotoTimeItem> newTable = new ArrayList<>();
-//            for (PhotoTimeItem item : settings.photoTimeTableSmart) {
-//                if (item.channel != channel) {
-//                    newTable.add(item);
-//                }
-//            }
-//
-//            // 添加新的任务
-//            newTable.addAll(Arrays.asList(table));
-//
-//            // 排序（适配不同主控板）
-//            if (is6735) {
-//                // Android 5.1, minSDKVersion 不支持 List.sort……，自己写冒泡排序
-//                for (int i = 0; i < newTable.size(); i++)
-//                    for (int j = 0; j < newTable.size(); j++) {
-//                        PhotoTimeItem item1 = newTable.get(i);
-//                        PhotoTimeItem item2 = newTable.get(j);
-//                        int v1 = (item1.hour << 8) | item1.min;
-//                        int v2 = (item2.hour << 8) | item2.min;
-//                        if (v1 < v2) {
-//                            newTable.set(j, item1);
-//                            newTable.set(i, item2);
-//                        }
-//                    }
-//            } else {
-//                // 升序 + preset 辅助排序
-//                newTable.sort(new Comparator<PhotoTimeItem>() {
-//                    @Override
-//                    public int compare(PhotoTimeItem o1, PhotoTimeItem o2) {
-//                        int t1 = o1.hour * 60 + o1.min;
-//                        int t2 = o2.hour * 60 + o2.min;
-//                        if (t1 != t2) return t1 - t2;
-//                        return Byte.compare(o1.preset, o2.preset);
-//                    }
-//                });
-//            }
-//
-//            // 时间冲突处理：每项错开1分钟（无论 channel）
-//            List<String> usedTimes = new ArrayList<>();
-//            for (PhotoTimeItem item : newTable) {
-//                while (true) {
-//                    String key = String.format("%02d:%02d:%02d", item.hour, item.min, item.sec);
-//                    if (!usedTimes.contains(key)) {
-//                        usedTimes.add(key);
-//                        break;
-//                    }
-//                    // 增加1分钟
-//                    item.min++;
-//                    if (item.min >= 60) {
-//                        item.min = 0;
-//                        item.hour++;
-//                        if (item.hour >= 24) {
-//                            item.hour = 0;  // 跨天归零
-//                        }
-//                    }
-//                }
-//            }
-//            // 最后将 newTable 赋值回 settings 中
-//            settings.photoTimeTableSmart = newTable;
-//        }
-        /////
-        // 保存 & 初始化
+
         boolean b = saveSettings(settings, SETTING_FILE);
         if (b) refreshPhotoSchedule();
         return b;
@@ -5880,8 +5786,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-    /////
-    // 关闭云台与红外
     private void doSleep(String reason, int load) {
         // 检测窗口
         boolean incomingDVR3 = false;
@@ -5934,7 +5838,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     }
-
 
 
     /////
@@ -6389,12 +6292,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 ////////
 
                 dev.takeVideo(fn, time, stream, upload);
-//                dev.takeVideo(fn, time, stream, upload, captureType); ///////
-                //Date now = new Date();
-                //dev.setTime(now.getYear() + 1900, now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
-//                dev.updateStatusText(getStatusText(), false); /////
-//                dev.updateStatusText(dev.osd,getStatusText(),false);
-                ////////
+
                 if (dev.type == DEVICE_DVR_AIPU) {
                     if (dev.isOldCamera) {
                         dev.updateStatusText(getStatusText(), true);
@@ -6402,17 +6300,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         dev.updateStatusText(getStatusText(), false);
                     }
                 }
-                ////////
-                DeviceExceptionManager.openSucceed(); /////
+                DeviceExceptionManager.openSucceed();
             }
 
             @Override
             public void openFailed(int errcode) {
-                DeviceExceptionManager.openFailed(); /////
+                DeviceExceptionManager.openFailed();
                 finishTask(fn);
 
-
-                // sunwu
                 if (deviceConfig.toCheck && channel == 2) {
                     applyPowerTuning();
                 }
@@ -6420,18 +6315,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         };
 
-        /////
         if (dev.isDVR()) {
             dev.open(stream, callback, DVR_BOOT_TIME, !isWorkHour());  // 这个地方打开成功调用前面的回调函数
         }
         if (dev.isCamera()) {
             dev.open(stream, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
         }
-        /////
     }
 
     private void takeVideo(VideoTimeItem item, boolean upload) {
-//    private void takeVideo(VideoTimeItem item, boolean upload, int captureType) { ///////
         final Device dev = channels.get(String.valueOf(item.channel));
         if (dev == null) {
             Log.i(Log.TAG, "录制视频失败，无设备");
@@ -6562,8 +6454,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        doSleep("服务器要求重启系统关闭云台与红外");
         utilsHandler.post(() -> {
             SystemClock.sleep(5000);
-//            doWakeup("服务器重启系统打开云台与红外");
-//            SystemClock.sleep(5000);
             rebootSystem("服务器要求重启");
         });
     }
@@ -8034,16 +7924,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     @Override
     public void takePhoto(int channel, int preset) {
-//    public void takePhoto(int channel, int preset, int captureType) { /////
         utilsHandler.post(() -> takePhoto(channel, preset, false, null, true));
-//        utilsHandler.post(()->takePhoto(channel, preset, false, null, true, false, captureType)); /////
     }
 
     /**
      * filename不为空为补拍照片
      */
     private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert) {
-//    private void takePhoto(int channel, int preset, String filename, boolean manual, boolean alert, boolean photoCheck, int captureType) { ///////
 
         if (isSleepMode()){
             Log.e(TAG,"设备处于休眠模式，不响应拍照");
@@ -8086,7 +7973,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     isIRPhotoing = true;
                     isVLPhotoing = true;
                 }
-
 
                 if (dev.type == DEVICE_DVR_HUANYU) {
                     dev.updateStatusText(dev.osd, getStatusText(), true);
@@ -8192,7 +8078,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         controllerCallback.onPhotoFailed(channel, preset, fn);
                     }
                 }
-                DeviceExceptionManager.openSucceed(); /////
+                DeviceExceptionManager.openSucceed();
             }
 
             @Override
