@@ -2208,7 +2208,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -2269,6 +2268,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (deviceConfig.chargeControl != 6){
             Log.i(Log.TAG, "deviceConfig.chargeControl：" + deviceConfig.chargeControl);
             currentMode = MODE_FULL;
+//            currentMode = MODE_WAKEUP;
         }
 
         AndroidThermalMonitor.logAllThermalTemperatures();
@@ -2371,7 +2371,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
             /////
-
 
             initProtect();
             initReboot(-1);
@@ -6320,7 +6319,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isCamera()) {
             dev.open(stream, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
         }
+
+//        dev.open(stream, callback, DVR_BOOT_TIME, false);
     }
+
 
     private void takeVideo(VideoTimeItem item, boolean upload) {
         final Device dev = channels.get(String.valueOf(item.channel));
@@ -6402,6 +6404,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             dev.open(item.stream, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
         }
         /////
+
+//        dev.open(item.stream, callback, DVR_BOOT_TIME, false);
+
     }
 
 //    @Override

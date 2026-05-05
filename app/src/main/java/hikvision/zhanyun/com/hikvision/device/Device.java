@@ -1091,11 +1091,11 @@ public abstract class Device {
             float x = leftMargin;
             float y = h - w / osd.size * 2; // 保持原有的Y坐标计算方式
             if (isPhoto){
-                Log.e(Log.TAG,"drawWatermark:分辨率为:" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).y + ":" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).x);
+//                Log.e(Log.TAG,"drawWatermark:分辨率为:" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).y + ":" + getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).x);
                 y = 470 * getImageSize(settings.photoConfig.get(String.valueOf(channel)).size).y / 512;              // 保持原有的Y坐标计算方式   528  // osd不显示就是这个地方的问题
             }  else {
-                Log.e(Log.TAG,"drawWatermark:分辨率为:" + Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).y + ":" +
-                        Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).x);
+//                Log.e(Log.TAG,"drawWatermark:分辨率为:" + Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).y + ":" +
+//                        Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).x);
                 y = 470 * Settings.VideoCodec.getResolution(settings.videoCodecs.get(String.format("%d:%d", channel,streamType)).resolution).y / 512; // 保持原有的Y坐标计算方式   528  // 需要通道和码流
             }
 

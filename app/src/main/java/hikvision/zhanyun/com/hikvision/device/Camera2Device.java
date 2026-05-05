@@ -221,7 +221,7 @@ public class Camera2Device extends Device {
                     size = new Point(1920, 1080);
                 }
                 mResolution = size;
-                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
+//                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
 
             }
             Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
