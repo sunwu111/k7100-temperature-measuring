@@ -6514,7 +6514,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isLiving()) return 1; /////
 
         cpuLock();
-        finishTask(TaskManager.Task.Living.toString()); /////
+
+//        finishTask(TaskManager.Task.Living.toString()); /////
+
+        TaskManager.add(TaskManager.Task.Living.toString());
+
+
         /////
         if (dev.isDVR()) {
             if (dev.isUSB()) {
@@ -6528,6 +6533,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isLiving() && ssrc != dev.ssrcLive) {
             stopLiveVideo(channel, streamType, dev.ssrcLive);
         }
+
         /////
         if (dev.isCamera()) {
             if (dev.isLiving()) return 1;
@@ -6568,7 +6574,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 showMsg("直播预览：" + (ret ? "成功" : "失败"));
                 if (!ret) {
-                    finishTask(TaskManager.Task.Living.toString()); /////
+                    finishTask(TaskManager.Task.Living.toString());
                     return;
                 }
                 //Date now = new Date();
@@ -6795,10 +6801,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             // 在打开球机的过程中允许停止
             if (dev != null && !dev.isRecording()) {
                 dev.liveStop();
+
+                Log.e(Log.TAG,"isLiving()"+dev.isLiving());
+                Log.e(Log.TAG,"dev.streamClient"+dev.streamClient);
+
                 if (dev.streamClient != null) {
                     dev.streamClient.close();
                     dev.streamClient = null;
                 }
+
                 /////
                 if (dev.isDVR()) {
                     if (dev.isUSB()) {
@@ -9032,24 +9043,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         public static synchronized void add(String task) {
             if (!taskList.contains(task)) taskList.add(task);
-/*            if (DEBUG) {
-                Log.i(Log.TAG, "+++++++++++++++++++++++++++++++++++++加入任务：" + task);
-                for (String itemTask : taskList) {
-                    Log.i(Log.TAG, "@@任务列表：" + itemTask);
-                }
-                Log.i(Log.TAG, "\n");
-            }*/
+
         }
 
         public static synchronized void remove(String task) {
             taskList.remove(task);
-/*            if (DEBUG) {
-                Log.i(Log.TAG, "-------------------------------------------移除任务：" + task);
-                for (String itemTask : taskList) {
-                    Log.i(Log.TAG, "@@任务列表：" + itemTask);
-                }
-                Log.i(Log.TAG, "\n");
-            }*/
         }
 
         public static synchronized boolean contain(String task) {
@@ -9061,12 +9059,44 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         private enum Task {
-            Living, /////
+            Living,
             Playback,
             SetRTC
         }
     }
-    ////////
+
+
+//    private static class TaskManager {
+//        private static final Map<String, Integer> taskCount = new HashMap<>();
+//
+//        public static synchronized void add(String task) {
+//            taskCount.put(task, taskCount.getOrDefault(task, 0) + 1);
+//        }
+//
+//        public static synchronized void remove(String task) {
+//            int count = taskCount.getOrDefault(task, 0);
+//            if (count > 1) {
+//                taskCount.put(task, count - 1);
+//            } else {
+//                taskCount.remove(task);
+//            }
+//        }
+//
+//        public static synchronized boolean contain(String task) {
+//            return taskCount.containsKey(task);
+//        }
+//
+//        public static synchronized boolean empty() {
+//            return taskCount.isEmpty();
+//        }
+//
+//        private enum Task {
+//            Living,
+//            Playback,
+//            SetRTC
+//        }
+//    }
+
 
     /////
     private static class DeviceExceptionManager {

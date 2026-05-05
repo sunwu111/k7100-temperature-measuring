@@ -91,8 +91,6 @@ public class SocketClient {
 //    }
 
 
-
-
     private int connectFailCount = 0;
     private static final int MAX_FAIL_LOG_COUNT = 5;
     private boolean hasReachedMaxLog = false;

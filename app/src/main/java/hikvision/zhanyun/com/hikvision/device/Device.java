@@ -465,6 +465,7 @@ public abstract class Device {
 
 
     public enum DevState { READY, OPENING, OPENED, LIVING, PHOTOING, RECORDING, PLAYBACKING }
+
     private Set<DevState> state = EnumSet.noneOf(DevState.class);
 
     protected void setState(DevState state) { this.state.add(state); }
