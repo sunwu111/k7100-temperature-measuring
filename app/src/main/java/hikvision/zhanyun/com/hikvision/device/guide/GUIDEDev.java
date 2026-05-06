@@ -1326,12 +1326,41 @@ public class GUIDEDev extends Device {
 //        Rect rect = new Rect(x1, y1, x2, y2);
 //        canvas.drawBitmap(tracker, null, rect, null);
 
+//        Bitmap tracker = BitmapFactory.decodeResource(context.getResources(), R.drawable.target);
+//        int x1 = result.maxTemperaturePixel.x >= 10 ? (int) ((result.maxTemperaturePixel.x - 10) * sizeX / CAMERA_RESOLUTION_W) : (int) (result.maxTemperaturePixel.x * sizeX / CAMERA_RESOLUTION_W);
+//        int y1 = result.maxTemperaturePixel.y >= 10 ? (int) ((result.maxTemperaturePixel.y - 10) * sizeY / CAMERA_RESOLUTION_H) : (int) (result.maxTemperaturePixel.y * sizeY / CAMERA_RESOLUTION_H);
+//        int x2 = result.maxTemperaturePixel.x < (CAMERA_RESOLUTION_W - 10) ? (int) ((result.maxTemperaturePixel.x + 10) * sizeX / CAMERA_RESOLUTION_W) : (int) (result.maxTemperaturePixel.x * sizeX / CAMERA_RESOLUTION_W);
+//        int y2 = result.maxTemperaturePixel.y < (CAMERA_RESOLUTION_H - 10) ? (int) ((result.maxTemperaturePixel.y + 10) * sizeY / CAMERA_RESOLUTION_H) : (int) (result.maxTemperaturePixel.y * sizeY / CAMERA_RESOLUTION_H);
+//        Rect rect = new Rect(x1, y1, x2, y2);
+//        canvas.drawBitmap(tracker, null, rect, null);
+
+
         Bitmap tracker = BitmapFactory.decodeResource(context.getResources(), R.drawable.target);
         int x1 = result.maxTemperaturePixel.x >= 10 ? (int) ((result.maxTemperaturePixel.x - 10) * sizeX / CAMERA_RESOLUTION_W) : (int) (result.maxTemperaturePixel.x * sizeX / CAMERA_RESOLUTION_W);
         int y1 = result.maxTemperaturePixel.y >= 10 ? (int) ((result.maxTemperaturePixel.y - 10) * sizeY / CAMERA_RESOLUTION_H) : (int) (result.maxTemperaturePixel.y * sizeY / CAMERA_RESOLUTION_H);
         int x2 = result.maxTemperaturePixel.x < (CAMERA_RESOLUTION_W - 10) ? (int) ((result.maxTemperaturePixel.x + 10) * sizeX / CAMERA_RESOLUTION_W) : (int) (result.maxTemperaturePixel.x * sizeX / CAMERA_RESOLUTION_W);
         int y2 = result.maxTemperaturePixel.y < (CAMERA_RESOLUTION_H - 10) ? (int) ((result.maxTemperaturePixel.y + 10) * sizeY / CAMERA_RESOLUTION_H) : (int) (result.maxTemperaturePixel.y * sizeY / CAMERA_RESOLUTION_H);
+
+
+        double midX = (x1 + x2) / 2.0;
+        double midY = (y1 + y2) / 2.0;
+
+        double halfDx = (x2 - x1) / 2.0;
+        double halfDy = (y2 - y1) / 2.0;
+
+        double newHalfDx = halfDx / 2.0;
+        double newHalfDy = halfDy / 2.0;
+
+        int newX1 = (int) Math.round(midX - newHalfDx);
+        int newY1 = (int) Math.round(midY - newHalfDy);
+        int newX2 = (int) Math.round(midX + newHalfDx);
+        int newY2 = (int) Math.round(midY + newHalfDy);
+
         Rect rect = new Rect(x1, y1, x2, y2);
+        if (CAMERA_RESOLUTION_W == 384){
+            rect = new Rect(newX1, newY1, newX2, newY2);
+        }
+
         canvas.drawBitmap(tracker, null, rect, null);
 
     }
@@ -1612,15 +1641,44 @@ public class GUIDEDev extends Device {
 //                canvas.drawBitmap(tracker, null, rect, null);
 //            }
 
+//            if (sensorConfig.hotTracker == 1) {
+//                Bitmap tracker = BitmapFactory.decodeResource(context.getResources(), R.drawable.target);
+//                int x1 = maxTemperaturePixelX >= 17.5 ? (int) ((maxTemperaturePixelX - 17.5) * (float) totalWidth / (CAMERA_RESOLUTION_W * 3)) : (int) (maxTemperaturePixelX * (float) totalWidth / (CAMERA_RESOLUTION_W * 3));  // 微调：17.5
+//                int y1 = maxTemperaturePixelY >= 10 ? (int) ((maxTemperaturePixelY - 10) * (float) sizeY / CAMERA_RESOLUTION_H) : (int) (maxTemperaturePixelY * (float) sizeY / CAMERA_RESOLUTION_H);
+//                int x2 = maxTemperaturePixelX < (CAMERA_RESOLUTION_W - 17.5) ? (int) ((maxTemperaturePixelX + 17.5) * (float) totalWidth / (CAMERA_RESOLUTION_W * 3)) : (int) (maxTemperaturePixelX * (float) totalWidth / (CAMERA_RESOLUTION_W * 3));  // 微调：17.5
+//                int y2 = maxTemperaturePixelY < (CAMERA_RESOLUTION_H - 10) ? (int) ((maxTemperaturePixelY + 10) * (float) sizeY / CAMERA_RESOLUTION_H) : (int) (maxTemperaturePixelY * (float) sizeY / CAMERA_RESOLUTION_H);
+//                Rect rect = new Rect(x1, y1, x2, y2);
+//                canvas.drawBitmap(tracker, null, rect, null);
+//            }
             if (sensorConfig.hotTracker == 1) {
                 Bitmap tracker = BitmapFactory.decodeResource(context.getResources(), R.drawable.target);
                 int x1 = maxTemperaturePixelX >= 17.5 ? (int) ((maxTemperaturePixelX - 17.5) * (float) totalWidth / (CAMERA_RESOLUTION_W * 3)) : (int) (maxTemperaturePixelX * (float) totalWidth / (CAMERA_RESOLUTION_W * 3));  // 微调：17.5
                 int y1 = maxTemperaturePixelY >= 10 ? (int) ((maxTemperaturePixelY - 10) * (float) sizeY / CAMERA_RESOLUTION_H) : (int) (maxTemperaturePixelY * (float) sizeY / CAMERA_RESOLUTION_H);
                 int x2 = maxTemperaturePixelX < (CAMERA_RESOLUTION_W - 17.5) ? (int) ((maxTemperaturePixelX + 17.5) * (float) totalWidth / (CAMERA_RESOLUTION_W * 3)) : (int) (maxTemperaturePixelX * (float) totalWidth / (CAMERA_RESOLUTION_W * 3));  // 微调：17.5
                 int y2 = maxTemperaturePixelY < (CAMERA_RESOLUTION_H - 10) ? (int) ((maxTemperaturePixelY + 10) * (float) sizeY / CAMERA_RESOLUTION_H) : (int) (maxTemperaturePixelY * (float) sizeY / CAMERA_RESOLUTION_H);
+
+                double midX = (x1 + x2) / 2.0;
+                double midY = (y1 + y2) / 2.0;
+
+                double halfDx = (x2 - x1) / 2.0;
+                double halfDy = (y2 - y1) / 2.0;
+
+                double newHalfDx = halfDx / 2.0;
+                double newHalfDy = halfDy / 2.0;
+
+                int newX1 = (int) Math.round(midX - newHalfDx);
+                int newY1 = (int) Math.round(midY - newHalfDy);
+                int newX2 = (int) Math.round(midX + newHalfDx);
+                int newY2 = (int) Math.round(midY + newHalfDy);
+
                 Rect rect = new Rect(x1, y1, x2, y2);
+                if (CAMERA_RESOLUTION_W == 384){
+                    rect = new Rect(newX1, newY1, newX2, newY2);
+                }
                 canvas.drawBitmap(tracker, null, rect, null);
             }
+
+
             if (irOverProtect.getMode() == Protection) {
                 stitchBitmap = drawProtection(stitchBitmap);
             }

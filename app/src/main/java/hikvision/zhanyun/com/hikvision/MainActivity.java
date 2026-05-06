@@ -920,6 +920,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private void loadPowerStateFromFile() {
         File file = new File(STATE_FILE);
         if (!file.exists()) {
@@ -1076,7 +1077,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     ControllerCallback controllerCallback = new ControllerCallback() {
         private final int PHOTO_MAX_RETRY = 3;
         private ConcurrentHashMap<String, Integer> photoFailerMap = new ConcurrentHashMap<>();
-
 
         @Override
         public void onPhotoTaked(long timestamp, int channel, int preset, String file) {
@@ -1663,19 +1663,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
-    ///// 温度检测
-    public static float readCpuTemp() {
-        try {
-            BufferedReader br = new BufferedReader(
-                    new FileReader("/sys/class/thermal/thermal_zone0/temp")
-            );
-            String line = br.readLine();
-            br.close();
-            return Float.parseFloat(line) / 1000.0f; // 通常是毫度
-        } catch (Exception e) {
-            return -1;
-        }
-    }
 
     public static long getMonthTraffic() {
         // 程序启动的时候读取保存的本月基准流量，然后只要不重启，应该总是保存启动时的值 + 本次启动后的发送/接收总流量并保存
@@ -1740,14 +1727,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
     /////
-
-    private static int timeStrToSec(String time) {
-        String[] parts = time.split(":");
-        int h = Integer.parseInt(parts[0]);
-        int m = Integer.parseInt(parts[1]);
-        int s = Integer.parseInt(parts[2]);
-        return h * 3600 + m * 60 + s;
-    }
 
     private static int convertToSeconds(byte hour, byte min, byte sec) {
         return hour * 3600 + min * 60 + sec;
@@ -1820,13 +1799,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return adjustedList;
     }
 
+
     private static int getBatPercent() {
         if (Math.abs(amplerHours) < 0.001) return 0;
 
         return (amplerHours > 0 && batteryCapability > 0 && amplerHours < batteryCapability)
                 ? Math.round((amplerHours * 100 / batteryCapability)) : 100;
     }
-
 
 
     private static void powerControlNVR(final boolean powerOn, int load) {
@@ -2102,6 +2081,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.i(Log.TAG, "BDS初始化成功");
     }
 
+
     private void getBatteryCapability() {
         for (int i = 0; i < 3; i++)
             if (batteryCapability < 0) {
@@ -2320,7 +2300,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         initView();
         initCore();
 
-
         new Thread(() -> {
             wifiInit();
 
@@ -2456,6 +2435,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         });
     }
 
+
     public String buildNumericSsidFromDeviceId(String deviceId) {
         String suffix4 = last4Digits(deviceId);
         String uniqueInput = DOMAIN + deviceId;
@@ -2463,7 +2443,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         String prefixStr = pad(prefix, PREFIX_LEN);
         return prefixStr + suffix4;
     }
-    /////
+
 
     private long hmacToDigits(String input, int len) {
         try {
@@ -2486,6 +2466,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private String last4Digits(String s) {
         String digits = s.replaceAll("\\D", "");
         if (digits.length() >= 4) {
@@ -2493,6 +2474,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         return pad(Long.parseLong(digits), 4);
     }
+
 
     private String pad(long v, int len) {
         String s = Long.toString(v);
@@ -2502,6 +2484,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         sb.append(s);
         return sb.toString();
     }
+
 
     // 该函数获取不到卡号里有字母的完整卡号，android的通病
     @Override
@@ -2765,7 +2748,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
-
     /////
     private boolean hasAudioPermission(Context ctx) {
         return ctx.checkCallingOrSelfPermission(
@@ -2912,6 +2894,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }).start();
     }
 
+
     private void initProtocol() {
         if (spgProtocol != null) return;
 
@@ -3020,7 +3003,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     // 定时唤醒设备的任务
     // 提前 3 分钟唤醒可见光机芯、提前 10 分钟唤醒红外机芯
-    private void wakeupTask(String time, long msecPeriod, int i, String source, int channel) { /////
+    private void wakeupTask(String time, long msecPeriod, int i, String source, int channel) {
         /////
         Device dev = channels.get(String.valueOf(channel));
         if (dev.isDVR()) {
