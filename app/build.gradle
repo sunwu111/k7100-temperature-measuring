@@ -31,7 +31,8 @@ android {
         applicationId "hikvision.zhanyun.com.hikvision"
         minSdkVersion 28
         versionCode 1
-        versionName "1.0.1.0.22"
+        versionName "1.0.1.0.23"
+//        versionName "1.0.1.0.23--sleep"
 
         renderscriptTargetApi 18
         renderscriptSupportModeEnabled true

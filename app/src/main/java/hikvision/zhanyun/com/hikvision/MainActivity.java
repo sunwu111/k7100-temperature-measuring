@@ -353,7 +353,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
-    
+
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -654,6 +654,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
+//                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
+//                    batVoltage = 13.0F; // 唤醒
+//                    batVoltage = 12.7F; // 休眠
+
 
                     int oldMode = currentMode;
                     handlePowerModeByVoltage(batVoltage);
@@ -1824,6 +1828,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
+
     private static void powerControlNVR(final boolean powerOn, int load) {
         /////
         if (deviceConfig.chargeControl <= 1) return;
@@ -1858,9 +1863,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             }
                         }
                     }
-                    ////////
                 }
-                ///////
             }
         } else if (deviceConfig.chargeControl >= 6) {
             if (powerOn) {
@@ -2249,12 +2252,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         SystemSettings.sleepAfter(this, 15);
 
-        float cpuTemp = readCpuTemp();
-        if (cpuTemp >= 0) {
-            Log.e(Log.TAG, "CPU温度: " + cpuTemp + "°C");
-        } else {
-            Log.e(Log.TAG, "无法读取CPU温度");
-        }
 
         SystemSettings.airplaneOff(this);
         // 打开BDS定位 ////////
@@ -4979,15 +4976,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doAeroInfoAction(Intent intent) {
         AeroInfo aeroInfo = new AeroInfo();
-        if (deviceConfig.aeroDevice == 6){
+        if (deviceConfig.aeroDevice == 6 || deviceConfig.aeroDevice == 7){
             float[] data = intent.getFloatArrayExtra("aeroinfo");
             aeroInfo.Temp = data[0];              // 温度
             aeroInfo.Humidity = data[1];          // 湿度
             aeroInfo.AtomosPress = data[2];       // 气压
             aeroInfo.WindDirection = (int) data[6];  // 风向
-            aeroInfo.RainFall = data[7];             // 雨量
-            aeroInfo.WindSpeed = data[3];         // 瞬时风速
 
+            aeroInfo.RainFall = data[7];             // 雨量
+
+            if (deviceConfig.aeroDevice == 7){
+                aeroInfo.RainFall = -999;
+            }
+
+            aeroInfo.WindSpeed = data[3];         // 瞬时风速
 //            aeroInfo.WindSpeedByMin = data[4];    // 2分钟
             aeroInfo.WindSpeedBy10Min = data[5];  // 10分钟
 
@@ -5026,7 +5028,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         //// 这个地方对微气象的日照数据进行判断
-
         aeroInfoAtomicReference.set(aeroInfo);
         spgProtocol.doReportAero(aeroInfo);
     }
@@ -5153,7 +5154,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (isPhotoingSafe(3)) {
                 if (!DEBUG) {
                     if (offLineRecode.getRecordGap() < PERIOD_HOUR * 2) {           // 若累计离线时间达到或超过2小时，
-                        Log.i(Log.TAG, "心跳超时，重启apk");
+                        Log.i(Log.TAG, "心跳超时，重启安卓系统");
     //                        restartApplication(this, 5);
                         rebootSystem("心跳超时"); // sunwu
                     } else {
@@ -6428,6 +6429,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     @Override
     public short startShortVideo(final int channel, final int stream, final int time) {
+
+        if(isSleepMode()){
+            Log.e(Log.TAG,"设备处于休眠模式");
+            return 2;  // 没电，不做响应
+        }
+
         final Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return 3;
 
