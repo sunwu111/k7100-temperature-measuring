@@ -124,7 +124,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
 //    private final long MIN_BOOTUP_MILISECONDS = 120 * PERIOD_SECOND;
     private final long MIN_BOOTUP_MILISECONDS = 40 * PERIOD_SECOND;
-    private final long AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS = 30 * PERIOD_SECOND;
+    private final long AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS = 20 * PERIOD_SECOND;
 
 
     private Pattern pattern = Pattern.compile(":\\/\\/");

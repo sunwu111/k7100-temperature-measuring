@@ -655,7 +655,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-//                    batVoltage = 13.0F; // 唤醒
+                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -7894,7 +7894,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }, presetResetToken, 0);
                 }
             } else {
-                if (!isWorkHour() && !irPreheatActive) { // ？？？
+                if (!isWorkHour() && !irPreheatActive) {
                     dev.close();
                     doSleep(reason, 2);
                 } else {
@@ -8806,7 +8806,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         else if (deviceConfig.aeroDevice == 5) /////
 //            s = RS485Impl.Instance().getAeroInfo(79); /////
             s = RS485Impl.Instance().getAeroInfo(90); /////
-        else if (deviceConfig.aeroDevice == 6 && deviceConfig.chargeControl == 6){
+        else if ((deviceConfig.aeroDevice == 6 || deviceConfig.aeroDevice == 7) && deviceConfig.chargeControl == 6){
             s = RS485Impl.Instance().getAeroInfo4(); /////
         }else {
             s = RS485Impl.Instance().getAeroInfo4WithoutHNJD();
@@ -8817,7 +8817,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         Intent myint = new Intent(AEROINFO_ACTION);
 
-        if(deviceConfig.aeroDevice == 6){
+        if(deviceConfig.aeroDevice == 6 || deviceConfig.aeroDevice == 7){
             if (deviceConfig.chargeControl == 6){
                 myint.putExtra("aeroinfo", RS485Impl.Instance().getAeroInfo4Arry());
                 sendBroadcast(myint);
