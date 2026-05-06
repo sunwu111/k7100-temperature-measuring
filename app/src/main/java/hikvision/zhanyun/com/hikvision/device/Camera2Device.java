@@ -613,13 +613,18 @@ public class Camera2Device extends Device {
         }
     }
 
-    private void lockFocus(int timeoutMilsec, int captureMode) { /////
+    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////
         try {
             //Log.i(Log.TAG, "开始自动对焦");
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
 
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+            if (isRecordVideo){
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+
+            }else {
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+            }
 
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); /////
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
@@ -868,23 +873,24 @@ public class Camera2Device extends Device {
         return true;
     }
 
-    @Override
+    @Override   // 录制短视频使用配置文件中的分辨率和I帧间隔
     public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try {
-//            if (open(stream) != true) {
-//                controllerCallback.onVideoFailed(id, filename);
-//                return false;
-//            }
+
             Settings.VideoCodec vc = getVideoCodec(stream); /////
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+
+            Log.e(Log.TAG,"录制视频"+ vc.frame + ":" + vc.iFrame);
+
             if (is6735) {
-                // 6735通过camera2接口只能设置为1280*720，更大分辨率设置无效
                 mResolution = new Point(1280, 720);
             }
+
             createPreviewSession(mResolution.x, mResolution.y, true);
+
             {
                 // 对焦最大超时10秒
-                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
                 // 状态设置为录像
                 mState = STATE_VIDEO_RECORDING;
             }
@@ -906,7 +912,7 @@ public class Camera2Device extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, mResolution.x, mResolution.y,true);
+            initVideoEncoder(stream, mResolution.x, mResolution.y, false);   // 录制短视频使用配置文件中的分辨率和I帧间隔
             /////
 
             new Timer("recordStop").schedule(new TimerTask() { /////
@@ -1041,7 +1047,7 @@ public class Camera2Device extends Device {
             mOnShow = true;
             previewReady = true;
             setState(DevState.LIVING);
-            lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+            lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,false,null);
             mState = STATE_VIDEO_LIVING;
 
             Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc);
@@ -1139,7 +1145,7 @@ public class Camera2Device extends Device {
                 mFileImage = filename;
                 mFilePreset = preset;
                 {
-                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
                     mState = STATE_PICTURE_TAKING;
                 }
 

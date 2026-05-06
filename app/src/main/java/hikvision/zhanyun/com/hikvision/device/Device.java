@@ -576,8 +576,6 @@ public abstract class Device {
         if (isRecording()) return false;
         if (isLiving()) liveStop();
 
-
-
         videoStart(stream, filename, duration, upload);
 
         return true;
@@ -2075,7 +2073,9 @@ public abstract class Device {
     protected void initVideoEncoder(int stream, int w, int h, boolean MIPIMark) { /////
         try {
             mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+
             mediaCodec.configure(createVideoEncodecMediaFormat(stream, w, h, MIPIMark), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+
             Log.i(Log.TAG, "视频编码器初始化格式：" + mediaCodec.getOutputFormat());
 
             mediaCodec.start();
@@ -2084,6 +2084,7 @@ public abstract class Device {
             Log.e(Log.TAG, "初始化视频编码器错误：" + e.getMessage());
         }
     }
+
 
     protected void uninitVideoEncoder() { /////
         Log.d(Log.TAG, "清理视频编码器"); /////
