@@ -6802,9 +6802,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (dev != null && !dev.isRecording()) {
                 dev.liveStop();
 
-                Log.e(Log.TAG,"isLiving()"+dev.isLiving());
-                Log.e(Log.TAG,"dev.streamClient"+dev.streamClient);
-
                 if (dev.streamClient != null) {
                     dev.streamClient.close();
                     dev.streamClient = null;
@@ -6818,7 +6815,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         sleepDevice(channel, "可见光停止直播");
                     }
                 }
-                /////
             }
             releaseDecoder();
             finishTask(TaskManager.Task.Living.toString());
@@ -9064,38 +9060,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             SetRTC
         }
     }
-
-
-//    private static class TaskManager {
-//        private static final Map<String, Integer> taskCount = new HashMap<>();
-//
-//        public static synchronized void add(String task) {
-//            taskCount.put(task, taskCount.getOrDefault(task, 0) + 1);
-//        }
-//
-//        public static synchronized void remove(String task) {
-//            int count = taskCount.getOrDefault(task, 0);
-//            if (count > 1) {
-//                taskCount.put(task, count - 1);
-//            } else {
-//                taskCount.remove(task);
-//            }
-//        }
-//
-//        public static synchronized boolean contain(String task) {
-//            return taskCount.containsKey(task);
-//        }
-//
-//        public static synchronized boolean empty() {
-//            return taskCount.isEmpty();
-//        }
-//
-//        private enum Task {
-//            Living,
-//            Playback,
-//            SetRTC
-//        }
-//    }
 
 
     /////
