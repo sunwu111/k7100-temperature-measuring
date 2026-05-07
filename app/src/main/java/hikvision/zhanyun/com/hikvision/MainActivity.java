@@ -5472,7 +5472,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 定时巡检动作
     private void doCheckLineAction(Intent intent) {
         int index = intent.getIntExtra("index", 0);
-        List<CheckScheduleItem> items = settings.checkSchedule.get("1");  // ？？？
+        List<CheckScheduleItem> items = settings.checkSchedule.get("1");
 
         if (index >= items.size() || index < 0) return;
 
@@ -7129,7 +7129,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         } else if (osd.text != null && osd.text.startsWith("双光融合")) {
             /////
-        } else if (osd.text != null && osd.text.startsWith("工作时间")) {
+        } else if (osd.text != null && osd.text.startsWith("通道三帧率:")){
+            Log.i(Log.TAG, "设置通道三帧率");
+            for (int i = 0; i < 3; i++) {
+                if (device.setOSD(osd, false) == true) break;
+            }
+        }
+        else if (osd.text != null && osd.text.startsWith("工作时间")) {
             Log.i(Log.TAG, "设置工作时间参数");
             try {
                 // 提取参数部分并分割

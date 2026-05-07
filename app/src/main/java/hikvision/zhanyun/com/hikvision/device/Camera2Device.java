@@ -972,7 +972,41 @@ public class Camera2Device extends Device {
         return true;
     }
 
-    public boolean setOSD(Settings.OSD osd, boolean osdNull) { /////
+
+
+    private int channelFrameRate; // 帧率
+    private int channelIFrameInterval; // I帧间隔
+
+    public boolean setOSD(Settings.OSD osd, boolean osdNull) {
+        if (osd == null || osd.text == null) {
+            return false;
+        }
+
+        if (osd.text.startsWith("通道三帧率:")) {
+            String data = osd.text.substring("通道三帧率:".length()).trim();
+            String[] parts = data.split("\\s+");
+            if (parts.length >= 2) {
+                try {
+                    int frameRate = Integer.parseInt(parts[0]);
+                    int iFrameInterval = Integer.parseInt(parts[1]);
+
+                    if (frameRate > 0 && iFrameInterval >= 0) {
+                        channelFrameRate = frameRate;
+                        channelIFrameInterval = iFrameInterval;
+
+                        Log.d(Log.TAG, String.format("channelFrameRate=%d, channelIFrameInterval=%d", frameRate, iFrameInterval));
+                        return true;
+                    }
+                } catch (NumberFormatException e) {
+                    Log.e(Log.TAG,e.getMessage());
+                    return false;
+                }
+            }
+            return false;
+        }
+
+
+        // 其他的就正常设置osd
         this.osd = osd;
         return true;
     }
