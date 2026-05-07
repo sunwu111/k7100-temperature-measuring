@@ -329,10 +329,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static HandlerThread sendThread = new HandlerThread("命令发送"); // 专用数据发送线程
     private static HandlerThread uploadThread = new HandlerThread("文件上传"); // 专用数据发送线程
     private static HandlerThread serialThread = new HandlerThread("串口线程"); // 串口读写专用线程
+
+    private static HandlerThread gimbalPowerThread = new HandlerThread("云台上下电"); // 串口读写专用线程
+
+
     private static Handler utilsHandler;
     private static Handler sendHandler;
     private static Handler uploadHandler;
     private static Handler serialHandler;
+    private static Handler gimbalPowerHandler;
+
     private static Handler delayHandler = new Handler();
     private static AtomicBoolean powerClockSynced = new AtomicBoolean(false); // 供电板时钟同步标识
     private static WifiAP wifiAP;
@@ -544,7 +550,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                     Utils.scheduleTask(new TimerTask() {
                                         @Override
                                         public void run() {
-                                            serialHandler.post(() -> powerControlNVR(false, 3));
+                                            gimbalPowerHandler.post(() -> powerControlNVR(false, 3));
                                         }
                                     }, 600 * 1000);
                                 }
@@ -555,7 +561,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 Utils.scheduleTask(new TimerTask() {
                                     @Override
                                     public void run() {
-                                        serialHandler.post(() -> powerControlNVR(false, 2));
+                                        gimbalPowerHandler.post(() -> powerControlNVR(false, 2));
                                     }
                                 }, 600 * 1000);
                             }
@@ -596,7 +602,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         int recordAction = intent.getByteExtra("action", (byte) 0);
                         int recordPara = intent.getByteExtra("para", (byte) 0);
 //                    doWakeup("定时开启所有云台与红外", 23);
-                        serialHandler.postDelayed(() -> {
+                        gimbalPowerHandler.postDelayed(() -> {
                             if (recordAction == 0) {  // 调用预置位
                                 runMove(2, recordChannel, recordPara);
                             } else if (recordAction == 1) {  // 调用巡航
@@ -655,7 +661,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-                    batVoltage = 13.0F; // 唤醒
+//                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -1008,7 +1014,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     int recordPara = item.para;
                     if (sleeping) {
                         doWakeup("开启云台与红外", -1);
-                        serialHandler.postDelayed(() -> {
+                        gimbalPowerHandler.postDelayed(() -> {
                             if (recordAction == 0) {  // 调用预置位
                                 runMove(2, recordChannel, recordPara);
                             } else if (recordAction == 1) {  // 调用巡航
@@ -1851,6 +1857,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     for (int i = 0; i < 3; i++) {
                         boolean errcode = RS485Impl.Instance().gpioOpenLoad2();
                         Log.i(Log.TAG, String.format("云台上电%s", errcode ? "成功" : "失败"));
+                        Log.e(Log.TAG,"5555555");
                         if (errcode) {
                             sleeping = false;
                             break;
@@ -1904,6 +1911,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         Log.i(Log.TAG, String.format("云台下电%s", errcode ? "成功" : "失败"));
                         if (errcode) {
                             sleeping = true;
+                            Log.i(Log.TAG, "66666666666");
                             break;
                         }
                     }
@@ -2212,10 +2220,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         uploadThread.start();
         serialThread.start();
 
+        gimbalPowerThread.start();
+
         if (utilsHandler == null) utilsHandler = new Handler(utilsThread.getLooper());
         if (sendHandler == null) sendHandler = new Handler(sendThread.getLooper());
         if (uploadHandler == null) uploadHandler = new Handler(uploadThread.getLooper());
         if (serialHandler == null) serialHandler = new Handler(serialThread.getLooper());
+
+        if (gimbalPowerHandler == null) gimbalPowerHandler = new Handler(gimbalPowerThread.getLooper());
+
+
         verifyStoragePermissions(this);  // 磁盘存储权限检查，没权限会弹出请求
         setSystemAutoTime(false);            // 启动时设置系统时间自动同步，防止重启后系统不会同步时间，确保时间先和网络同步
 
@@ -2312,12 +2326,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.i(Log.TAG, "供电板版本：" + RS485Impl.Instance().getVersion());
                 loadCloseTime = "23:58:30";  // 三路板每天开安卓板时刻
             } else if (deviceConfig.chargeControl >= 6) {
-                serialHandler.post(() -> powerControlNVR(isWorkHour(), 2));  // 开启云台
+                gimbalPowerHandler.post(() -> powerControlNVR(isWorkHour(), 2));  // 开启云台
                 SystemClock.sleep(3000);
                 if (!deviceConfig.toCheck) {
-                    serialHandler.post(() -> powerControlNVR(isWorkHour(), 3));  // 开启红外
+                    gimbalPowerHandler.post(() -> powerControlNVR(isWorkHour(), 3));  // 开启红外
                 } else {
-                    serialHandler.post(() -> powerControlNVR(false, 3));  // 关闭红外
+                    gimbalPowerHandler.post(() -> powerControlNVR(false, 3));  // 关闭红外
                 }
                 if (deviceConfig.chargeControl == 6) {
                     String[] devInfo = RS485Impl.Instance().getDevInfo();
@@ -2423,7 +2437,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void moveRecordPreset() {
         if (!isWorkHour()) {
-            Log.e(Log.TAG, "设备不在工作状态");
+            Log.e(Log.TAG, "moveRecordPreset：设备不在工作状态");
             return;
         }
 
@@ -5745,11 +5759,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
+        Log.e(Log.TAG,"2222");
         if (load == 2 || load == 23) {
             for (Device dev : channels.values()) {
                 if (dev.isDVR() && !dev.isUSB()) {
+                    Log.e(Log.TAG,"333333");
                     Log.e(Log.TAG, "开启云台：" + reason);
-                    serialHandler.post(() -> {
+                    gimbalPowerHandler.post(() -> {
+                        Log.e(Log.TAG,"444444");
                         powerControlNVR(true, 2);
                     });
                     SystemClock.sleep(3000);
@@ -5760,7 +5777,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             for (Device dev : channels.values()) {
                 if (dev.isUSB()) {
                     Log.e(Log.TAG, "开启红外：" + reason);
-                    serialHandler.post(() -> {
+                    gimbalPowerHandler.post(() -> {
                         powerControlNVR(true, 3);
                     });
                     SystemClock.sleep(3000);
@@ -5821,6 +5838,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
             }
         }
+
+
     }
 
 
@@ -6642,10 +6661,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         openShare(reason); // TODO
 
+        Log.e(Log.TAG,"sleeping"+sleeping);
+
         /////
         if (dev.isDVR()) {
             if (sleeping) {
                 // 云台上电
+                Log.e(Log.TAG,"1111111");
                 doWakeup(reason, 2);
             }
             if (deviceConfig.toCheck) {
@@ -7431,7 +7453,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     if (sleeping) {
                         doWakeup("开启云台与红外", 23);
-                        serialHandler.postDelayed(() -> {
+                        gimbalPowerHandler.postDelayed(() -> {
                             if (recordAction == 0) {  // 调用预置位
                                 runMove(2, recordChannel, recordPara);
                             } else if (recordAction == 1) {  // 调用巡航
