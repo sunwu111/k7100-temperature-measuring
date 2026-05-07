@@ -1,4 +1,3 @@
-
 package com.zhjinrui.batcom;
 
 import android.os.Build;
@@ -9,7 +8,14 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class RS485Impl{
+/**
+ * 两种锁
+ * locker: 数据读取的时候使用
+ * loadControlLocker: GPIO控制使用
+ */
+
+
+public class RS485Impl {
     private static long lastGPIOAccess = System.currentTimeMillis();
     private static final int SERIAL_FRAME_GAP = 2000;   // 串口分帧保护间隔
     public static final String TAG = hikvision.zhanyun.com.hikvision.utils.Log.TAG;
@@ -33,13 +39,20 @@ public class RS485Impl{
     }
 
     private static final RS485Impl impl = new RS485Impl();
+
+    // 用于串口通信、气象仪、电池等耗时操作
     private static final ReentrantLock locker = new ReentrantLock();
+    // 专用于快速 GPIO 负载控制，避免被通信阻塞
+    private static final ReentrantLock loadControlLocker = new ReentrantLock();
 
     private RS485Impl() {}
 
     public static RS485Impl Instance() { return impl; }
+
+    // ========== 以下方法使用 loadControlLocker（快速 GPIO 操作） ==========
+
     public boolean gpioInit(int board) {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.gpioInit(board);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {  // 6762
                 GPIO.setGpioOutput(27);
@@ -56,7 +69,7 @@ public class RS485Impl{
     }
 
     public boolean gpioUnInit() {
-        try(AutoLock autoLock = new AutoLock(this.locker)) {
+        try(AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { // 6762
                 GPIO.setGpioDataLow(27);
                 SystemClock.sleep(50);
@@ -70,29 +83,28 @@ public class RS485Impl{
     }
 
     public boolean gpioOpenLoad2() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(90);  // 设置GPIO90为输出模式
-            GPIO.setGpioDataHigh(90);  // 设置GPIO90高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-            GPIO.setGpioOutput(72);  // 设置GPIO72为输出模式
-            GPIO.setGpioDataHigh(72);  // 设置GPIO72高电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(90);
+            GPIO.setGpioDataHigh(90);
+            SystemClock.sleep(50);
+            GPIO.setGpioOutput(72);
+            GPIO.setGpioDataHigh(72);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
-
 
     public boolean gpioOpenLoad3() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(90);  // 设置GPIO90为输出模式
-            GPIO.setGpioDataHigh(90);  // 设置GPIO90高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-            GPIO.setGpioOutput(26);  // 设置GPIO26为输出模式
-            GPIO.setGpioDataHigh(26);  // 设置GPIO26高电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(90);
+            GPIO.setGpioDataHigh(90);
+            SystemClock.sleep(50);
+            GPIO.setGpioOutput(26);
+            GPIO.setGpioDataHigh(26);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -100,37 +112,26 @@ public class RS485Impl{
         return true;
     }
 
-
-    ///////
     public boolean gpioOpenRJ45() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(22);  // 设置GPIO22为输出模式
-            GPIO.setGpioDataHigh(22);  // 设置GPIO22高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(22);
+            GPIO.setGpioDataHigh(22);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
-
 
     public boolean gpioOpenUSB() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             List<Integer> gpioPins = Arrays.asList(18, 19, 20, 21);
-
-            // 设置每个GPIO引脚为输出模式并设置为高电平
             for (int pin : gpioPins) {
-                // 设置GPIO引脚为输出模式
                 GPIO.setGpioOutput(pin);
-
-                // 设置GPIO引脚为高电平
                 GPIO.setGpioDataHigh(pin);
-
                 SystemClock.sleep(50);
             }
-
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -138,45 +139,34 @@ public class RS485Impl{
         return true;
     }
 
-
     public boolean gpioOpen76() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            // 设置GPIO 76为输出模式并拉高
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.setGpioOutput(76);
             GPIO.setGpioDataHigh(76);
-            SystemClock.sleep(50); // 可以保留延时，或者根据需求调整
-            SystemClock.sleep(500); // 主延时
+            SystemClock.sleep(50);
+            SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
 
-
     public boolean gpioOpenMIPI() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(92);  // 设置GPIO92为输出模式
-            GPIO.setGpioDataHigh(92);  // 设置GPIO92高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(92);
+            GPIO.setGpioDataHigh(92);
+            SystemClock.sleep(50);
 
+            GPIO.setGpioOutput(28);
+            GPIO.setGpioDataHigh(28);
+            SystemClock.sleep(50);
 
-            GPIO.setGpioOutput(28);  // 设置GPIO28为输出模式
-            GPIO.setGpioDataHigh(28);  // 设置GPIO28高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-
-            //25 74 75 76
             List<Integer> gpioPins = Arrays.asList(25, 74, 75, 76);
-
-            // 设置每个GPIO引脚为输出模式并设置为高电平
             for (int pin : gpioPins) {
-                // 设置GPIO引脚为输出模式
                 GPIO.setGpioOutput(pin);
-
                 GPIO.setGpioDataHigh(pin);
-
                 SystemClock.sleep(50);
             }
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -185,24 +175,21 @@ public class RS485Impl{
     }
 
     public boolean gpioOpenRS485() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(7);  // 设置GPIO7为输出模式
-            GPIO.setGpioDataHigh(7);  // 设置GPIO7高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(7);
+            GPIO.setGpioDataHigh(7);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
-    ///////
 
     public boolean gpioCloseLoad2() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(72);  // 设置GPIO72低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-//            GPIO.setGpioDataLow(90);  // 设置GPIO90低电平
-//            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(72);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -211,9 +198,9 @@ public class RS485Impl{
     }
 
     public boolean gpioCloseLoad3() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(26);  // 设置GPIO26低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(26);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -221,11 +208,10 @@ public class RS485Impl{
         return true;
     }
 
-    ///////
     public boolean gpioCloseRJ45() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(22);  // 设置GPIO22低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(22);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -234,19 +220,15 @@ public class RS485Impl{
     }
 
     public boolean gpioCloseUSB() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(19);  // 设置GPIO19低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(19);
+            SystemClock.sleep(50);
             GPIO.setGpioDataLow(18);
             SystemClock.sleep(50);
-
             GPIO.setGpioDataLow(20);
             SystemClock.sleep(50);
-
             GPIO.setGpioDataLow(21);
             SystemClock.sleep(50);
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -255,10 +237,10 @@ public class RS485Impl{
     }
 
     public boolean gpioOpenSpeaker() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(112);  // 设置GPIO7为输出模式
-            GPIO.setGpioDataHigh(112);  // 设置GPIO7高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(112);
+            GPIO.setGpioDataHigh(112);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -266,12 +248,10 @@ public class RS485Impl{
         return true;
     }
 
-/////////////////
-    public boolean gpioCloseSpeaker(){
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+    public boolean gpioCloseSpeaker() {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.setGpioDataLow(112);
             SystemClock.sleep(50);
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -279,11 +259,10 @@ public class RS485Impl{
         return true;
     }
 
-    public boolean gpioCloseUART(){
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+    public boolean gpioCloseUART() {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.setGpioDataLow(27);
             SystemClock.sleep(50);
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -292,10 +271,10 @@ public class RS485Impl{
     }
 
     public boolean gpioOpenGPS() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.setGpioOutput(111);
             GPIO.setGpioDataHigh(111);
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -303,11 +282,10 @@ public class RS485Impl{
         return true;
     }
 
-    public boolean gpioCloseGPS(){
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
+    public boolean gpioCloseGPS() {
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
             GPIO.setGpioDataLow(111);
             SystemClock.sleep(50);
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -316,10 +294,10 @@ public class RS485Impl{
     }
 
     public boolean gpioOpenUART() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioOutput(27);  // 设置GPIO7为输出模式
-            GPIO.setGpioDataHigh(27);  // 设置GPIO7高电平（使能）
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioOutput(27);
+            GPIO.setGpioDataHigh(27);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -328,12 +306,11 @@ public class RS485Impl{
     }
 
     public boolean gpioCloseMIPI() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(92);  // 设置GPIO92低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-            GPIO.setGpioDataLow(28);  // 设置GPIO28低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(92);
+            SystemClock.sleep(50);
+            GPIO.setGpioDataLow(28);
+            SystemClock.sleep(50);
             GPIO.setGpioDataLow(25);
             SystemClock.sleep(50);
             GPIO.setGpioDataLow(74);
@@ -342,7 +319,6 @@ public class RS485Impl{
             SystemClock.sleep(50);
             GPIO.setGpioDataLow(76);
             SystemClock.sleep(50);
-
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
@@ -351,18 +327,19 @@ public class RS485Impl{
     }
 
     public boolean gpioCloseRS485() {
-        try (AutoLock autoLock = new AutoLock(this.locker)) {
-            GPIO.setGpioDataLow(6);  // 设置GPIO6低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
-            GPIO.setGpioDataLow(7);  // 设置GPIO7低电平
-            SystemClock.sleep(50);  // 可根据硬件需求调整延迟
+        try (AutoLock autoLock = new AutoLock(this.loadControlLocker)) {
+            GPIO.setGpioDataLow(6);
+            SystemClock.sleep(50);
+            GPIO.setGpioDataLow(7);
+            SystemClock.sleep(50);
             SystemClock.sleep(500);
         } catch (Exception e) {
             return false;
         }
         return true;
     }
-    ///////
+
+    // ========== 以下方法继续使用 locker（涉及串口通信、耗时操作） ==========
 
     public int powerControl(int devNum, boolean devswitch) {
         try(AutoLock autoLock = new AutoLock(this.locker)) {
@@ -382,7 +359,6 @@ public class RS485Impl{
         }
     }
 
-    /////
     public boolean resetAero() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.resetAero();
@@ -395,13 +371,11 @@ public class RS485Impl{
         }
     }
 
-    // 富奥通微气象
     public boolean resetAero3() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.resetAero3();
         }
     }
-    /////
 
     public float[] getBatInfo() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
@@ -409,38 +383,35 @@ public class RS485Impl{
         }
     }
 
-    /////
     public String getSpeedInfo() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getSpeedInfo();
         }
     }
-    /////
 
     public String getAeroInfo(int readSize) {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo(readSize);
         }
     }
+
     public String getAeroInfo2() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo2();
         }
     }
 
-
-    // 明景微气象数据
     public float[] getAeroInfoArry4WithoutHNJD() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfoArry4WithoutHNJD();
         }
     }
+
     public float[] getAeroInfo4Arry() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo4Arry();
         }
     }
-
 
     public String getAeroInfo4() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
@@ -448,15 +419,11 @@ public class RS485Impl{
         }
     }
 
-
     public String getAeroInfo4WithoutHNJD() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo4WithoutHNJD();
         }
     }
-
-
-
 
     public boolean coldReboot() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
@@ -476,7 +443,6 @@ public class RS485Impl{
         }
     }
 
-    // 汇能精电控制器
     public String[] getDevInfo() {
         try (AutoLock autoLock = new AutoLock(this.locker)) {
             return GPIO.getDevInfo();
@@ -591,7 +557,6 @@ public class RS485Impl{
         }
     }
 
-    // 硕日控制器
     public int getSRCurrent() {
         try (AutoLock autoLock = new AutoLock(this.locker)) {
             return GPIO.getDevSystemCurrent();

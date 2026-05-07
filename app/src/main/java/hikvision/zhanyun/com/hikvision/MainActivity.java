@@ -355,8 +355,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
 
