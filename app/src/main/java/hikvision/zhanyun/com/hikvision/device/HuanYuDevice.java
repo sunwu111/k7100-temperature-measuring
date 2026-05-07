@@ -985,6 +985,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
+
     // 给红外使用
     private boolean waitForPositionStable(int timeoutSeconds) {
         long startTime = System.currentTimeMillis();

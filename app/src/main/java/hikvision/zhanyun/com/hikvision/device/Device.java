@@ -1822,8 +1822,12 @@ public abstract class Device {
         // 计算自适应Gamma值
 //        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 2.5);
         double gamma;
+
+        Log.e(Log.TAG,"avgBrightness:" + avgBrightness);
+        
         if (avgBrightness >= 150) {
-            gamma = 100.0 / avgBrightness;
+//            gamma = 100.0 / avgBrightness;
+            gamma = 50.0 / avgBrightness;
         } else if (avgBrightness < 100) {
             gamma = 200.0 / avgBrightness;
         } else {

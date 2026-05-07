@@ -355,8 +355,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
 
@@ -661,7 +661,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-                    batVoltage = 13.0F; // 唤醒
+//                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -7954,6 +7954,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     /**
      * filename不为空为补拍照片
      */
+
     private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert) {
 
         if (isSleepMode()){
