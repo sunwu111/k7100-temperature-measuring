@@ -355,8 +355,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
 
@@ -661,7 +661,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-//                    batVoltage = 13.0F; // 唤醒
+                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -677,7 +677,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             openShare("模式切换为全工作模式且在工作时间段");
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
 
-                            setRecordingPolicy(settings.videoTimeTable);   // 这个地方设置录像策略
+                            utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
+
                         }
                     }
 
@@ -7148,13 +7149,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         } else if (osd.text != null && osd.text.startsWith("双光融合")) {
             /////
-        } else if (osd.text != null && osd.text.startsWith("通道三帧率:")){
-            Log.i(Log.TAG, "设置通道三帧率");
-            for (int i = 0; i < 3; i++) {
-                if (device.setOSD(osd, false) == true) break;
-            }
-        }
-        else if (osd.text != null && osd.text.startsWith("工作时间")) {
+        } else if (osd.text != null && osd.text.startsWith("工作时间")) {
             Log.i(Log.TAG, "设置工作时间参数");
             try {
                 // 提取参数部分并分割

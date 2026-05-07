@@ -124,7 +124,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
 //    private final long MIN_BOOTUP_MILISECONDS = 120 * PERIOD_SECOND;
     private final long MIN_BOOTUP_MILISECONDS = 40 * PERIOD_SECOND;
-    private final long AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS = 20 * PERIOD_SECOND;
+    private final long AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS = 15 * PERIOD_SECOND;
 
 
     private Pattern pattern = Pattern.compile(":\\/\\/");
@@ -839,16 +839,9 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
                     });
                 }
 
-//                if (waitSelfCheck) {
-//                    //
-//                    long elapse = (System.currentTimeMillis() - bootTime);
-//                    if (MIN_BOOTUP_MILISECONDS - elapse > 0)
-//                        SystemClock.sleep(MIN_BOOTUP_MILISECONDS - elapse);    // MIN_BOOTUP_MILISECONDS  设备启动所需的最短时间，确保摄像头/球机有足够时间完成硬件自检
-//                }
-
 
                 if (waitSelfCheck) {
-                    SystemClock.sleep(AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS);    //   设备启动成功，这个时候云台还在转动，BOOTUP_TRUE_WAIT_MILISECONDS为启动成功后的等待时间。
+                    SystemClock.sleep(AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS);    //   设备启动成功，这个时候云台还在转动，BOOTUP_TRUE_WAIT_MILISECONDS为启动成功后的等待时间。等待自检完成的时间
                 }
 
 
