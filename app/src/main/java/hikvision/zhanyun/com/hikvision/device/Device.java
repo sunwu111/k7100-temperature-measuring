@@ -1824,7 +1824,7 @@ public abstract class Device {
         double gamma;
 
         Log.e(Log.TAG,"avgBrightness:" + avgBrightness);
-        
+
         if (avgBrightness >= 150) {
 //            gamma = 100.0 / avgBrightness;
             gamma = 50.0 / avgBrightness;
