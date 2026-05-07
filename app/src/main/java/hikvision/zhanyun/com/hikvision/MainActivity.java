@@ -355,8 +355,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//        private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
 
@@ -1857,7 +1857,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     for (int i = 0; i < 3; i++) {
                         boolean errcode = RS485Impl.Instance().gpioOpenLoad2();
                         Log.i(Log.TAG, String.format("云台上电%s", errcode ? "成功" : "失败"));
-                        Log.e(Log.TAG,"5555555");
                         if (errcode) {
                             sleeping = false;
                             break;
@@ -1911,7 +1910,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         Log.i(Log.TAG, String.format("云台下电%s", errcode ? "成功" : "失败"));
                         if (errcode) {
                             sleeping = true;
-                            Log.i(Log.TAG, "66666666666");
                             break;
                         }
                     }
@@ -5759,17 +5757,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        Log.e(Log.TAG,"2222");
+
         if (load == 2 || load == 23) {
             for (Device dev : channels.values()) {
                 if (dev.isDVR() && !dev.isUSB()) {
-                    Log.e(Log.TAG,"333333");
+
                     Log.e(Log.TAG, "开启云台：" + reason);
                     gimbalPowerHandler.post(() -> {
-                        Log.e(Log.TAG,"444444");
+
                         powerControlNVR(true, 2);
                     });
-                    SystemClock.sleep(3000);
+                    SystemClock.sleep(1000);
                 }
             }
         }
@@ -5780,7 +5778,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     gimbalPowerHandler.post(() -> {
                         powerControlNVR(true, 3);
                     });
-                    SystemClock.sleep(3000);
+                    SystemClock.sleep(1000);
                 }
             }
         }
@@ -6667,7 +6665,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isDVR()) {
             if (sleeping) {
                 // 云台上电
-                Log.e(Log.TAG,"1111111");
                 doWakeup(reason, 2);
             }
             if (deviceConfig.toCheck) {
@@ -8815,6 +8812,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         } else if (deviceConfig.aeroDevice == 5) {
             ret = RS485Impl.Instance().resetAero3();
         }
+        Log.w(Log.TAG, "重启气象仪：" + ret);
         Log.w(Log.TAG, "重启气象仪：" + ret);
         /////
     }

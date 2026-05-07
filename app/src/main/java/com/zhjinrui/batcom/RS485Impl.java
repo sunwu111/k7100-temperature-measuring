@@ -13,6 +13,7 @@ public class RS485Impl{
     private static long lastGPIOAccess = System.currentTimeMillis();
     private static final int SERIAL_FRAME_GAP = 2000;   // 串口分帧保护间隔
     public static final String TAG = hikvision.zhanyun.com.hikvision.utils.Log.TAG;
+
     public class AutoLock implements AutoCloseable {
         private Lock autoLock;
         public AutoLock(Lock autoLock) {
@@ -83,6 +84,7 @@ public class RS485Impl{
         return true;
     }
 
+
     public boolean gpioOpenLoad3() {
         try (AutoLock autoLock = new AutoLock(this.locker)) {
             GPIO.setGpioOutput(90);  // 设置GPIO90为输出模式
@@ -98,6 +100,7 @@ public class RS485Impl{
         return true;
     }
 
+
     ///////
     public boolean gpioOpenRJ45() {
         try (AutoLock autoLock = new AutoLock(this.locker)) {
@@ -110,6 +113,7 @@ public class RS485Impl{
         }
         return true;
     }
+
 
     public boolean gpioOpenUSB() {
         try (AutoLock autoLock = new AutoLock(this.locker)) {
@@ -437,11 +441,14 @@ public class RS485Impl{
         }
     }
 
+
     public String getAeroInfo4() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo4();
         }
     }
+
+
     public String getAeroInfo4WithoutHNJD() {
         try (AutoLock autoLock = new AutoLock(this.locker)){
             return GPIO.getAeroInfo4WithoutHNJD();
