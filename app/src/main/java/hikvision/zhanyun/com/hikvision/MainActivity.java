@@ -355,8 +355,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
 
@@ -662,7 +662,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-//                    batVoltage = 13.0F; // 唤醒
+                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
                     float verificationVoltage = batVoltage;
@@ -670,6 +670,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
                         verificationVoltage = 13.5F;  // 只是为了让当前模式为全工作模式
+                        pendingStartTime = 1;
                     }
 
                     int oldMode = currentMode;
@@ -684,9 +685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         if (isWorkHour()){
                             openShare("模式切换为全工作模式且在工作时间段");
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
-
                             utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
-
                         }
                     }
 
@@ -832,6 +831,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             savePowerStateToFile();
         }
 
+
         if (pendingMode == newMode && pendingStartTime > 0) {
             long duration = now - pendingStartTime;
             Log.i(TAG,
@@ -846,6 +846,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 return;
             }
         }
+
 
         // 当前模式不变
         if (newMode == currentMode) {
