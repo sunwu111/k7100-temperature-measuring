@@ -634,6 +634,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     doGyroInfoAction(); ////////
                 } else if (action.equals(BATCOM_SAMPLE_ACTION)) {
                     haveSolarCharger = true;
+
                     batVoltage = intent.getFloatExtra("batVoltage", batVoltage);
 
                     solarVoltage = intent.getFloatExtra("solarVoltage", solarVoltage);
@@ -664,10 +665,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    batVoltage = 13.0F; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
+                    float verificationVoltage = batVoltage;
+
+                    if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
+                        Log.e(Log.TAG,"环境温度为：" + temperature);
+                        verificationVoltage = 13.5F;  // 只是为了让当前模式为全工作模式
+                    }
 
                     int oldMode = currentMode;
-                    handlePowerModeByVoltage(batVoltage);
+                    handlePowerModeByVoltage(verificationVoltage);
                     int newMode = currentMode;
+
 
                     if ((oldMode != newMode) && isFullMode()) {
                         interfacePowerOn();
@@ -802,9 +810,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private int decideModeByVoltage(float voltage) {
-        if (voltage > 13.1f) {
+        if (voltage > 13.10f) {
             return MODE_FULL;
-        } else if (voltage > 12.9f) {
+        } else if (voltage > 12.90f) {
             return MODE_WAKEUP;
         } else {
             return MODE_SLEEP;
@@ -1593,15 +1601,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (deviceConfig.chargeControl == 6) {
                         tempEnvironment = Math.max(tempEnvControl, tempEnvRegion);  // 汇能精电/硕日控制器温度与环境温度框的最高温比较，取最大值
                     }
-
+//                    Log.e(Log.TAG,"batVoltage:"+batVoltage);
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA %d%% 温度%3.1f℃\n%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA %d%% 温度%3.1f℃\n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 batPrecent, temperature, Location2String(devLocation)
                         );
                     } else {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA %d%% 温度%3.1f℃\n%s%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA %d%% 温度%3.1f℃\n%s%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 batPrecent, temperature, aeroStatusText(), Location2String(devLocation)
@@ -1617,15 +1625,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     //                        aeroStatusText(),
                     //                        Location2String(devLocation));
 
+
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
-                        return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s",
+                        return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.2fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
                                 subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
                                 solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler1, loadAmpler2, getBatPercent(), temperature, /////
                                 aeroStatusText(),
                                 Location2String(devLocation));
                     } else {
-                        return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s%s",
+                        return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.2fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
                                 subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
                                 solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler1, loadAmpler2, getBatPercent(), temperature, /////
@@ -6461,7 +6470,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-
     @Override
     public void rebootDevice() {
         // 之前广东电科院测试要求重启的时候必须云台上电自检转动，现在取消
@@ -6471,6 +6479,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             rebootSystem("服务器要求重启");
         });
     }
+
 
     private void showPreview(Bitmap bitmap) {
         if (surfaceView == null) return;
@@ -6483,6 +6492,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             surfaceView.getHolder().unlockCanvasAndPost(canvasSV);
         }
     }
+
 
     /////
     private boolean devBusyRecording() {
@@ -6697,7 +6707,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(TAG,"设备处于休眠模式，不响应拉流");
             return;
         }
-
 
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return;
@@ -7993,7 +8002,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             @Override
             public void openSucceed() {
 
-                // sunwu
                 if (deviceConfig.toCheck) {
                     isIRPhotoing = true;
                     isVLPhotoing = true;
@@ -8627,6 +8635,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 // [0] 负载电流 [3] 太阳能电流 [4] 电池充电电流 [5] 太阳能电压 [6] 电池电压
                 // [8] 电池容量 [9] 温度      [11] 负载电压   [12] 电池剩余电量
+                Log.e(Log.TAG,"value[6]:"+value[6]);
+
                 myint.putExtra("batVoltage", value[6]);
                 myint.putExtra("solarVoltage", value[5]);
                 myint.putExtra("batAmpler", value[4]);
