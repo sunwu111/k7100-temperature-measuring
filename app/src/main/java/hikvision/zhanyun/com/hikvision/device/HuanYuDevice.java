@@ -1,5 +1,6 @@
 package hikvision.zhanyun.com.hikvision.device;
 
+import static hikvision.zhanyun.com.hikvision.MainActivity.MODE_WAKEUP;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isIRPhotoing;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isVLPhotoing;
@@ -51,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
+import hikvision.zhanyun.com.hikvision.MainActivity;
 import hikvision.zhanyun.com.hikvision.RtspClient;
 import hikvision.zhanyun.com.hikvision.Settings;
 import hikvision.zhanyun.com.hikvision.bean.PTZPosition;
@@ -339,6 +341,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Response response = http_request(url, JSON.toJSONString(body));
                 if (response == null){
                     Log.e(HuanyuDeviceLog,"login::response is null");
+
                     return false;
                 }
 
@@ -824,6 +827,12 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     @Override
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
+
+
+        if (MainActivity.currentMode == MODE_WAKEUP){
+            Log.e(Log.TAG,"唤醒模式，没有那么快上电");
+            SystemClock.sleep(2 * 1000);
+        }
 
         try {
             setState(DevState.PHOTOING);

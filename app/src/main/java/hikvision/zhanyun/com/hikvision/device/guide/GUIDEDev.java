@@ -1159,6 +1159,9 @@ public class GUIDEDev extends Device {
         try {
             closeCamera();
             closeForce = true;
+            if (MainActivity.currentMode == MainActivity.MODE_WAKEUP){
+                ptzDev.close();
+            }
             Log.i(Log.TAG, "高德红外机芯关闭");
         } catch (Exception e) {
             Log.i(Log.TAG, "高德红外机芯关闭异常：" + e);

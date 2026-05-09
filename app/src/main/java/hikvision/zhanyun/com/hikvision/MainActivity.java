@@ -359,11 +359,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
-
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"
     };
+
 
     private static long onlineEnd;             // 超过这个时刻就要停止预览关Share，若需要延长时间，调用updateOnline来更新它
     private static long sleepTime;             // 超过此时刻就要关闭球机电源，若需要延长时间，调用updateOnline来更新它
@@ -670,7 +670,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
                         verificationVoltage = 13.5F;  // 只是为了让当前模式为全工作模式
-                        pendingStartTime = 1;
+                        pendingStartTime = 1;  // 在下一次采样的时候进行切换
                     }
 
                     int oldMode = currentMode;
@@ -7988,6 +7988,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 wakeupDevice(dev, "可见光机芯抓拍");
             }
         }
+
+
         if (dev.isCamera()) {
             // 如果另一个摄像头在直播，停掉直播
             closeOtherPlayingCamera(dev);
@@ -8636,7 +8638,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 // [0] 负载电流 [3] 太阳能电流 [4] 电池充电电流 [5] 太阳能电压 [6] 电池电压
                 // [8] 电池容量 [9] 温度      [11] 负载电压   [12] 电池剩余电量
-                Log.e(Log.TAG,"value[6]:"+value[6]);
+//                Log.e(Log.TAG,"value[6]:"+value[6]);
 
                 myint.putExtra("batVoltage", value[6]);
                 myint.putExtra("solarVoltage", value[5]);

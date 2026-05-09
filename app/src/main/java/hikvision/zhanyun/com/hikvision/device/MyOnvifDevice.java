@@ -840,7 +840,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
                 }
 
 
-                if (waitSelfCheck) {
+                if (waitSelfCheck) {  // 15s
                     SystemClock.sleep(AFTER_BOOTUP_PTZ_SELFCHECK_WAIT_MS);    //   设备启动成功，这个时候云台还在转动，BOOTUP_TRUE_WAIT_MILISECONDS为启动成功后的等待时间。等待自检完成的时间
                 }
 
@@ -863,6 +863,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         }
         return false;
     }
+
 
 
     @Override
