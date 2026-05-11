@@ -1152,7 +1152,7 @@ public class Camera2Device extends Device {
                 }
 
                 // 等待拍照成功
-                int timeoutSeconds = 30;
+                int timeoutSeconds = 60;
                 int timeoutMs = timeoutSeconds * 1000;
                 long start = System.currentTimeMillis();
 

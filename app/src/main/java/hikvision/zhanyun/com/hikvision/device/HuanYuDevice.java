@@ -829,10 +829,10 @@ public class HuanYuDevice extends MyOnvifDevice {
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
 
 
-        if (MainActivity.currentMode == MODE_WAKEUP){
-            Log.e(Log.TAG,"唤醒模式，没有那么快上电");
-            SystemClock.sleep(2 * 1000);
-        }
+//        if (MainActivity.currentMode == MODE_WAKEUP){
+//            Log.e(Log.TAG,"唤醒模式，没有那么快上电");
+//            SystemClock.sleep(2 * 1000);
+//        }
 
         try {
             setState(DevState.PHOTOING);
