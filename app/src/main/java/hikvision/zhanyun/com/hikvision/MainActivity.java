@@ -1665,13 +1665,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 getBatPercent(), temperature, aeroStatusText(), Location2String(devLocation)
                         );
                     }
-                } else if (deviceConfig.chargeControl == 8) {  // getBatPercent()
-                    //                return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
-                    //                        netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
-                    //                        subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
-                    //                        solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler, getBatPercent(), temperature, humidity,
-                    //                        aeroStatusText(),
-                    //                        Location2String(devLocation));
+                } else if (deviceConfig.chargeControl == 8) {
 
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                         return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
@@ -2419,7 +2413,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
         }).start();
-        updateOnline("程序启动完成，设备ID：" + deviceConfig.deviceId);     // 开机后更新一次关闭负载和视频等的时间
+//        updateOnline("程序启动完成，设备ID：" + deviceConfig.deviceId);     // 开机后更新一次关闭负载和视频等的时间
+
+        onlineEnd = 0;
     }
 
     private void wifiInit() {
@@ -8514,7 +8510,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         SmsManager smsManager = SmsManager.getDefault();
         smsManager.sendTextMessage(sim, null, content, null, null);
     }
-    /////
+
 
     @Override
     public void setAIParameters(Settings.AIParameter aiParameters) {
@@ -8660,7 +8656,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 // [0] 负载电流 [3] 太阳能电流 [4] 电池充电电流 [5] 太阳能电压 [6] 电池电压
                 // [8] 电池容量 [9] 温度      [11] 负载电压   [12] 电池剩余电量
-                Log.e(Log.TAG,"value[6]:"+value[6]);
+//                Log.e(Log.TAG,"value[6]:"+value[6]);
 
                 myint.putExtra("batVoltage", value[6]);
                 myint.putExtra("solarVoltage", value[5]);
