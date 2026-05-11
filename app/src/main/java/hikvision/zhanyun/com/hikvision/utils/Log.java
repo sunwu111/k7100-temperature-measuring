@@ -348,7 +348,7 @@ public class Log {
             }
         }
 
-        logDeviceInfo();
+//        logDeviceInfo();
     }
 
     /**
@@ -457,7 +457,7 @@ public class Log {
         }
     }
 
-    private static void logDeviceInfo() {
+    public static void logDeviceInfo() {
         appendLog("==============================启动标志==============================");
         appendLog("Model : " + android.os.Build.MODEL);
         appendLog("Brand : " + android.os.Build.BRAND);

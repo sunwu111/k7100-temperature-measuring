@@ -2232,12 +2232,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.logDeviceInfo();
+
         setContentView(R.layout.activity_main);
 
         Log.i(Log.TAG, "程序启动，版本：" + appVersion(this));
         Log.i(Log.TAG, "数据存储目录：" + DATA_DIR);
 
-        Log.e(Log.TAG,"开机读取电源管理模块参数============");
+        Log.e(Log.TAG,"============开机读取电源管理模块参数============");
         loadPowerStateFromFile();  // 开机读取配置文件，候选模式切换时间，以及当前的模式。
 
         utilsThread.start();
@@ -2286,7 +2288,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         // 非汇能精电控制器，不使用电源模块管理
         if (deviceConfig.chargeControl != 6){
-            Log.i(Log.TAG, "deviceConfig.chargeControl：" + deviceConfig.chargeControl);
+//            Log.i(Log.TAG, "deviceConfig.chargeControl：" + deviceConfig.chargeControl);
             currentMode = MODE_FULL;
 //            currentMode = MODE_WAKEUP;
         }
@@ -2414,8 +2416,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }).start();
 //        updateOnline("程序启动完成，设备ID：" + deviceConfig.deviceId);     // 开机后更新一次关闭负载和视频等的时间
-
         onlineEnd = 0;
+        Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
     }
 
     private void wifiInit() {
@@ -2704,7 +2706,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             POWER_OFF = new String[]{settings.powerOff};
             recordPreset = extractRecordPreset(RECORD_TABLE); /////
         }
-        Log.i(Log.TAG, "录像预置位为" + recordPreset);
+//        Log.i(Log.TAG, "录像预置位为" + recordPreset);
 
 
         if (settings == null) {
@@ -2743,7 +2745,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /// 读取usb上电情况
         try{
             usbPowerState = readUsbPowerState();
-            Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
+//            Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
         }catch (Exception e){
             usbPowerState = false;
             writeUsbPowerState(false);
@@ -2812,7 +2814,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             useAudio = false;
         }
 
-        Log.e(Log.TAG, "useAudio================:" + useAudio);
+//        Log.e(Log.TAG, "useAudio================:" + useAudio);
 
         /////
         for (Channel channel : deviceConfig.channels) {

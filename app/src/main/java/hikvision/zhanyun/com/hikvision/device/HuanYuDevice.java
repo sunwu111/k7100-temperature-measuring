@@ -1192,6 +1192,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     }
 
+
     // {"id":2,"params":{"Action":0,"FocusPos":30973,"PanPos":0,"TiltPos":999,"ZoomPos":0},"result":true,"session":2013644384}
     private boolean isPositionEqual(PTZPosition pos1, PTZPosition pos2) {
         if (pos1 == null || pos2 == null) return false;
@@ -1574,7 +1575,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-
     // 这个设置图像参数配置的函数可
     private String buildColorImageConfigRequestJson(String mode,int channel) {
         Map<String, Object> daynight = new HashMap<>();
@@ -1605,7 +1605,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-    // 设置图像参数配置,day为彩色，night为黑白,auto为自动
+
     private String setColorImageConfigRequest(String mode,int channel) {
         Response response = http_request(url, buildColorImageConfigRequestJson(mode,channel));
 
@@ -1639,6 +1639,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return null;
     }
+
 
     public String photoNightJson(){
 
@@ -1690,6 +1691,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 "    }\n" +
                 "}",session,id);
     }
+
 
     public String photoDayJson(){
         return String.format("{\n" +
@@ -1907,7 +1909,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-    // 这个地方可能需要修改
     @Override
     public boolean setCodec(Settings.VideoCodec v) {
 
@@ -2076,8 +2077,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         Log.e(HuanyuDeviceLog,"登录失败");
         return false;
     }
-
-
 
 
     @Override
