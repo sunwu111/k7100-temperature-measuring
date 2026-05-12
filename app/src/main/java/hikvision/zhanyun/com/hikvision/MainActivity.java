@@ -37,6 +37,8 @@ import static hikvision.zhanyun.com.hikvision.device.Device.DEVICE_ONVIF_CAMERA;
 import static hikvision.zhanyun.com.hikvision.device.Device.DEVICE_USB_GUIDE;
 import static hikvision.zhanyun.com.hikvision.device.Device.DEVICE_USB_IRAY;
 import static hikvision.zhanyun.com.hikvision.device.Device.PTZ_PRESET_MOVE_TIME;
+import static hikvision.zhanyun.com.hikvision.utils.VideoFiles.VIDEO_FILES_COUNT;
+import static hikvision.zhanyun.com.hikvision.utils.VideoFiles.VIDEO_FILES_LIST;
 import static lyh.Utils.PERIOD_DAY;
 import static lyh.Utils.PERIOD_HOUR;
 import static lyh.Utils.PERIOD_MINUTE;
@@ -214,6 +216,7 @@ import hikvision.zhanyun.com.hikvision.utils.AndroidThermalMonitor;
 import hikvision.zhanyun.com.hikvision.utils.Log;
 import hikvision.zhanyun.com.hikvision.utils.StorageUtil;
 import hikvision.zhanyun.com.hikvision.utils.SystemSettings;
+import hikvision.zhanyun.com.hikvision.utils.VideoFiles;
 import hikvision.zhanyun.com.hikvision.wifi.WifiAP;
 import lyh.Utils;
 
@@ -355,8 +358,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -689,6 +692,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             openShare("模式切换为全工作模式且在工作时间段");
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
                             utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
+                            utilsHandler.postDelayed( () -> {
+//                                Device dev = channels.get(String.valueOf(0));
+                                // 查询录像文件个数和录像文件列表
+//                                fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime)
+//                                findVideoFileList(int channel, int videoType, String startTime, String stopTime, int startNumb, int endNumb) {
+
+                            },120 * 1000);  // 这个地方设置录像策略  2分钟
                         }
                     }
 
@@ -6969,57 +6979,83 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         saveSettings(iRSetting, IR_SETTING_FILE);
     }
 
+
     @Override
     public IRSetting.SensorConfig irSensorConfig() {
         return iRSetting.sensorConfig;
     }
 
-    @Override
-    public FileDir fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime) {
-        Device dev = channels.get(String.valueOf(channel));
 
-        if (dev == null) return new FileDir();
+    @Override
+    public int fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime) {
+        Device dev = channels.get(String.valueOf(channel));
+        if (dev == null) return 0;
+
+        if (currentMode == MODE_WAKEUP) {
+            return VideoFiles.readCachedCount();
+        }
 
         FileDir results = null;
         for (int i = 0; i < 3; i++) {
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("文件查询");
             }
-
             results = dev.findFiles(videoType, startTime, stopTime);
-            Log.i(Log.TAG, String.format("查询时间：%s-%s，查询到的录像文件个数：%d", startTime.asString, stopTime.asString, results == null ? 0 : results.count));
+            Log.i(Log.TAG, String.format("查询时间：%s-%s，查询到的录像文件个数：%d",
+                    startTime.asString, stopTime.asString, results == null ? 0 : results.count));
             if (results != null) break;
         }
 
-        return results;
+        if (results != null) {
+            VideoFiles.saveCountToFile(results.count);
+            return results.count;
+        } else {
+            return 0;
+        }
     }
+
 
     @Override
     public FileList findVideoFileList(int channel, int videoType, String startTime, String stopTime, int startNumb, int endNumb) {
-        FileList list = new FileList();
-        list.channel = (byte) channel;
-        list.begin = 0;
-        list.end = 0;
-        list.type = videoType;
+        // 这个起始时间和起始数量需要保存
+
+
+        FileList emptyList = new FileList();
+        emptyList.channel = (byte) channel;
+        emptyList.begin = 0;
+        emptyList.end = 0;
+        emptyList.type = videoType;
 
         Device dev = channels.get(String.valueOf(channel));
-        if (dev == null) return list;
+        if (dev == null) return emptyList;
 
-        ///////
+        if (currentMode == MODE_WAKEUP) {
+            return VideoFiles.readCachedFileList(channel, videoType, emptyList);
+        }
+
+        FileList list = emptyList;
         for (int i = 0; i < 3; i++) {
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("文件查询");
             }
+
+            Log.e(Log.TAG,"startNumb"+startNumb+"endNumb"+endNumb);
+
             list = dev.listFile(videoType, startTime, stopTime, startNumb, endNumb);
             if (list != null) break;
         }
         if (deviceConfig.toCheck) {
             if (dev.isDVR()) closeShare("文件查询");
         }
-        ///////
 
-        return list;
+        if (list != null) {
+            VideoFiles.saveFileListToFile(list);
+            return list;
+        } else {
+            return emptyList;
+        }
     }
+
 
     // 录像回放
     @RequiresApi(api = Build.VERSION_CODES.N)

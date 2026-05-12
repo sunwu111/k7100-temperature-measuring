@@ -2732,8 +2732,10 @@ public class SPGProtocol {
         int videoType = (raw[11] << 24) | (raw[12] << 16) | (raw[13] << 8) | (raw[14] & 0xFF);
         Settings.TimeRecord start = new Settings.TimeRecord(subBytes(raw, 15, 6));
         Settings.TimeRecord end = new Settings.TimeRecord(subBytes(raw, 21, 6));
-        Settings.FileDir v = listenerCallBack.fileFiles(raw[10], videoType, start, end);
-        byte[] size = new byte[]{lo(hi(v.count)), lo(lo(v.count))};  // 拆分成2字节
+
+        int fileCount = listenerCallBack.fileFiles(raw[10], videoType, start, end);
+
+        byte[] size = new byte[]{lo(hi(fileCount)), lo(lo(fileCount))};  // 拆分成2字节
         byte[] dataDomain = byteMerger(subBytes(raw, 10, 17), size);  // 原始参数 + 文件数
 //        // 循环执行三次
 //        for (int i = 0; i < 3; i++) {
@@ -2741,7 +2743,7 @@ public class SPGProtocol {
 //        }
         sendPack(ORDER_98H, null, dataDomain);
         Log.i(Log.TAG, String.format("录像文件数查询：通道=%d，类型=%d，时间段=%s~%s，共 %d 个文件",
-                raw[10], videoType, start.asString, end.asString, v.count));
+                raw[10], videoType, start.asString, end.asString, fileCount));
     }
 
     /**

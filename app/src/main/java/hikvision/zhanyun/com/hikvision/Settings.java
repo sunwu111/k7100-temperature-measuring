@@ -316,7 +316,7 @@ public class Settings {
     public static class FileDir {
         public byte channel = 1;
         public int type = 0;   // 录像类型;
-        public TimeRecord begin = new TimeRecord(0);  // 开始时间, yymmdd
+        public TimeRecord begin = new TimeRecord(0);
         public TimeRecord end = new TimeRecord(0);
         public int count = 0;
 

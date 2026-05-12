@@ -129,7 +129,7 @@ public interface SPGPCallback {
     public short startShortVideo(int channel, int type, int time);
 
     // 主站查询终端录像文件数目（控制字：98H），参考规约第7.61.1节。
-    public Settings.FileDir fileFiles(int channel, int type, Settings.TimeRecord startTime, Settings.TimeRecord endTime);
+    public int fileFiles(int channel, int type, Settings.TimeRecord startTime, Settings.TimeRecord endTime);
 
     // 主站查询终端录像文件列表（控制字：99H），参考规约第7.61.2节。
     public Settings.FileList findVideoFileList(int channel, int videoType, String startTime, String stopTime, int startNumb, int endNumb);
