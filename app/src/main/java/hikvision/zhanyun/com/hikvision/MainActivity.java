@@ -2953,6 +2953,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private void initCore() {
         initDevice();
         initProtocol();

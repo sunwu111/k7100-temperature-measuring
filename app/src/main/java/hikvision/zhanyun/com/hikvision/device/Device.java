@@ -1272,6 +1272,7 @@ public abstract class Device {
         }
     }
 
+
     public void initAudioRecord() throws Exception {
         int sampleRate = 16000;
         int channelConfig = AudioFormat.CHANNEL_IN_MONO;
@@ -1285,6 +1286,7 @@ public abstract class Device {
             throw new IllegalStateException("音频录制初始化失败");
         }
     }
+
 
     private void tryStartMuxer() {
         if (muxerStarted) return;
@@ -1301,6 +1303,7 @@ public abstract class Device {
             }
         }
     }
+
 
     public void startAudio() {
         audioTrackIndex = -1;
@@ -1422,6 +1425,7 @@ public abstract class Device {
             }
         });
     }
+
 
     protected void encode(Bitmap bitmap) { /////
         if (mediaCodec == null) return;
