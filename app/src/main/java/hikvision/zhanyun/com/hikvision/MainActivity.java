@@ -669,8 +669,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
-                        verificationVoltage = 13.5F;  // 只是为了让当前模式为全工作模式
-                        pendingStartTime = 1;  // 在下一次采样的时候进行切换
+
+                        if (verificationVoltage < 13.0f){
+                            verificationVoltage = 13.0f;
+                        }
+//                        pendingStartTime = 1;  // 在下一次采样的时候进行切换
                     }
 
                     int oldMode = currentMode;
@@ -807,6 +810,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    /**
+     * 13.10 <  voltage             全工作
+     * 12.90 < voltage <= 13.10     唤醒
+     * voltage <= 12.90             休眠
+     */
 
     private int decideModeByVoltage(float voltage) {
         if (voltage > 13.10f) {
