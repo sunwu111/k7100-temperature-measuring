@@ -167,6 +167,8 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -693,11 +695,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
                             utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
                             utilsHandler.postDelayed( () -> {
-//                                Device dev = channels.get(String.valueOf(0));
-                                // 查询录像文件个数和录像文件列表
-//                                fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime)
-//                                findVideoFileList(int channel, int videoType, String startTime, String stopTime, int startNumb, int endNumb) {
-
+                                cacheVideoFileList();
                             },120 * 1000);  // 这个地方设置录像策略  2分钟
                         }
                     }
@@ -773,6 +771,38 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     };
+
+
+
+    private  void cacheVideoFileList(){
+
+        File file = new File(VIDEO_FILES_LIST);
+        if ((!file.exists() || !file.isFile())) {
+
+            Calendar cal = Calendar.getInstance();
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+
+            long todayStart = cal.getTimeInMillis();
+            cal.add(Calendar.DAY_OF_YEAR, -7);
+            long sevenDaysAgoStart = cal.getTimeInMillis();
+
+            Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
+            Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
+
+            int count = fileFiles(0, 0, startTime, stopTime);
+
+            String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
+                    stopTime.year, stopTime.month, stopTime.day);
+            String startStr = String.format("20%02d-%02d-%02d-00-00-00",
+                    startTime.year, startTime.month, startTime.day);
+
+            findVideoFileList(0, 0, startStr, stopStr,  0, count);
+        }
+    }
+
 
 
     private void interfacePowerOn(){
@@ -2436,6 +2466,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        updateOnline("程序启动完成，设备ID：" + deviceConfig.deviceId);     // 开机后更新一次关闭负载和视频等的时间
         onlineEnd = 0;
         Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
+
+
+        if(currentMode == MODE_FULL){
+            utilsHandler.postDelayed( () -> {
+                cacheVideoFileList();
+            },120 * 1000);
+        }  // 缓存信息
+
     }
 
     private void wifiInit() {
@@ -7039,7 +7077,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (dev.isDVR()) openShare("文件查询");
             }
 
-            Log.e(Log.TAG,"startNumb"+startNumb+"endNumb"+endNumb);
+//            Log.e(Log.TAG,"startNumb"+startNumb+"endNumb"+endNumb);
+            Log.e(Log.TAG,"startTime"+startTime+"stopTime"+stopTime);
 
             list = dev.listFile(videoType, startTime, stopTime, startNumb, endNumb);
             if (list != null) break;
