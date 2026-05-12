@@ -694,9 +694,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             openShare("模式切换为全工作模式且在工作时间段");
                             doWakeup("模式切换为全工作模式且在工作时间段", 23);
                             utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
-                            utilsHandler.postDelayed( () -> {
-                                cacheVideoFileList();
-                            },120 * 1000);  // 这个地方设置录像策略  2分钟
                         }
                     }
 
@@ -776,36 +773,40 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private  void cacheVideoFileList(){
 
-        File file = new File(VIDEO_FILES_LIST);
-        if ((!file.exists() || !file.isFile())) {
+        try{
+//            File file = new File(VIDEO_FILES_LIST);
+//            if ((!file.exists() || !file.isFile())) {
 
-            Calendar cal = Calendar.getInstance();
-            cal.set(Calendar.HOUR_OF_DAY, 0);
-            cal.set(Calendar.MINUTE, 0);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
+                Calendar cal = Calendar.getInstance();
+                cal.set(Calendar.HOUR_OF_DAY, 0);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
 
-            long todayStart = cal.getTimeInMillis();
-            cal.add(Calendar.DAY_OF_YEAR, -7);
-            long sevenDaysAgoStart = cal.getTimeInMillis();
+                long todayStart = cal.getTimeInMillis();
+                cal.add(Calendar.DAY_OF_YEAR, -7);
+                long sevenDaysAgoStart = cal.getTimeInMillis();
 
-            Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
-            Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
+                Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
+                Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
 
-            Log.e(Log.TAG,stopTime.asString);
-            Log.e(Log.TAG,startTime.asString);
+    //            Log.e(Log.TAG,stopTime.asString);
+    //            Log.e(Log.TAG,startTime.asString);
 
-            int count = fileFiles(1, -1, startTime, stopTime);
-            Log.i(Log.TAG,"count"+ count);
+                int count = fileFiles(1, -1, startTime, stopTime);
+    //            Log.i(Log.TAG,"count"+ count);
 
-            String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
-                    stopTime.year, stopTime.month, stopTime.day);
-            String startStr = String.format("20%02d-%02d-%02d-00-00-00",
-                    startTime.year, startTime.month, startTime.day);
+                String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
+                        stopTime.year, stopTime.month, stopTime.day);
+                String startStr = String.format("20%02d-%02d-%02d-00-00-00",
+                        startTime.year, startTime.month, startTime.day);
 
-            findVideoFileList(1, -1, startStr, stopStr,  0, count);
+                findVideoFileList(1, -1, startStr, stopStr,  0, count);
 
-            Log.i(Log.TAG,"没有缓存，进行录像文件信息缓存");
+                Log.i(Log.TAG,"进行录像文件信息缓存");
+//            }
+        }catch (Exception e){
+            Log.e(Log.TAG,"缓存失败"+e.getMessage());
         }
     }
 
