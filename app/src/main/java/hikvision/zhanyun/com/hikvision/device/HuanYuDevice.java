@@ -645,7 +645,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             // 获取响应体
             String responseBody = response.body().string();
 
-            Log.e(HuanyuDeviceLog, "responseJson"+responseBody);
+//            Log.e(HuanyuDeviceLog, "responseJson"+responseBody);
 
             JSONObject responseJson = JSONObject.parseObject(responseBody);
 

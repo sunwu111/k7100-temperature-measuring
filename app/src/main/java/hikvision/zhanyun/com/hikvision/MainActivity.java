@@ -792,14 +792,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
             Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
 
-            int count = fileFiles(0, 0, startTime, stopTime);
+            Log.e(Log.TAG,stopTime.asString);
+            Log.e(Log.TAG,startTime.asString);
+
+            int count = fileFiles(1, -1, startTime, stopTime);
+            Log.i(Log.TAG,"count"+ count);
 
             String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
                     stopTime.year, stopTime.month, stopTime.day);
             String startStr = String.format("20%02d-%02d-%02d-00-00-00",
                     startTime.year, startTime.month, startTime.day);
 
-            findVideoFileList(0, 0, startStr, stopStr,  0, count);
+            findVideoFileList(1, -1, startStr, stopStr,  0, count);
+
+            Log.i(Log.TAG,"没有缓存，进行录像文件信息缓存");
         }
     }
 
@@ -2469,9 +2475,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
         if(currentMode == MODE_FULL){
-            utilsHandler.postDelayed( () -> {
+            utilsHandler.post( () -> {
+                Log.i(Log.TAG,"开始缓存");
                 cacheVideoFileList();
-            },120 * 1000);
+            });
         }  // 缓存信息
 
     }
@@ -7038,6 +7045,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("文件查询");
             }
+
+//            Log.e(Log.TAG,stopTime.asString);
+//            Log.e(Log.TAG,channel+"");
+//            Log.e(Log.TAG,videoType+"");
+//            Log.e(Log.TAG,startTime.asString);
+
             results = dev.findFiles(videoType, startTime, stopTime);
             Log.i(Log.TAG, String.format("查询时间：%s-%s，查询到的录像文件个数：%d",
                     startTime.asString, stopTime.asString, results == null ? 0 : results.count));
@@ -7078,7 +7091,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
 //            Log.e(Log.TAG,"startNumb"+startNumb+"endNumb"+endNumb);
-            Log.e(Log.TAG,"startTime"+startTime+"stopTime"+stopTime);
+//            Log.e(Log.TAG,"startTime"+startTime+"stopTime"+stopTime);
 
             list = dev.listFile(videoType, startTime, stopTime, startNumb, endNumb);
             if (list != null) break;
