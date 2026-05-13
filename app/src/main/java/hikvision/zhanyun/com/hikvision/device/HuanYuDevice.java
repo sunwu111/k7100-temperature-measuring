@@ -3126,7 +3126,22 @@ public class HuanYuDevice extends MyOnvifDevice {
 
 
     private void stop() {
-        if (login()) {
+        int maxRetries = 3;
+        boolean success = false;
+
+        for (int i = 0; i < maxRetries; i++) {
+            if (!login()) {
+                if (i < maxRetries - 1) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        Log.e(Log.TAG, "重试失败"+e.getMessage());
+                        break;
+                    }
+                }
+                continue;
+            }
+
             String json = String.format("{\n" +
                     "    \"session\": %d,\n" +
                     "    \"id\": %d,\n" +
@@ -3143,30 +3158,26 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "    }\n" +
                     "}", session, id);
 
-            int maxRetries = 3;
-            boolean success = false;
+            Response response = http_request(url, json);
+            success = parseResponse(response);
 
-            for (int i = 0; i < maxRetries; i++) {
-                Response response = http_request(url, json);
-                success = parseResponse(response);
+            if (success) {
+                isMoving = false;
+                break;
+            }
 
-                if (success) {
-                    isMoving = false;
+            if (i < maxRetries - 1) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Log.e(Log.TAG, "重试失败"+e.getMessage());
                     break;
                 }
+            }
+        }
 
-                if (i < maxRetries - 1) {
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
-            if (!success) {
-                System.err.println("Failed to stop PTZ after " + maxRetries + " attempts");
-            }
+        if (!success) {
+            Log.e(Log.TAG, "Failed to stop PTZ after " + maxRetries + " attempts");
         }
     }
 

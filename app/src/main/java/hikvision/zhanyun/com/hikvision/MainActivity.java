@@ -360,8 +360,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -2045,17 +2045,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     public void updateOnline(String reason) {
         if (settings == null) return;
 
         if (deviceConfig.toCheck) {
             onlineEnd = System.currentTimeMillis() + 30 * PERIOD_MINUTE;
         } else {
-            onlineEnd = System.currentTimeMillis() + 15 * PERIOD_MINUTE;
+//            onlineEnd = System.currentTimeMillis() + 15 * PERIOD_MINUTE;
+            onlineEnd = System.currentTimeMillis() + 60 * PERIOD_MINUTE;
         }
 
         Log.w(Log.TAG, String.format("更新在线时间：%s，超过 %s 后关闭视频", reason, formatDateTime(onlineEnd)));
     }
+
 
     @SuppressLint("MissingPermission")
     private void initBDS() {
@@ -2131,6 +2134,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 saveSettings(settings, SETTING_FILE);
                 /////
             }
+
 
             @Override
             public void onStatusChanged(String provider, int status, Bundle extras) {
