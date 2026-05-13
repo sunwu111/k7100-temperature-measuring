@@ -300,7 +300,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
 
 //      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
-    // 添加类成员变量
     private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
     private static final int MAX_LOGIN_RETRY = 20;
     private volatile int loginRetryCount = 0;
@@ -3097,8 +3096,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             Response response = http_request(url, json);
             parseResponse(response);
         }
-
     }
+
 
 //    private void stop() {
 //        if (login()) {
@@ -3123,6 +3122,52 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        }
 //    }
 
+    // stop问题
+//    private void stop() {
+//        int maxRetries = 3;
+//        boolean success = false;
+//
+//        for (int i = 0; i < maxRetries; i++) {
+//            if (!login()) {
+//                if (i < maxRetries - 1) {
+//                    SystemClock.sleep(1*1000);
+//                }
+//                continue;
+//            }
+//
+//            String json = String.format("{\n" +
+//                    "    \"session\": %d,\n" +
+//                    "    \"id\": %d,\n" +
+//                    "    \"call\": {\n" +
+//                    "        \"service\": \"ptz\",\n" +
+//                    "        \"method\": \"setPTZCmd\"\n" +
+//                    "    },\n" +
+//                    "    \"params\": {\n" +
+//                    "        \"channel\": 0,\n" +
+//                    "        \"continuousPanTiltSpace\": {\n" +
+//                    "            \"x\": 0,\n" +
+//                    "            \"y\": 0\n" +
+//                    "        }\n" +
+//                    "    }\n" +
+//                    "}", session, id);
+//
+//            Response response = http_request(url, json);
+//            success = parseResponse(response);
+//
+//            if (success) {
+//                isMoving = false;
+//                break;
+//            }
+//
+//            if (i < maxRetries - 1) {
+//                SystemClock.sleep(1*1000);
+//            }
+//        }
+//
+//        if (!success) {
+//            Log.e(Log.TAG, "Failed to stop PTZ after " + maxRetries + " attempts");
+//        }
+//    }
 
     private void stop() {
         int maxRetries = 3;
@@ -3130,32 +3175,29 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         for (int i = 0; i < maxRetries; i++) {
             if (!login()) {
+                Log.e(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：登录失败");
                 if (i < maxRetries - 1) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        Log.e(Log.TAG, "重试失败"+e.getMessage());
-                        break;
-                    }
+                    SystemClock.sleep(1000);
                 }
                 continue;
             }
 
-            String json = String.format("{\n" +
-                    "    \"session\": %d,\n" +
-                    "    \"id\": %d,\n" +
-                    "    \"call\": {\n" +
-                    "        \"service\": \"ptz\",\n" +
-                    "        \"method\": \"setPTZCmd\"\n" +
-                    "    },\n" +
-                    "    \"params\": {\n" +
-                    "        \"channel\": 0,\n" +
-                    "        \"continuousPanTiltSpace\": {\n" +
-                    "            \"x\": 0,\n" +
-                    "            \"y\": 0\n" +
-                    "        }\n" +
-                    "    }\n" +
-                    "}", session, id);
+            String json = String.format(
+                    "{" +
+                            "    \"session\": %d," +
+                            "    \"id\": %d," +
+                            "    \"call\": {" +
+                            "        \"service\": \"ptz\"," +
+                            "        \"method\": \"setPTZCmd\"" +
+                            "    }," +
+                            "    \"params\": {" +
+                            "        \"channel\": 0," +
+                            "        \"continuousPanTiltSpace\": {" +
+                            "            \"x\": 0," +
+                            "            \"y\": 0" +
+                            "        }" +
+                            "    }" +
+                            "}", session, id);
 
             Response response = http_request(url, json);
             success = parseResponse(response);
@@ -3165,19 +3207,22 @@ public class HuanYuDevice extends MyOnvifDevice {
                 break;
             }
 
+            // 命令失败，强制让 session 失效，下次循环重新登录
+            Log.w(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：命令失败，强制重新登录");
+            invalidateSession();
+
             if (i < maxRetries - 1) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Log.e(Log.TAG, "重试失败"+e.getMessage());
-                    break;
-                }
+                SystemClock.sleep(1000);
             }
         }
 
         if (!success) {
-            Log.e(Log.TAG, "Failed to stop PTZ after " + maxRetries + " attempts");
+            Log.e(HuanyuDeviceLog, "停止云台失败，已重试 " + maxRetries + " 次");
         }
+    }
+
+    private void invalidateSession() {
+        loginTime = 0;
     }
 
 

@@ -700,9 +700,25 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
 
                     if ((oldMode != newMode) && isWakeupMode()) {
-                        Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
-                        interfacePowerOn();
-                        doSleep("切换为唤醒模式", 23);
+                        // 设备正在录像或者拍照的时候不进行模式的切换，等待下一次采集
+                        boolean anyBusy = false;
+                        for (String channel : channels.keySet()) {
+                            Device dev = channels.get(channel);
+                            if (dev.isDVR() && dev.isBusy()) {
+                                Log.i(Log.TAG, "设备正在使用中");
+                                anyBusy = true;
+                                break;
+                            }
+                        }
+                        if (!anyBusy) {
+                            Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
+                            interfacePowerOn();
+                            doSleep("切换为唤醒模式", 23);
+                        }
+
+//                        Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
+//                        interfacePowerOn();
+//                        doSleep("切换为唤醒模式", 23);
                     }
 
                     if (isSleepMode()) {
@@ -2054,8 +2070,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (deviceConfig.toCheck) {
             onlineEnd = System.currentTimeMillis() + 30 * PERIOD_MINUTE;
         } else {
-//            onlineEnd = System.currentTimeMillis() + 15 * PERIOD_MINUTE;
-            onlineEnd = System.currentTimeMillis() + 60 * PERIOD_MINUTE;
+            onlineEnd = System.currentTimeMillis() + 15 * PERIOD_MINUTE;
+//            onlineEnd = System.currentTimeMillis() + 60 * PERIOD_MINUTE;
         }
 
         Log.w(Log.TAG, String.format("更新在线时间：%s，超过 %s 后关闭视频", reason, formatDateTime(onlineEnd)));
@@ -6949,6 +6965,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return true;
     }
 
+
     @Override
     public void setVideoCodec(VideoCodec v) {
         settings.videoCodecs.put(v.channel + ":" + v.streamType, v);
@@ -7080,12 +7097,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
 
-            // 对云台上电，使能网口
-            doWakeup("唤醒模式下查询录像文件个数", 2);
-            // 设置状态变量
-            isWakeupVideoPlaybackMode = true;
-            // 开始计时，如果这个闹钟存在就取消重新开始
-            resetWakeupTimer();
+//            // 对云台上电，使能网口
+//            doWakeup("唤醒模式下查询录像文件个数", 2);
+//            // 设置状态变量
+//            isWakeupVideoPlaybackMode = true;
+//            // 开始计时，如果这个闹钟存在就取消重新开始
+//            resetWakeupTimer();
 
             return VideoFiles.readCachedCount();
         }
