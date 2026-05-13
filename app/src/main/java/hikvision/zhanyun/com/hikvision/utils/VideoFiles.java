@@ -22,7 +22,7 @@ public class VideoFiles {
 
     public static final String VIDEO_FILES_COUNT = DATA_DIR + "video_files_count.json";
 
-    public static final String VIDEO_FILES_LIST = DATA_DIR + "video_files_list.json";
+    public static final String VIDEO_FILES_LIST = DATA_DIR + "video_files_list.txt";
 
 //    public static
 
@@ -72,6 +72,9 @@ public class VideoFiles {
 
 
     public static Settings.FileList readCachedFileList(int channel, int videoType, Settings.FileList fallback) {
+
+        Log.e(Log.TAG,"读取录像文件列表");
+
         File file = new File(VIDEO_FILES_LIST);
         if (!file.exists()) return fallback;
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {

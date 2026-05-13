@@ -702,7 +702,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         fileList.type = videoType;
 
         try {
-
             Response countResponse = http_request(url, getRecordSearchCountJson(startTime, stopTime));
             int totalCount = parseRecordSearchCountRes(countResponse);
 
@@ -2819,6 +2818,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
+
     private void goPreset(int para) {
         goPreset(para, 0); // 初始重试次数为0
     }
@@ -2916,8 +2916,8 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             parseResponse(response);
         }
-
     }
+
 
     private void deletePreset(int presetNum) {
         if (login()) {
@@ -3001,7 +3001,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             Response response = http_request(url, goPresetJson);
             parseResponse(response);
         }
-
     }
 
 
@@ -3028,6 +3027,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
+
     private void singleStepControl(int xSpeed , int ySpeed){
         if (login()) {
             String json = String.format("{\n" +
@@ -3052,8 +3052,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-
-
     private void up(int para) {
         if (login()) {
             String json = String.format("{\n" +
@@ -3076,6 +3074,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             parseResponse(response);
         }
     }
+
 
     private void down(int para) {
         if (login()) {

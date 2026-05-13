@@ -466,6 +466,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     /////
     private int PREFIX_LEN = 6;
 
+    private static boolean isWakeupVideoPlaybackMode = false;
+
 
     /// 短视频录制请求过快，会导致问题
     class VideoTask {
@@ -5886,6 +5888,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private void doSleep(String reason, int load) {
+
+        if (currentMode == MODE_WAKEUP && isWakeupVideoPlaybackMode == true){
+            Log.e(Log.TAG,"唤醒模式下，查询录像文件10分钟内不对云台下电");
+            return;
+        }
+
         // 检测窗口
         boolean incomingDVR3 = false;
         boolean incomingUSB10 = false;
@@ -5936,7 +5944,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
             }
         }
-
 
     }
 
@@ -7036,12 +7043,50 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
+    private final Runnable mResetWakeupFlagTask = new Runnable() {
+        @Override
+        public void run() {
+            isWakeupVideoPlaybackMode = false;
+
+            // 设备在使用中就不断电
+            for (String channel : channels.keySet()) {
+                Device dev = channels.get(channel);
+                if (dev.isDVR() && dev.isBusy()) {
+                    Log.i(Log.TAG, "设备正在使用中");
+                    return;
+                }
+            }
+
+            if(currentMode == MODE_WAKEUP){
+                doSleep("唤醒模式下，10分钟内没有进行录像播放操作。",23);
+            }
+        }
+    };
+
+
+    /**
+     * 启动/重置唤醒录像的 10 分钟超时定时器
+     */
+    private void resetWakeupTimer() {
+        utilsHandler.removeCallbacks(mResetWakeupFlagTask);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 3 * 60 * 1000);
+    }
+
+
     @Override
     public int fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime) {
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return 0;
 
-        if (currentMode == MODE_WAKEUP) {
+        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+
+            // 对云台上电，使能网口
+            doWakeup("唤醒模式下查询录像文件个数", 2);
+            // 设置状态变量
+            isWakeupVideoPlaybackMode = true;
+            // 开始计时，如果这个闹钟存在就取消重新开始
+            resetWakeupTimer();
+
             return VideoFiles.readCachedCount();
         }
 
@@ -7050,11 +7095,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("文件查询");
             }
-
-//            Log.e(Log.TAG,stopTime.asString);
-//            Log.e(Log.TAG,channel+"");
-//            Log.e(Log.TAG,videoType+"");
-//            Log.e(Log.TAG,startTime.asString);
 
             results = dev.findFiles(videoType, startTime, stopTime);
             Log.i(Log.TAG, String.format("查询时间：%s-%s，查询到的录像文件个数：%d",
@@ -7075,7 +7115,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public FileList findVideoFileList(int channel, int videoType, String startTime, String stopTime, int startNumb, int endNumb) {
         // 这个起始时间和起始数量需要保存
 
-
         FileList emptyList = new FileList();
         emptyList.channel = (byte) channel;
         emptyList.begin = 0;
@@ -7085,8 +7124,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return emptyList;
 
-        if (currentMode == MODE_WAKEUP) {
-            return VideoFiles.readCachedFileList(channel, videoType, emptyList);
+        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+
+            doWakeup("唤醒模式查询录像文件列表", 2);
+            // 设置状态变量
+            isWakeupVideoPlaybackMode = true;
+
+            // 开始计时，如果这个闹钟存在就取消重新开始
+            resetWakeupTimer();
+
+            return VideoFiles.readCachedFileList(channel, videoType, emptyList);   // 这个地方解析存在问题
         }
 
         FileList list = emptyList;
@@ -7121,6 +7168,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device dev = channels.get(String.valueOf(channel));
 //        if (电量不足) return 2;
         if (dev == null) return 3;
+
+        if (currentMode == MODE_WAKEUP) {
+            doWakeup("唤醒模式下播放录像文件", 2);
+            // 设置状态变量
+            isWakeupVideoPlaybackMode = true;
+
+            // 开始计时，如果这个闹钟存在就取消重新开始
+            resetWakeupTimer();
+        }
+
 
         /////
         if (dev.isDVR()) {
@@ -8640,12 +8697,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return ret;
     }
 
+
     @Override
     public void setAIAction(int channel, int preset, Settings.AIAction[] actions) {
         String key = String.format("%d,%d", channel, preset);
         settings.aiActions.put(key, actions);
         saveSettings(settings, SETTING_FILE);
     }
+
 
     @Override
     public Settings.AIAction[] getAIAction(int channel, int preset) {
