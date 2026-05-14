@@ -3122,7 +3122,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        }
 //    }
 
-    // stop问题
+
 //    private void stop() {
 //        int maxRetries = 3;
 //        boolean success = false;
@@ -3169,57 +3169,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        }
 //    }
 
-    private void stop() {
-        int maxRetries = 3;
-        boolean success = false;
 
-        for (int i = 0; i < maxRetries; i++) {
-            if (!login()) {
-                Log.e(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：登录失败");
-                if (i < maxRetries - 1) {
-                    SystemClock.sleep(1000);
-                }
-                continue;
-            }
-
-            String json = String.format(
-                    "{" +
-                            "    \"session\": %d," +
-                            "    \"id\": %d," +
-                            "    \"call\": {" +
-                            "        \"service\": \"ptz\"," +
-                            "        \"method\": \"setPTZCmd\"" +
-                            "    }," +
-                            "    \"params\": {" +
-                            "        \"channel\": 0," +
-                            "        \"continuousPanTiltSpace\": {" +
-                            "            \"x\": 0," +
-                            "            \"y\": 0" +
-                            "        }" +
-                            "    }" +
-                            "}", session, id);
-
-            Response response = http_request(url, json);
-            success = parseResponse(response);
-
-            if (success) {
-                isMoving = false;
-                break;
-            }
-
-            // 命令失败，强制让 session 失效，下次循环重新登录
-            Log.w(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：命令失败，强制重新登录");
-            invalidateSession();
-
-            if (i < maxRetries - 1) {
-                SystemClock.sleep(1000);
-            }
-        }
-
-        if (!success) {
-            Log.e(HuanyuDeviceLog, "停止云台失败，已重试 " + maxRetries + " 次");
-        }
-    }
 
     private void invalidateSession() {
         loginTime = 0;
@@ -3445,6 +3395,61 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
+    // stop问题
+    private void stop() {
+        int maxRetries = 3;
+        boolean success = false;
+
+        for (int i = 0; i < maxRetries; i++) {
+            if (!login()) {
+                Log.e(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：登录失败");
+                if (i < maxRetries - 1) {
+                    SystemClock.sleep(1000);
+                }
+                continue;
+            }
+
+            String json = String.format(
+                    "{" +
+                            "    \"session\": %d," +
+                            "    \"id\": %d," +
+                            "    \"call\": {" +
+                            "        \"service\": \"ptz\"," +
+                            "        \"method\": \"setPTZCmd\"" +
+                            "    }," +
+                            "    \"params\": {" +
+                            "        \"channel\": 0," +
+                            "        \"continuousPanTiltSpace\": {" +
+                            "            \"x\": 0," +
+                            "            \"y\": 0" +
+                            "        }" +
+                            "    }" +
+                            "}", session, id);
+
+            Response response = http_request(url, json);
+            success = parseResponse(response);
+
+            if (success) {
+                isMoving = false;
+                break;
+            }
+
+            // 命令失败，强制让 session 失效，下次循环重新登录
+            Log.w(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：命令失败，强制重新登录");
+            invalidateSession();
+
+            if (i < maxRetries - 1) {
+                SystemClock.sleep(1000);
+            }
+        }
+
+        if (!success) {
+            Log.e(HuanyuDeviceLog, "停止云台失败，已重试 " + maxRetries + " 次");
+        }
+    }
+
+
+
     private boolean isMoving = false;
     private long lastCmd2Time = 0;  // 记录符合条件的cmd==2的时间
     private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
@@ -3454,32 +3459,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     public void move(int cmd, int para) {
         super.move(cmd, para);
 
-
-        // sunwu   是抽检模式，指令3,4,5,6,49,50,51,52，在拍照情况，直接退出
-//        if (toCheck && (cmd == 3 || cmd == 4 || cmd == 5 || cmd == 6 || cmd == 49 || cmd == 50 || cmd == 51 || cmd == 52 ) && (isIRPhotoing || isVLPhotoing)){
-//            Log.e(HuanyuDeviceLog,"正在拍照，转动云台不生效");
-//            return;
-//        }
-//
-//        // 处理cmd==2的情况
-//        if (cmd == 2 && toCheck && !isIRPhotoing && !isVLPhotoing) {
-//            lastCmd2Time = System.currentTimeMillis();  // 记录时间
-//        }
-//
-//        // 检查是否在cmd==2后的20秒时间窗口内
-//        boolean isInCmd2Window = false;
-//        if (lastCmd2Time > 0) {
-//            long currentTime = System.currentTimeMillis();
-//            isInCmd2Window = (currentTime - lastCmd2Time) < CMD2_BLOCK_DURATION;
-//        }
-//
-//
-//        if (toCheck && (cmd == 3 || cmd == 4 || cmd == 5 || cmd == 6 || cmd == 49 || cmd == 50 || cmd == 51 || cmd == 52)) {
-//            if (isInCmd2Window) {
-//                Log.e(HuanyuDeviceLog, "转动阈值位后20秒内，转动云台不生效");
-//                return;
-//            }
-//        }
 
         // 处理cmd==2的情况
         if (cmd == 2 && toCheck && !isIRPhotoing && !isVLPhotoing) {

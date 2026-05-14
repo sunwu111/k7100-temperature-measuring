@@ -690,7 +690,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     if ((oldMode != newMode) && isFullMode()) {
 
-
                         // 设备正在预览或者拍照以及其他状态的时候不进行模式的切换，等待下一次采集
                         boolean anyBusy = false;
                         for (String channel : channels.keySet()) {
@@ -7113,7 +7112,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
             if(currentMode == MODE_WAKEUP){
-                doSleep("唤醒模式下，10分钟内没有进行录像播放操作。",23);
+                doSleep("唤醒模式下，15分钟内没有进行录像播放操作。",23);
             }
         }
     };
