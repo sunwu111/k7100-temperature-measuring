@@ -298,13 +298,11 @@ public abstract class Device {
 
                                 muxerHandler.post(() -> {
 
-                                    // ⭐ 初始化 muxer（只执行一次）
                                     if (!isMuxerInited) {
                                         initMuxer(rtph264.sps, rtph264.pps);
                                         isMuxerInited = true;
                                     }
 
-                                    // ⭐ 尝试启动 muxer
                                     tryStartMuxerOnvif();
 
                                     if (!muxerStarted) return;

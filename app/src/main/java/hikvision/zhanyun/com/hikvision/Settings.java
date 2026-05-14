@@ -78,7 +78,7 @@ public class Settings {
         float MaxWindSpeedBy10Min;    // 10分钟最大风速;
 
         public String toString() {
-            return String.format("气象数据: %.2f ℃, 湿度: %.2f%%, 风向: %d°, 风速: %.2fm/s, 气压: %.2fhPa, 雨量: %.2fmm, 日照: %.2fW/㎡",
+            return String.format("气象数据: %.2f ℃, 湿度: %.2f%%, 风向: %d°, 风速: %.2fm/s, 气压: %.2fhPa, 雨量: %.2fmm/min, 日照: %.2fW/㎡",
                     Temp, Humidity, WindDirection, WindSpeed, AtomosPress, RainFall, Sunshine);
         }
 

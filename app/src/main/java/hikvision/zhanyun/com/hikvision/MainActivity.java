@@ -2533,13 +2533,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         onlineEnd = 0;
         Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
 
-
-        if(currentMode == MODE_FULL){
-            utilsHandler.post( () -> {
+        utilsHandler.postDelayed( () -> {
+            if(currentMode == MODE_FULL){
                 Log.i(Log.TAG,"开始缓存");
                 cacheVideoFileList();
-            });
-        }  // 缓存信息
+            }  // 缓存信息
+        },1 * 60 * 1000); // 5分钟后还是全工作模式就开始缓存
+
     }
 
 
@@ -5135,7 +5135,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             aeroInfo.AtomosPress = data[2];       // 气压
             aeroInfo.WindDirection = (int) data[6];  // 风向
 
-            aeroInfo.RainFall = data[7];             // 雨量
+            aeroInfo.RainFall = data[9];             // 雨量
 
             if (deviceConfig.aeroDevice == 7){
                 aeroInfo.RainFall = -999;
