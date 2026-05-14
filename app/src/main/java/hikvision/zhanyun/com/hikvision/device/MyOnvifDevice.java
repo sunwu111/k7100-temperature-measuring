@@ -559,7 +559,6 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             rtspLiveClient = null;
         }
 
-        // ⭐ 同步 stop muxer（关键！）
         try {
 
             if (muxerStarted && mediaMuxer != null) {
@@ -584,7 +583,6 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             muxerStarted = false;
         }
 
-        // ⭐ 彻底关闭线程（必须）
         if (muxerThread != null) {
             muxerThread.quitSafely();
             try {
@@ -628,6 +626,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         tryStartMuxerOnvif();
         isMuxerInited = true;
     }
+
 
 
     @Override
@@ -873,6 +872,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         clearState();
         return true;
     }
+
 
     /**
      * 停止实时预览
@@ -1163,8 +1163,9 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     @Override
     public void move(int cmd, int para) { /////
         super.move(cmd, para);
-
     }
+
+
     @Override
     protected void doSampleData(ByteBuffer outputBuffer, MediaCodec.BufferInfo bufferInfo, int outIndex) {
     }

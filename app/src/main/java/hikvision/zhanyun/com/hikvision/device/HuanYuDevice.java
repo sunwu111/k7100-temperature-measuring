@@ -230,7 +230,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-    public HuanYuDevice(int ID, Context context, String ip, int port, String User, String pwd, boolean toCheck, boolean useAudio) { ///////
+
+    public HuanYuDevice(int ID, Context context, String ip, int port, String User, String pwd, boolean toCheck, boolean useAudio) {
         super(ID, context, ip, port, User, pwd, useAudio); /////
         this.drawOSD = false;
         this.type = DEVICE_DVR_HUANYU;
@@ -239,6 +240,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         this.useAudio = useAudio; /////
 //        login();
     }
+
 
     private static String UTCTimeFormat(final Date date) {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd@HH:mm:ss#");
@@ -3097,77 +3099,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             parseResponse(response);
         }
     }
-
-
-//    private void stop() {
-//        if (login()) {
-//            String json = String.format("{\n" +
-//                    "    \"session\": %d,\n" +
-//                    "    \"id\": %d,\n" +
-//                    "    \"call\": {\n" +
-//                    "        \"service\": \"ptz\",\n" +
-//                    "        \"method\": \"setPTZCmd\"\n" +
-//                    "    },\n" +
-//                    "    \"params\": {\n" +
-//                    "        \"channel\": 0,\n" +
-//                    "        \"continuousPanTiltSpace\": {\n" +
-//                    "            \"x\": 0,\n" +
-//                    "            \"y\": 0\n" +
-//                    "        }\n" +
-//                    "    }\n" +
-//                    "}", session, id);
-//
-//            Response response = http_request(url, json);
-//            parseResponse(response);
-//        }
-//    }
-
-
-//    private void stop() {
-//        int maxRetries = 3;
-//        boolean success = false;
-//
-//        for (int i = 0; i < maxRetries; i++) {
-//            if (!login()) {
-//                if (i < maxRetries - 1) {
-//                    SystemClock.sleep(1*1000);
-//                }
-//                continue;
-//            }
-//
-//            String json = String.format("{\n" +
-//                    "    \"session\": %d,\n" +
-//                    "    \"id\": %d,\n" +
-//                    "    \"call\": {\n" +
-//                    "        \"service\": \"ptz\",\n" +
-//                    "        \"method\": \"setPTZCmd\"\n" +
-//                    "    },\n" +
-//                    "    \"params\": {\n" +
-//                    "        \"channel\": 0,\n" +
-//                    "        \"continuousPanTiltSpace\": {\n" +
-//                    "            \"x\": 0,\n" +
-//                    "            \"y\": 0\n" +
-//                    "        }\n" +
-//                    "    }\n" +
-//                    "}", session, id);
-//
-//            Response response = http_request(url, json);
-//            success = parseResponse(response);
-//
-//            if (success) {
-//                isMoving = false;
-//                break;
-//            }
-//
-//            if (i < maxRetries - 1) {
-//                SystemClock.sleep(1*1000);
-//            }
-//        }
-//
-//        if (!success) {
-//            Log.e(Log.TAG, "Failed to stop PTZ after " + maxRetries + " attempts");
-//        }
-//    }
 
 
 

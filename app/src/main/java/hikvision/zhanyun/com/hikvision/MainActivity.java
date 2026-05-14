@@ -677,7 +677,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
 
-                        if (verificationVoltage < 13.0f){
+                        if (verificationVoltage < 13.0f){  // 在温度小于等于0的情况下，状态只能是基础模式和全功能模式
                             verificationVoltage = 13.0f;
                         }
 //                        pendingStartTime = 1;  // 在下一次采样的时候进行切换
@@ -2540,8 +2540,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 cacheVideoFileList();
             });
         }  // 缓存信息
-
     }
+
 
     private void wifiInit() {
         ssid = buildNumericSsidFromDeviceId(deviceConfig.deviceId); /////
@@ -2563,6 +2563,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             wifiAP.disable();
         }
     }
+
 
     private void setDVRTime() {
         if (!isWorkHour()) return;
@@ -2586,6 +2587,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             closeShare("同步机芯时钟");
         }
     }
+
 
     private void moveRecordPreset() {
         if (!isWorkHour()) {
@@ -5943,7 +5945,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void doSleep(String reason, int load) {
 
         if (currentMode == MODE_WAKEUP && isWakeupVideoPlaybackMode == true){
-            Log.e(Log.TAG,"唤醒模式下，查询录像文件10分钟内不对云台下电");
+            Log.e(Log.TAG,"唤醒模式下，查询录像文件15分钟内不对云台下电");
             return;
         }
 
@@ -7106,13 +7108,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             for (String channel : channels.keySet()) {
                 Device dev = channels.get(channel);
                 if (dev.isDVR() && dev.isBusy()) {
-                    Log.i(Log.TAG, "设备正在使用中");
+                    Log.i(Log.TAG, "唤醒模式下，查询过录像文件，15分钟已到，设备正在使用中，停止使用设备进入唤醒模式");
                     return;
                 }
             }
 
             if(currentMode == MODE_WAKEUP){
-                doSleep("唤醒模式下，15分钟内没有进行录像播放操作。",23);
+                doSleep("唤醒模式下，15分钟内没有再次进行录像播放操作，云台下电，关闭红外",23);
             }
         }
     };
@@ -7325,7 +7327,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public short playbackControl(int channel, int code, float scale, int offset, int ssrc) {
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return 1;
-//        if (电量不足) return 2;    //  这个地方需要结合电池电量来进行设置，待验证完1.3.5.1版本后再确定。
+//        if (电量不足) return 2;
 
 
         /////
@@ -7372,9 +7374,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             applyPowerTuning();
         }
 
-
         return 0;
     }
+
 
     @Override
     public void setOSDConfig(int channel, OSD osd) {
