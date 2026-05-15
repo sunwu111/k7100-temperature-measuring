@@ -342,10 +342,8 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Response response = http_request(url, JSON.toJSONString(body));
                 if (response == null){
                     Log.e(HuanyuDeviceLog,"login::response is null");
-
                     return false;
                 }
-
 
                 if (response != null && response.code() == 200) {
                     JSONObject result = JSON.parseObject(response.body().string());
@@ -656,7 +654,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 com.alibaba.fastjson.JSONArray recordItems = params.getJSONArray("recordItem");
                 Date time;
                 // 遍历所有录像项目
-                for (int i = 0; i < recordItems.size(); i++) {           // 这个地方看看能不能优化一下
+                for (int i = 0; i < recordItems.size(); i++) {
                     JSONObject item = recordItems.getJSONObject(i);
                     Settings.FileItem fileItem = new Settings.FileItem();
 
@@ -716,12 +714,10 @@ public class HuanYuDevice extends MyOnvifDevice {
             String itemRequestJson = getRecordItemJson(startNumb, endNumb, startTime, stopTime);   // 构建字符串
 
 
-            // 这个地方先进行查询本地，没有cache到就查询请求，然后缓存到本地
-
             Response itemResponse = http_request(url, itemRequestJson);
 
-
             List<Settings.FileItem> fileItems = parseRecordItemRes(itemResponse);
+
 
             fileList.files = fileItems.toArray(new Settings.FileItem[0]);
             fileList.channel = 1;

@@ -360,8 +360,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -669,7 +669,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
-//                    batVoltage = 13.0F; // 唤醒
+                    //////// 测试使用的电压
+//                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
                     float verificationVoltage = batVoltage;
@@ -677,10 +678,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
 
-                        if (verificationVoltage < 13.0f){  // 在温度小于等于0的情况下，状态只能是基础模式和全功能模式
-                            verificationVoltage = 13.0f;
+                        if (verificationVoltage < 12.99f){
+                            verificationVoltage = 12.96f;
                         }
-//                        pendingStartTime = 1;  // 在下一次采样的时候进行切换
                     }
 
                     int oldMode = currentMode;
@@ -826,45 +826,73 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
 
-    private  void cacheVideoFileList(){
+//    private  void cacheVideoFileList(){
+//
+//        try{
+////            File file = new File(VIDEO_FILES_LIST);
+////            if ((!file.exists() || !file.isFile())) {
+//
+//                Calendar cal = Calendar.getInstance();
+//                cal.set(Calendar.HOUR_OF_DAY, 0);
+//                cal.set(Calendar.MINUTE, 0);
+//                cal.set(Calendar.SECOND, 0);
+//                cal.set(Calendar.MILLISECOND, 0);
+//
+//                long todayStart = cal.getTimeInMillis();
+//                cal.add(Calendar.DAY_OF_YEAR, -15);
+//                long sevenDaysAgoStart = cal.getTimeInMillis();
+//
+//                Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
+//                Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
+//
+//    //            Log.e(Log.TAG,stopTime.asString);
+//    //            Log.e(Log.TAG,startTime.asString);
+//
+//                int count = fileFiles(1, -1, startTime, stopTime);
+//    //            Log.i(Log.TAG,"count"+ count);
+//
+//                String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
+//                        stopTime.year, stopTime.month, stopTime.day);
+//                String startStr = String.format("20%02d-%02d-%02d-00-00-00",
+//                        startTime.year, startTime.month, startTime.day);
+//
+//                findVideoFileList(1, -1, startStr, stopStr,  0, count);
+//
+//                Log.i(Log.TAG,"进行录像文件信息缓存");
+////            }
+//        }catch (Exception e){
+//            Log.e(Log.TAG,"缓存失败"+e.getMessage());
+//        }
+//    }
 
-        try{
-//            File file = new File(VIDEO_FILES_LIST);
-//            if ((!file.exists() || !file.isFile())) {
 
-                Calendar cal = Calendar.getInstance();
-                cal.set(Calendar.HOUR_OF_DAY, 0);
-                cal.set(Calendar.MINUTE, 0);
-                cal.set(Calendar.SECOND, 0);
-                cal.set(Calendar.MILLISECOND, 0);
+    private void cacheVideoFileList() {
+        try {
+            Calendar nowCal = Calendar.getInstance();
+            long stopMillis = nowCal.getTimeInMillis();
 
-                long todayStart = cal.getTimeInMillis();
-                cal.add(Calendar.DAY_OF_YEAR, -7);
-                long sevenDaysAgoStart = cal.getTimeInMillis();
+            nowCal.add(Calendar.DAY_OF_YEAR, -15);
+            long startMillis = nowCal.getTimeInMillis();
 
-                Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
-                Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
+            Settings.TimeRecord stopTime = new Settings.TimeRecord(stopMillis);
+            Settings.TimeRecord startTime = new Settings.TimeRecord(startMillis);
 
-    //            Log.e(Log.TAG,stopTime.asString);
-    //            Log.e(Log.TAG,startTime.asString);
+            int count = fileFiles(1, -1, startTime, stopTime);
 
-                int count = fileFiles(1, -1, startTime, stopTime);
-    //            Log.i(Log.TAG,"count"+ count);
+            String stopStr = String.format("20%02d-%02d-%02d-%02d-%02d-%02d",
+                    stopTime.year, stopTime.month, stopTime.day,
+                    stopTime.hour, stopTime.minute, stopTime.second);
+            String startStr = String.format("20%02d-%02d-%02d-%02d-%02d-%02d",
+                    startTime.year, startTime.month, startTime.day,
+                    startTime.hour, startTime.minute, startTime.second);
 
-                String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
-                        stopTime.year, stopTime.month, stopTime.day);
-                String startStr = String.format("20%02d-%02d-%02d-00-00-00",
-                        startTime.year, startTime.month, startTime.day);
+            findVideoFileList(1, -1, startStr, stopStr, 0, count);
 
-                findVideoFileList(1, -1, startStr, stopStr,  0, count);
-
-                Log.i(Log.TAG,"进行录像文件信息缓存");
-//            }
-        }catch (Exception e){
-            Log.e(Log.TAG,"缓存失败"+e.getMessage());
+            Log.i(Log.TAG, "进行录像文件信息缓存");
+        } catch (Exception e) {
+            Log.e(Log.TAG, "缓存失败" + e.getMessage());
         }
     }
-
 
 
     private void interfacePowerOn(){
@@ -913,15 +941,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     /**
-     * 13.10 <  voltage             全工作
-     * 12.90 < voltage <= 13.10     唤醒
-     * voltage <= 12.90             休眠
+     * 12.99 <  voltage             全工作
+     * 12.79 < voltage <= 12.99     唤醒
+     * voltage <= 12.79             休眠
      */
 
     private int decideModeByVoltage(float voltage) {
-        if (voltage > 13.10f) {
+        if (voltage > 12.99f) {
             return MODE_FULL;
-        } else if (voltage > 12.90f) {
+        } else if (voltage > 12.79f) {
             return MODE_WAKEUP;
         } else {
             return MODE_SLEEP;
@@ -949,6 +977,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     "Pending mode "
                             + modeToString(pendingMode)
                             + " duration=" + (duration / 1000) + "s");
+
             if (duration >= MODE_CONFIRM_TIME) {
                 switchMode(newMode);                // 进行模式的切换
                 pendingMode = -1;
@@ -970,6 +999,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // 第一次进入候选模式
         if (pendingMode == -1 || pendingMode != newMode) {
             pendingMode = newMode;
+
+
+            if(currentMode == MODE_FULL && newMode == MODE_WAKEUP){
+                utilsHandler.postDelayed(() -> {
+                    if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
+                        Log.i(Log.TAG,"开始缓存");
+                        cacheVideoFileList();
+                    }  // 缓存信息
+                },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存,因为模式切换的时间为30分钟,这个地方1分钟后执行,一定是全工作模
+            }
+
             pendingStartTime = now;
             savePowerStateToFile();
             Log.i(TAG, "Enter pending mode: " + modeToString(newMode));
@@ -980,6 +1020,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // 候选模式持续中
         long duration = now - pendingStartTime;
         if (duration >= MODE_CONFIRM_TIME) {
+
             switchMode(newMode);                   // 进行模式的切换
             pendingMode = -1;
             pendingStartTime = 0;
@@ -1715,13 +1756,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
 //                    Log.e(Log.TAG,"batVoltage:"+batVoltage);
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA %d%% 温度%3.1f℃\n%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA/%d%%/%3.1f℃\n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 batPrecent, temperature, Location2String(devLocation)
                         );
                     } else {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA %d%% 温度%3.1f℃\n%s%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.2fV/%2.2fA/%d%%/%3.1f℃\n%s%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 batPrecent, temperature, aeroStatusText(), Location2String(devLocation)
@@ -1778,13 +1819,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 } else if (deviceConfig.chargeControl == 8) {
 
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA/%d%%/%3.1f℃\n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 getBatPercent(), temperature, Location2String(devLocation)
                         );
                     } else {
-                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s%s",
+                        return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA/%d%%/%3.1f℃\n%s%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
                                 BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0, solarVoltage, solarAmpler, loadAmpler, batVoltage, batAmper,
                                 getBatPercent(), temperature, aeroStatusText(), Location2String(devLocation)
@@ -2535,7 +2576,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
 
         utilsHandler.postDelayed(() -> {
-            if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
+//            if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
+            if(currentMode == MODE_FULL){  // 只有在汇能精电下才有电源管理
                 Log.i(Log.TAG,"开始缓存");
                 cacheVideoFileList();
             }  // 缓存信息
@@ -7130,6 +7172,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
+
     @Override
     public int fileFiles(int channel, int videoType, TimeRecord startTime, TimeRecord stopTime) {
         Device dev = channels.get(String.valueOf(channel));
@@ -7137,14 +7180,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
 
-//            // 对云台上电，使能网口
-//            doWakeup("唤醒模式下查询录像文件个数", 2);
-//            // 设置状态变量
-//            isWakeupVideoPlaybackMode = true;
-//            // 开始计时，如果这个闹钟存在就取消重新开始
-//            resetWakeupTimer();
-
-            return VideoFiles.readCachedCount();
+            return VideoFiles.readCachedCount(channel,videoType,startTime,stopTime);   // 返回的是根据时间查询得到的结果
         }
 
         FileDir results = null;
@@ -7160,7 +7196,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         if (results != null) {
-            VideoFiles.saveCountToFile(results.count);
+            VideoFiles.saveCountToFile(results.count);  // 保存后没有用到，暂时不删除
             return results.count;
         } else {
             return 0;
@@ -7190,7 +7226,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             // 开始计时，如果这个闹钟存在就取消重新开始
             resetWakeupTimer();
 
-            return VideoFiles.readCachedFileList(channel, videoType, emptyList);   // 这个地方解析存在问题
+            // --------------------------需要根据时间返回对应的结果--------------------------
+
+            return VideoFiles.readCachedFileList(channel, videoType, startTime,stopTime,emptyList);
         }
 
         FileList list = emptyList;
@@ -7199,12 +7237,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (dev.isDVR()) openShare("文件查询");
             }
 
-//            Log.e(Log.TAG,"startNumb"+startNumb+"endNumb"+endNumb);
-//            Log.e(Log.TAG,"startTime"+startTime+"stopTime"+stopTime);
-
             list = dev.listFile(videoType, startTime, stopTime, startNumb, endNumb);
             if (list != null) break;
         }
+
         if (deviceConfig.toCheck) {
             if (dev.isDVR()) closeShare("文件查询");
         }

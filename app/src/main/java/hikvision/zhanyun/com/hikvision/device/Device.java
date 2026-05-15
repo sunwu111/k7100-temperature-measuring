@@ -705,6 +705,7 @@ public abstract class Device {
         return ret;
     }
 
+
     public Settings.ChannelStatus getStatus(int stream) {
         Settings.ChannelStatus ret = new Settings.ChannelStatus();
         ret.channel = (byte) id;

@@ -466,9 +466,9 @@ public class Settings {
                     new Point(4608, 3456), // 18
                     new Point(3200, 2400), // 19
                     new Point(4224, 3136), // 20
-                    new Point(720, 576), // 集光机芯码流分辨率
-                    new Point(384, 288), // 22 英睿红外分辨率
-                    new Point(640, 512) // 23 高德红外分辨率
+                    new Point(720, 576),
+                    new Point(384, 288),
+                    new Point(640, 512)
             };
             if (index < 0 || index > points.length - 1) index = 0;
             return points[index];
