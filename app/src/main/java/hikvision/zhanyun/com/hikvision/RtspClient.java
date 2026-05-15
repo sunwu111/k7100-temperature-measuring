@@ -675,11 +675,15 @@ public class RtspClient {
     public boolean start(boolean useAudio) { /////
 
         if (!connect()) return false;
+
         this.thread = new Thread(runnable);
+
         this.thread.start();
 
         if (!describe(useAudio)) return false;
+
         if (!setup(useAudio)) return false; /////
+
 //        if (!setup()) return false; /////
         if (!play("0.000-", 1)) return false;
 
@@ -734,6 +738,7 @@ public class RtspClient {
             // 有的RTSP服务器返回的 a=control:rtsp://192.168.1.248:554/h264/ch1/main/av_stream/trackID=1
             // 有的服务器返回的是 a=control:trackID=1
             String sdp = new String(body);
+
             String[] ss = sdp.split("\r\n");
             boolean isVideo = false;
             boolean isAudio = false;

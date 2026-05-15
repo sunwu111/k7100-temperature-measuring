@@ -773,7 +773,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         setState(DevState.PLAYBACKING);
         Log.i(HuanyuDeviceLog, "云台回放: " + resource);
 
-
         return true;
     }
 

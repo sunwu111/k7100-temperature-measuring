@@ -2263,6 +2263,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }).start();
     }
 
+
     private void revertPowerTuning() {
         new Thread(() -> {
             try {
@@ -2533,13 +2534,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         onlineEnd = 0;
         Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
 
-        utilsHandler.postDelayed( () -> {
-            if(currentMode == MODE_FULL){
+        utilsHandler.postDelayed(() -> {
+            if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
                 Log.i(Log.TAG,"开始缓存");
                 cacheVideoFileList();
             }  // 缓存信息
-        },1 * 60 * 1000); // 5分钟后还是全工作模式就开始缓存
-
+        },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
     }
 
 
@@ -2790,11 +2790,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         thisMonthTraffic = trafficMonth.containsKey(thisMonth) ? trafficMonth.get(thisMonth) : 0;
     }
 
+
     private void saveTrafficData() {
         String thisMonth = formatDateTime("yyyy-MM", new Date());
         trafficMonth.put(thisMonth, getMonthTraffic());
         saveObjectToFile(trafficMonth, TRAFFIC_FILE);
     }
+
 
     public void showMsg(final String msg) {
         runOnUiThread(() -> {
@@ -2802,7 +2804,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(Log.TAG, msg);
         });
     }
-
 
 
     private void loadConfig() {
