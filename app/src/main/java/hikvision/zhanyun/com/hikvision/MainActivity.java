@@ -360,8 +360,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static int currentMode = MODE_FULL;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -2582,6 +2582,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 cacheVideoFileList();
             }  // 缓存信息
         },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
+
+
     }
 
 
@@ -3459,6 +3461,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void initSample() {
         sampleIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_SAMPLE), PendingIntent.FLAG_UPDATE_CURRENT);
         alarmInitTask(sampleIntent, "采样", settings.onlineCfg.sample * PERIOD_MINUTE);
+//        alarmInitTask(sampleIntent, "采样", 1000*10);
     }
 
     private void utilizationRate() {
@@ -5166,6 +5169,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doSampleAction() {
         alarmInitTask(sampleIntent, "采样", settings.onlineCfg.sample * PERIOD_MINUTE);
+//        alarmInitTask(sampleIntent, "采样", 10*1000);
         serialHandler.post(() -> getData()); /////
     }
 
