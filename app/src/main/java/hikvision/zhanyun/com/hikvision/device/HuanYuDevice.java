@@ -820,86 +820,106 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
+//    @Override
+//    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
+//
+//
+//        try {
+//            setState(DevState.PHOTOING);
+//
+//
+//            if(login()){
+//
+//                if (preset != 0 || wait) {
+//
+//                    move(2, preset);
+//
+//                    SystemClock.sleep(20 * 1000);
+//
+//
+//                } else {
+//
+//                }
+//
+//
+//                if (snapURI.equals("") || download(snapURI, filename) == false) {  // 下载机芯图片到本地
+//                    clearState(DevState.PHOTOING);
+//                    return false;
+//                }
+//
+//
+//            } else {
+//                Log.e(HuanyuDeviceLog,"拍照的时候未正常登录机芯，拍照失败");
+//                return false;
+//            }
+//
+//            File file = new File(filename);
+//            long stamp = getTimestampFromFilename(filename);
+//            BitmapFactory.Options bitmapOption = new BitmapFactory.Options();
+//            bitmapOption.inMutable = true;
+//            Bitmap bitmap = BitmapFactory.decodeFile(filename, bitmapOption);
+//
+//            if (bitmap != null) {
+//                bitmap = processPhoto(bitmap, stamp, preset, aps, alert);
+//                drawWatermark(bitmap);
+//                controllerCallback.onFrame(bitmap);
+//                Utils.saveBitmapAsJPEG(bitmap, filename, 90);
+//                bitmap.recycle();
+//            }
+//
+//            if (file.exists()) {
+//                clearState(DevState.PHOTOING);
+//                controllerCallback.onPhotoTaked(stamp, this.id, preset, filename);
+//                return true;
+//            }
+//
+//
+//        } catch (Exception e) {
+//            Log.e(HuanyuDeviceLog, "Onvif抓拍错误: " + e.getMessage());
+//            return false;
+//        } finally {
+//            clearState(DevState.PHOTOING);
+//        }
+//        return false;
+//    }
+
+
     @Override
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
-
-
-//        if (MainActivity.currentMode == MODE_WAKEUP){
-//            Log.e(Log.TAG,"唤醒模式，没有那么快上电");
-//            SystemClock.sleep(2 * 1000);
-//        }
-
         try {
             setState(DevState.PHOTOING);
 
-//            timeSync();
-
-            if(login()){
-
+            if (login()) {
                 if (preset != 0 || wait) {
-
                     move(2, preset);
-
                     SystemClock.sleep(20 * 1000);
-
-//
-//                    // 1. 检查设备是否就绪
-//                    if (!waitForDeviceReady(20)) {
-//                        Log.e(HuanyuDeviceLog, "设备未就绪，拍照失败");
-//                        clearState(DevState.PHOTOING);
-//                        return false;
-//                    }
-//
-//                    SystemClock.sleep(3000);
-//
-//                    // 2. 检查坐标和聚焦状态（20秒内）
-//                    PhotoReadiness readiness = waitForPositionAndFocusStable(20);
-//
-//                    if (readiness.positionStable) {
-//                        // 坐标稳定，可以拍照
-//                        if (readiness.focusStable) {
-//                            Log.e(HuanyuDeviceLog, "设备坐标和聚焦都已稳定，开始拍照");
-//                        } else {
-//                            Log.w(HuanyuDeviceLog, "设备坐标稳定但聚焦未完全稳定，继续拍照");
-//                        }
-//                    } else {
-//                        // 坐标不稳定，拍照失败
-//                        Log.e(HuanyuDeviceLog, "设备坐标不稳定，拍照失败");
-//                        clearState(DevState.PHOTOING);
-//                        return false;
-//                    }
-
                 } else {
-
-//                    if (!waitForDeviceReady(20)) {
-//                        Log.e(HuanyuDeviceLog, "设备未就绪，拍照失败");
-//                        clearState(DevState.PHOTOING);
-//                        return false;
-//                    }
-//
-//                    PhotoReadiness readiness = waitForPositionAndFocusStable(20);
-//
-//                    if (readiness.positionStable) {
-//                        if (readiness.focusStable) {
-//                            Log.e(HuanyuDeviceLog, "预置位0拍照，设备坐标和聚焦都已稳定，开始拍照");
-//                        } else {
-//                            Log.w(HuanyuDeviceLog, "预置位0拍照，设备坐标稳定但聚焦未完全稳定，继续拍照");
-//                        }
-//                    } else {
-//                        Log.e(HuanyuDeviceLog, "预置位0拍照，设备坐标不稳定，拍照失败");
-//                        clearState(DevState.PHOTOING);
-//                        return false;
-//                    }
-
+                    // 原有 else 分支
                 }
 
-                if (snapURI.equals("") || download(snapURI, filename) == false) {  // 下载机芯图片到本地
+                // 获取当前配置的分辨率
+                Point imageSize = Settings.PhotoConfig.getImageSize(photoConfig.size);
+                boolean is640x480 = (imageSize.x == 640 && imageSize.y == 480);
+                boolean is320x240 = (imageSize.x == 320 && imageSize.y == 240);
+
+                boolean downloadSuccess;
+                if (is640x480) {
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=640&height=480";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                }else if (is320x240){
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=320&height=240";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                } else {
+                    downloadSuccess = !snapURI.equals("") && download(snapURI, filename);
+                }
+
+                if (!downloadSuccess) {
                     clearState(DevState.PHOTOING);
                     return false;
                 }
 
             } else {
-                Log.e(HuanyuDeviceLog,"拍照的时候未正常登录机芯，拍照失败");
+                Log.e(HuanyuDeviceLog, "拍照的时候未正常登录机芯，拍照失败");
                 return false;
             }
 
@@ -923,7 +943,6 @@ public class HuanYuDevice extends MyOnvifDevice {
                 return true;
             }
 
-
         } catch (Exception e) {
             Log.e(HuanyuDeviceLog, "Onvif抓拍错误: " + e.getMessage());
             return false;
@@ -932,6 +951,9 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
         return false;
     }
+
+
+
 
 
     // 给红外使用

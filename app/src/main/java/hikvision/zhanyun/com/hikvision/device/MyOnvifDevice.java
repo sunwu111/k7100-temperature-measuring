@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -1109,6 +1110,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         return null;
     }
 
+
     public boolean download(String url, String filename) {
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
@@ -1126,6 +1128,50 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             fos.close();
             return true;
         } catch (IOException e) {
+            return false;
+        }
+    }
+
+
+
+    public boolean download(String url, String filename, String username, String password) {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+        String currentTime = dateFormat.format(new Date());
+        Log.e("HuanyuDeviceLog", "机芯获得图片的时间: " + currentTime);
+
+        try {
+            java.net.URL urlObj = new java.net.URL(url);
+            HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+
+            // 如果需要认证，设置 Basic Auth 头
+            if (username != null && password != null) {
+                String credentials = username + ":" + password;
+                String basicAuth = "Basic " + android.util.Base64.encodeToString(
+                        credentials.getBytes(), android.util.Base64.NO_WRAP);
+                connection.setRequestProperty("Authorization", basicAuth);
+            }
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                connection.disconnect();
+                return false;
+            }
+
+            InputStream inputStream = connection.getInputStream();
+            FileOutputStream fos = new FileOutputStream(filename);
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            fos.close();
+            inputStream.close();
+            connection.disconnect();
+            return true;
+        } catch (IOException e) {
+            Log.e("HuanyuDeviceLog", "下载图片失败: " + e.getMessage());
             return false;
         }
     }
