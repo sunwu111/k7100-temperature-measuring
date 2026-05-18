@@ -579,6 +579,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     };
+
+
     ////////
     // 陀螺仪监听器
     private SensorManager sensorManager;
@@ -686,7 +688,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     int oldMode = currentMode;
                     handlePowerModeByVoltage(verificationVoltage);
                     int newMode = currentMode;
-
 
                     if ((oldMode != newMode) && isFullMode()) {
 
@@ -1694,25 +1695,43 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 case 2:
                     if (aeroInfo.WindSpeed < 0.1) aeroInfo.WindDirection = 0;
 
-                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d°%.1fmm\n",
+                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d˚%.1fmm\n",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall);
                 case 3:
                 case 4:
-                    return String.format("气象仪%.1f℃ 湿度%.1f%% %.0fhPa 风速%.1fm/s\n",
+                    return String.format("气象%.1f℃/%.1f%%/%.0fhPa/%.1fm/s",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
                 case 5:
-                    return String.format("%.1f℃%.1f%%RH%.1fm/s%d°%.1fmm%.0fhPa\n",
+                    return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚/%.1fmm/%.0fhPa",
                             aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
                             aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
                 case 6:
-                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d° %.0fhPa\n",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.AtomosPress);
+//                    Log.e(Log.TAG,String.format("%.1f℃/%.1f%%/%.1fm/s/%d˚/%.0fhPa",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.AtomosPress));
+
+//                    return String.format("%.1f℃/%.1f%%/%.1fm/s/%d˚/%.0fhPa",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.AtomosPress);
+
+                return String.format("%.1f℃ %.1f%%RH %.1fm/s %d°%.0fhPa\n",
+                        aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                        aeroInfo.WindDirection, aeroInfo.AtomosPress);
+
                 case 7:
-                    return String.format("%.1f℃ %.1f%%RH %.1fm/s %d°%.1fmm %.0fhPa\n",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
+//                    Log.e(Log.TAG,String.format("%.1f℃/%.1f%%/%.1fm/s/%d˚/%.0fhPa",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.AtomosPress));
+
+//                    return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚%.1fmm/%.0fhPa",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
+
+                return String.format("%.1f℃ %.1f%%RH %.1fm/s %d°%.1fmm %.0fhPa\n",
+                        aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                        aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
+
                 default:
                     return "";
             }
