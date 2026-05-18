@@ -361,6 +361,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private int pendingMode = -1;
     private long pendingStartTime = 0;
     private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 1分钟
 //    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
@@ -1001,14 +1002,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (pendingMode == -1 || pendingMode != newMode) {
             pendingMode = newMode;
 
-
             if(currentMode == MODE_FULL && newMode == MODE_WAKEUP){
                 utilsHandler.postDelayed(() -> {
                     if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
                         Log.i(Log.TAG,"开始缓存");
                         cacheVideoFileList();
                     }  // 缓存信息
-                },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存,因为模式切换的时间为30分钟,这个地方1分钟后执行,一定是全工作模
+                },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存,因为模式切换的时间为30分钟,这个地方1分钟后执行,一定是全工作模式
             }
 
             pendingStartTime = now;
@@ -1055,6 +1055,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 return "UNKNOWN";
         }
     }
+
 
     public static boolean isFullMode() {
         return currentMode == MODE_FULL;
@@ -2601,8 +2602,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 cacheVideoFileList();
             }  // 缓存信息
         },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
-
-
     }
 
 
