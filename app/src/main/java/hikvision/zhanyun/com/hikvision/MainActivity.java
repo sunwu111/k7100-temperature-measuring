@@ -358,11 +358,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public static final int MODE_SLEEP  = 2;
 
     public static int currentMode = MODE_FULL;
+
+    private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
 //    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 1分钟
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -686,10 +688,32 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         }
                     }
 
-//                    int oldMode = currentMode;
+                    int oldMode = currentMode;
                     handlePowerModeByVoltage(verificationVoltage);
-//                    int newMode = currentMode;
-//
+                    int newMode = currentMode;
+
+                    // 模式发生变化
+                    if (oldMode != newMode || currentMode == MODE_SLEEP) {
+
+                        Log.i(TAG,
+                                "检测到模式变化: "
+                                        + modeToString(oldMode)
+                                        + " -> "
+                                        + modeToString(newMode));
+                        // 设备忙
+                        if (isAnyDeviceBusy()) {
+                            Log.i(TAG, "设备忙碌，延迟执行模式切换");
+                            // 仅记录待执行模式
+                            pendingApplyMode = newMode;
+                        }
+                        // 设备空闲
+                        else {
+                            applyPowerMode(newMode);
+                            pendingApplyMode = -1;
+                        }
+                    }
+
+                    processPendingApplyMode();
 //                    if ((oldMode != newMode) && isFullMode()) {
 //
 //                        // 设备正在预览或者拍照以及其他状态的时候不进行模式的切换，等待下一次采集
@@ -950,15 +974,91 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private boolean isAnyDeviceBusy() {
+
         for (String channel : channels.keySet()) {
+
             Device dev = channels.get(channel);
-            if (dev.isDVR() && dev.isBusy()) {
-                Log.i(Log.TAG, "设备正在使用中，推迟模式切换");
+
+            if (dev != null
+                    && dev.isDVR()
+                    && dev.isBusy()) {
+
+                Log.i(Log.TAG,
+                        "设备正在使用中 channel=" + channel);
+
                 return true;
             }
         }
+
         return false;
     }
+
+    private void applyPowerMode(int mode) {
+
+        switch (mode) {
+            case MODE_FULL: {
+                interfacePowerOn();
+                Log.i(TAG,
+                        "切换到全工作模式：工作时间开启云台");
+
+                if (isWorkHour()) {
+
+                    openShare("模式切换为全工作模式且在工作时间段");
+
+                    doWakeup(
+                            "模式切换为全工作模式且在工作时间段",
+                            23);
+
+                    utilsHandler.postDelayed(
+                            () -> setRecordingPolicy(settings.videoTimeTable),
+                            60 * 1000);
+                }
+
+                break;
+            }
+
+            case MODE_WAKEUP: {
+                Log.i(TAG,
+                        "切换到唤醒模式：立即关闭云台和红外");
+                interfacePowerOn();
+                doSleep("切换为唤醒模式", 23);
+                break;
+            }
+            case MODE_SLEEP: {
+
+                Log.i(TAG,
+                        "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
+                interfacePowerOff();
+                doSleep("切换为休眠模式", 23);
+                break;
+            }
+        }
+    }
+
+
+    private void processPendingApplyMode() {
+
+        if (pendingApplyMode == -1) {
+            return;
+        }
+
+        if (isAnyDeviceBusy()) {
+
+            Log.i(TAG,
+                    "设备忙碌中，继续等待模式切换: "
+                            + modeToString(pendingApplyMode));
+            return;
+        }
+
+        Log.i(TAG,
+                "设备空闲，开始执行延迟模式切换: "
+                        + modeToString(pendingApplyMode));
+
+        applyPowerMode(pendingApplyMode);
+
+        pendingApplyMode = -1;
+    }
+
 
 
 
@@ -973,79 +1073,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-//    private void handlePowerModeByVoltage(float voltage) {
-//
-//        int newMode = decideModeByVoltage(voltage);
-//
-//        long now = System.currentTimeMillis();
-//
-//        // 时间异常保护
-//        if (pendingStartTime > now) {
-//            pendingMode = -1;
-//            pendingStartTime = 0;
-//            savePowerStateToFile();
-//        }
-//
-//
-//        if (pendingMode == newMode && pendingStartTime > 0) {
-//            long duration = now - pendingStartTime;
-//            Log.i(TAG,
-//                    "Pending mode "
-//                            + modeToString(pendingMode)
-//                            + " duration=" + (duration / 1000) + "s");
-//
-//            if (duration >= MODE_CONFIRM_TIME) {
-//                switchMode(newMode);                // 进行模式的切换
-//                pendingMode = -1;
-//                pendingStartTime = 0;
-//                savePowerStateToFile();
-//                return;
-//            }
-//        }
-//
-//
-//        // 当前模式不变
-//        if (newMode == currentMode) {
-//            pendingMode = -1;
-//            pendingStartTime = 0;
-//            savePowerStateToFile();
-//            return;
-//        }
-//
-//        // 第一次进入候选模式
-//        if (pendingMode == -1 || pendingMode != newMode) {
-//            pendingMode = newMode;
-//
-//            if(currentMode == MODE_FULL && newMode == MODE_WAKEUP){
-//                utilsHandler.postDelayed(() -> {
-//                    if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
-//                        Log.i(Log.TAG,"开始缓存");
-//                        cacheVideoFileList();
-//                    }  // 缓存信息
-//                },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存,因为模式切换的时间为30分钟,这个地方1分钟后执行,一定是全工作模式
-//            }
-//
-//            pendingStartTime = now;
-//            savePowerStateToFile();
-//            Log.i(TAG, "Enter pending mode: " + modeToString(newMode));
-//            return;
-//        }
-//
-//
-//        // 候选模式持续中
-//        long duration = now - pendingStartTime;
-//        if (duration >= MODE_CONFIRM_TIME) {
-//
-//            switchMode(newMode);                   // 进行模式的切换
-//            pendingMode = -1;
-//            pendingStartTime = 0;
-//            savePowerStateToFile();
-//        }
-//    }
-
-
     private void handlePowerModeByVoltage(float voltage) {
-        int newMode = decideModeByVoltage(voltage);  // 2分钟一次
+
+        int newMode = decideModeByVoltage(voltage);
+
         long now = System.currentTimeMillis();
 
         // 时间异常保护
@@ -1055,109 +1086,63 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             savePowerStateToFile();
         }
 
-        // 情况1：pending 模式与目标一致，且持续时间已达门限
+
         if (pendingMode == newMode && pendingStartTime > 0) {
             long duration = now - pendingStartTime;
-            Log.i(TAG, "Pending mode " + modeToString(pendingMode)
-                    + " duration=" + (duration / 1000) + "s");
+            Log.i(TAG,
+                    "Pending mode "
+                            + modeToString(pendingMode)
+                            + " duration=" + (duration / 1000) + "s");
 
             if (duration >= MODE_CONFIRM_TIME) {
-                // 如果设备正忙，推迟切换，保留 pending 状态下次再试
-                if (isAnyDeviceBusy()) {
-                    Log.i(TAG, "设备忙，暂不切换到 " + modeToString(newMode));
-                    return;
-                }
-                // 执行模式切换（仅更新 currentMode）
-                switchMode(newMode);
-                // 处理切换后的一次性动作（仅限全工作和唤醒模式）
-                handleModeSwitchActions(newMode);
+                switchMode(newMode);                // 进行模式的切换
                 pendingMode = -1;
                 pendingStartTime = 0;
                 savePowerStateToFile();
-                // 注意：这里没有直接 return，后续还会执行休眠模式的持续性检查
+                return;
             }
         }
 
-        // 当前模式不变，清除 pending
+
+        // 当前模式不变
         if (newMode == currentMode) {
             pendingMode = -1;
             pendingStartTime = 0;
             savePowerStateToFile();
-            // 不切换，继续后面的休眠持续性检查
+            return;
         }
 
         // 第一次进入候选模式
         if (pendingMode == -1 || pendingMode != newMode) {
             pendingMode = newMode;
 
-            if (currentMode == MODE_FULL && newMode == MODE_WAKEUP) {
+            if(currentMode == MODE_FULL && newMode == MODE_WAKEUP){
                 utilsHandler.postDelayed(() -> {
-                    if (currentMode == MODE_FULL && deviceConfig.chargeControl == 6) {
-                        Log.i(Log.TAG, "开始缓存");
+                    if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
+                        Log.i(Log.TAG,"开始缓存");
                         cacheVideoFileList();
-                    }
-                }, 1 * 60 * 1000);
+                    }  // 缓存信息
+                },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存,因为模式切换的时间为30分钟,这个地方1分钟后执行,一定是全工作模式
             }
 
             pendingStartTime = now;
             savePowerStateToFile();
             Log.i(TAG, "Enter pending mode: " + modeToString(newMode));
-            // 还没有切换，继续后面的休眠持续性检查
+            return;
         }
 
-        // 候选模式持续中（理论路径，作为兜底）
-        if (pendingMode == newMode && pendingStartTime > 0) {
-            long duration = now - pendingStartTime;
-            if (duration >= MODE_CONFIRM_TIME) {
-                if (!isAnyDeviceBusy()) {
-                    switchMode(newMode);
-                    handleModeSwitchActions(newMode);
-                    pendingMode = -1;
-                    pendingStartTime = 0;
-                    savePowerStateToFile();
-                } else {
-                    Log.i(TAG, "设备忙，暂不切换到 " + modeToString(newMode));
-                    // 保留 pending 状态
-                }
-            }
-        }
 
-        // ========== 休眠模式的持续性保证（每次采集都执行，只要不忙） ==========
-        // 原逻辑：if (isSleepMode()) { 不忙就下电+休眠 }
-        if (isSleepMode() && !isAnyDeviceBusy()) {
-            Log.i(TAG, "保持休眠模式：立即关闭云台和红外，RJ45和USB下电");
-            interfacePowerOff();
-            doSleep("持续休眠模式", 23);
+        // 候选模式持续中
+        long duration = now - pendingStartTime;
+        if (duration >= MODE_CONFIRM_TIME) {
+
+            switchMode(newMode);                   // 进行模式的切换
+            pendingMode = -1;
+            pendingStartTime = 0;
+            savePowerStateToFile();
         }
     }
 
-
-    private void handleModeSwitchActions(int newMode) {
-        // 此方法仅在 switchMode 后调用，故 oldMode != newMode 已满足
-        switch (newMode) {
-            case MODE_FULL:
-                interfacePowerOn();
-                Log.i(TAG, "切换到全工作模式：工作时间开启云台");
-                if (isWorkHour()) {
-                    openShare("模式切换为全工作模式且在工作时间段");
-                    doWakeup("模式切换为全工作模式且在工作时间段", 23);
-                    utilsHandler.postDelayed(() -> {
-                        setRecordingPolicy(settings.videoTimeTable);
-                    }, 60 * 1000);
-                }
-                break;
-
-            case MODE_WAKEUP:
-                interfacePowerOn();
-                Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
-                doSleep("切换为唤醒模式", 23);
-                break;
-
-            default:
-                // 休眠模式的动作由持续性检查统一完成，这里不处理
-                break;
-        }
-    }
 
 
 
