@@ -1064,7 +1064,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
-    
+
     // TODO 状态是如何进行切换的
     private void switchMode(int newMode) {
         if (newMode == currentMode) return;
@@ -2453,6 +2453,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Log.e(Log.TAG,"============开机读取电源管理模块参数============");
         loadPowerStateFromFile();  // 开机读取配置文件，候选模式切换时间，以及当前的模式。
 
+
+        try{
+            usbPowerState = readUsbPowerState();
+            Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
+        }catch (Exception e){
+            usbPowerState = false;
+            writeUsbPowerState(false);
+            Log.e(Log.TAG,"Exception::"+e.getMessage());
+        }  // 这个usb的状态有问题
+
         utilsThread.start();
         sendThread.start();
         uploadThread.start();
@@ -2505,6 +2515,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         AndroidThermalMonitor.logAllThermalTemperatures();
+
         startTemperatureMonitoring();
 
 
@@ -2965,15 +2976,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
 
-        /// 读取usb上电情况
-        try{
-            usbPowerState = readUsbPowerState();
-//            Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
-        }catch (Exception e){
-            usbPowerState = false;
-            writeUsbPowerState(false);
-            Log.e(Log.TAG,"Exception::"+e.getMessage());
-        }
+//        /// 读取usb上电情况
+//        try{
+//            usbPowerState = readUsbPowerState();
+////            Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
+//        }catch (Exception e){
+//            usbPowerState = false;
+//            writeUsbPowerState(false);
+//            Log.e(Log.TAG,"Exception::"+e.getMessage());
+//        }
 
         /////
         File file_ir = new File(IR_SETTING_FILE);
