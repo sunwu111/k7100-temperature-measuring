@@ -362,9 +362,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
 //    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 1分钟
-    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -705,90 +705,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             Log.i(TAG, "设备忙碌，延迟执行模式切换");
                             // 仅记录待执行模式
                             pendingApplyMode = newMode;
-                        }
-                        // 设备空闲
-                        else {
+                        } else {                                // 设备空闲
                             applyPowerMode(newMode);
                             pendingApplyMode = -1;
                         }
                     }
 
                     processPendingApplyMode();
-//                    if ((oldMode != newMode) && isFullMode()) {
-//
-//                        // 设备正在预览或者拍照以及其他状态的时候不进行模式的切换，等待下一次采集
-//                        boolean anyBusy = false;
-//                        for (String channel : channels.keySet()) {
-//                            Device dev = channels.get(channel);
-//                            if (dev.isDVR() && dev.isBusy()) {
-//                                Log.i(Log.TAG, "设备正在使用中");
-//                                anyBusy = true;
-//                                break;
-//                            }
-//                        }
-//                        if (!anyBusy) {
-//                            interfacePowerOn();
-//                            Log.i(TAG, "切换到全工作模式：工作时间开启云台");   /// 这个地方不是根据录像策略来设置云台开关的，云台是全天开启状态
-//
-//                            if (isWorkHour()){
-//                                openShare("模式切换为全工作模式且在工作时间段");
-//                                doWakeup("模式切换为全工作模式且在工作时间段", 23);
-//                                utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
-//                            }
-//                        }
-////                        interfacePowerOn();
-////                        Log.i(TAG, "切换到全工作模式：工作时间开启云台");   /// 这个地方不是根据录像策略来设置云台开关的，云台是全天开启状态
-////
-////                        if (isWorkHour()){
-////                            openShare("模式切换为全工作模式且在工作时间段");
-////                            doWakeup("模式切换为全工作模式且在工作时间段", 23);
-////                            utilsHandler.postDelayed( () -> {setRecordingPolicy(settings.videoTimeTable);},60 * 1000);  // 这个地方设置录像策略  1分钟
-////                        }
-//                    }
-//
-//                    if ((oldMode != newMode) && isWakeupMode()) {
-//                        // 设备正在预览或者拍照以及其他状态的时候不进行模式的切换，等待下一次采集
-//                        boolean anyBusy = false;
-//                        for (String channel : channels.keySet()) {
-//                            Device dev = channels.get(channel);
-//                            if (dev.isDVR() && dev.isBusy()) {
-//                                Log.i(Log.TAG, "设备正在使用中");
-//                                anyBusy = true;
-//                                break;
-//                            }
-//                        }
-//                        if (!anyBusy) {
-//                            Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
-//                            interfacePowerOn();
-//                            doSleep("切换为唤醒模式", 23);
-//                        }
-//
-////                        Log.i(TAG, "切换到唤醒模式：立即关闭云台和红外");
-////                        interfacePowerOn();
-////                        doSleep("切换为唤醒模式", 23);
-//                    }
-//
-//                    if (isSleepMode()) {
-//
-//                        boolean anyBusy = false;
-//                        for (String channel : channels.keySet()) {
-//                            Device dev = channels.get(channel);
-//                            if (dev.isDVR() && dev.isBusy()) {
-//                                Log.i(Log.TAG, "设备正在使用中");
-//                                anyBusy = true;
-//                                break;
-//                            }
-//                        }
-//                        if (!anyBusy) {
-//                            Log.i(TAG, "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");     //这个地方需要对RJ45和USB下电，切换到其他模式需要上电
-//                            interfacePowerOff();
-//                            doSleep("切换为休眠模式", 23);
-//                        }
-//
-////                        Log.i(TAG, "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");     //这个地方需要对RJ45和USB下电，切换到其他模式需要上电
-////                        interfacePowerOff();
-////                        doSleep("切换为休眠模式", 23);
-//                    }
+
 
                 } else if (action.equals(ACTION_TIME_CHANGED)) {
                     doTimeChangedAction(context, intent);
@@ -1002,13 +926,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         "切换到全工作模式：工作时间开启云台");
 
                 if (isWorkHour()) {
-
                     openShare("模式切换为全工作模式且在工作时间段");
-
                     doWakeup(
                             "模式切换为全工作模式且在工作时间段",
                             23);
-
                     utilsHandler.postDelayed(
                             () -> setRecordingPolicy(settings.videoTimeTable),
                             60 * 1000);
@@ -1143,9 +1064,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
-
-
-
+    
     // TODO 状态是如何进行切换的
     private void switchMode(int newMode) {
         if (newMode == currentMode) return;
