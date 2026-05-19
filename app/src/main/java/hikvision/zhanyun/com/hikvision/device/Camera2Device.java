@@ -46,6 +46,7 @@ import com.zhjinrui.netty.NettyTcpServer;
 import com.zhjinrui.netty.NettyUtils;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -361,64 +362,237 @@ public class Camera2Device extends Device {
 
 
     // 直播和拍照回调函数  拉流的时候可以拍照，需要结合takephoto函数
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            Image img = reader.acquireLatestImage();
-            try {
-                if (img == null || !previewReady) return;
+//    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+//        @Override
+//        public void onImageAvailable(ImageReader reader) {
+//            Image img = reader.acquireLatestImage();
+//            try {
+//                if (img == null || !previewReady) return;
+//
+//                mCameraParamHandler.post(() -> updateCaptureRequestParameters());
+//
+//                Bitmap previewBitmap = imageDecode(img);
+//
+//                if (rotate == 1) {
+//                    previewBitmap = rotate180WithCanvas(previewBitmap);
+//                }
+//                previewBitmap = preProcessingPhoto(previewBitmap);
+//
+//                if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
+//                    Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
+//
+//                    photoDone.set(true);
+//
+//                    mCameraPhtotingLock.notifyLock();
+//                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
+//                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
+//                    drawWatermark(previewBitmap,3,streamType,true); // 先AI识别再画OSD //////
+//
+//                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
+//                    if (NettyUtils.isTakePhoto()) {
+//                        toolTakePhoto(previewBitmap);
+//                        NettyUtils.setTakePhoto(false);
+//                    }
+//                    if (controllerCallback != null) {
+//                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
+//                    }
+//                    mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
+//
+//                } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
+//                    //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
+//                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
+//
+//                    drawWatermark(previewBitmap,3,streamType,false); // 先AI识别再画OSD //////
+//
+//                    Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
+//                    procVideoHandler.removeCallbacksAndMessages(null); /////
+//                    procVideoHandler.post(() -> { /////
+//                        encode(finalPreviewBitmap); /////
+//                    });
+//                }
+//                if (mOnShow && controllerCallback != null) {
+//                    controllerCallback.onFrame(previewBitmap); /////
+//                }
+//            } catch (Exception e) {
+//                Log.i(Log.TAG, "图片处理异常：" + e.getMessage());
+//            } finally {
+//                if (img != null) img.close();
+//            }
+//        }
+//    };
 
-                mCameraParamHandler.post(() -> updateCaptureRequestParameters());
 
-                Bitmap previewBitmap = imageDecode(img);
 
-                if (rotate == 1) {
-                    previewBitmap = rotate180WithCanvas(previewBitmap);
-                }
-                previewBitmap = preProcessingPhoto(previewBitmap);
+    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener =
+            new ImageReader.OnImageAvailableListener() {
 
-                if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
-                    Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
+                @Override
+                public void onImageAvailable(ImageReader reader) {
 
-                    photoDone.set(true);
+                    Image img = null;
 
-                    mCameraPhtotingLock.notifyLock();
-                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
-                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-                    drawWatermark(previewBitmap,3,streamType,true); // 先AI识别再画OSD //////
+                    try {
 
-                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
-                    if (NettyUtils.isTakePhoto()) {
-                        toolTakePhoto(previewBitmap);
-                        NettyUtils.setTakePhoto(false);
+                        img = reader.acquireLatestImage();
+
+                        if (img == null || !previewReady) {
+                            return;
+                        }
+
+                        // 动态更新参数
+                        mCameraParamHandler.post(() -> updateCaptureRequestParameters());
+
+                        if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
+
+                            Log.i(Log.TAG, "开始保存原生JPEG");
+
+                            try {
+
+                                if (img.getFormat() == ImageFormat.JPEG) {
+
+                                    Image.Plane[] planes = img.getPlanes();
+
+                                    if (planes != null && planes.length > 0) {
+
+                                        ByteBuffer buffer = planes[0].getBuffer();
+
+                                        byte[] jpegData = new byte[buffer.remaining()];
+
+                                        buffer.get(jpegData);
+
+                                        FileOutputStream fos = null;
+
+                                        try {
+
+                                            fos = new FileOutputStream(mFileImage);
+
+                                            fos.write(jpegData);
+
+                                            fos.flush();
+
+                                            Log.i(Log.TAG,
+                                                    "原生JPEG保存成功: "
+                                                            + mFileImage
+                                                            + " size="
+                                                            + jpegData.length);
+
+                                        } finally {
+
+                                            if (fos != null) {
+                                                try {
+                                                    fos.close();
+                                                } catch (Exception ignore) {
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                photoDone.set(true);
+
+                                mCameraPhtotingLock.notifyLock();
+
+
+
+                                if (controllerCallback != null) {
+
+                                    procVideoHandler.post(() ->
+                                            controllerCallback.onPhotoTaked(
+                                                    getTimestampFromFilename(mFileImage),
+                                                    id,
+                                                    mFilePreset,
+                                                    mFileImage
+                                            )
+                                    );
+                                }
+
+                            } catch (Exception e) {
+
+                                Log.e(Log.TAG, "拍照处理异常：" + e);
+
+                                controllerCallback.onPhotoFailed(
+                                        id,
+                                        mFilePreset,
+                                        mFileImage
+                                );
+
+                            } finally {
+
+                                // 防止连续重复抓拍
+                                mCameraPhotoing = false;
+                            }
+
+                            return;
+                        }
+
+                        if ((isLiving() && rtph264 != null) || isRecording()) {
+
+                            Bitmap previewBitmap = imageDecode(img);
+
+                            if (previewBitmap == null) {
+                                return;
+                            }
+
+                            // 视频旋转
+                            if (rotate == 1) {
+                                previewBitmap = rotate180WithCanvas(previewBitmap);
+                            }
+
+                            // 视频预处理
+                            previewBitmap = preProcessingPhoto(previewBitmap);
+
+                            // AI/OSD
+                            drawWatermark(
+                                    previewBitmap,
+                                    3,
+                                    streamType,
+                                    false
+                            );
+
+                            Bitmap finalPreviewBitmap = previewBitmap;
+
+                            // 防止队列堆积
+                            procVideoHandler.removeCallbacksAndMessages(null);
+
+                            procVideoHandler.post(() -> {
+
+                                try {
+
+                                    encode(finalPreviewBitmap);
+
+                                } catch (Exception e) {
+
+                                    Log.e(Log.TAG, "视频编码异常：" + e);
+                                }
+                            });
+
+                            // 预览显示
+                            if (mOnShow && controllerCallback != null) {
+
+                                controllerCallback.onFrame(previewBitmap);
+                            }
+                        }
+
+                    } catch (Exception e) {
+
+                        Log.e(Log.TAG, "图片处理异常：" + e);
+
+                    } finally {
+
+                        if (img != null) {
+
+                            try {
+                                img.close();
+                            } catch (Exception ignore) {
+                            }
+                        }
                     }
-                    if (controllerCallback != null) {
-                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
-                    }
-                    mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
-
-                } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
-                    //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
-                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-
-                    drawWatermark(previewBitmap,3,streamType,false); // 先AI识别再画OSD //////
-
-                    Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
-                    procVideoHandler.removeCallbacksAndMessages(null); /////
-                    procVideoHandler.post(() -> { /////
-                        encode(finalPreviewBitmap); /////
-                    });
                 }
-                if (mOnShow && controllerCallback != null) {
-                    controllerCallback.onFrame(previewBitmap); /////
-                }
-            } catch (Exception e) {
-                Log.i(Log.TAG, "图片处理异常：" + e.getMessage());
-            } finally {
-                if (img != null) img.close();
-            }
-        }
-    };
+            };
+
+
+
+
 
 
     private void toolTakePhoto(Bitmap previewBitmap) {
@@ -667,6 +841,7 @@ public class Camera2Device extends Device {
         }
     }
 
+
     private void createPreviewSession(int width, int height, boolean video) {
         try {
             if (width <= 0 || height <= 0) {
@@ -692,6 +867,7 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
         }
     }
+
 
     CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
         @Override
