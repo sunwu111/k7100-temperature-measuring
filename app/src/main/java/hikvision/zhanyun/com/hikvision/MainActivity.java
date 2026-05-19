@@ -7121,27 +7121,87 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         settings.videoCodecs.put(v.channel + ":" + v.streamType, v);
         Device dev = channels.get(String.valueOf(v.channel));
 
+//        Log.d(Log.TAG, "setVideoCodec channel=" + v.channel + " stream=" + v.streamType + " dev=" + dev);
+
         boolean ret = false;
         if (dev != null) {
             dev.codec.put(String.valueOf(v.streamType), v);
-
             for (int i = 0; i < 3; i++) {
                 if (deviceConfig.toCheck) {
                     if (dev.isDVR()) openShare("视频参数设置");
                 }
                 ret = dev.setCodec(v);
-                if (ret) {
-                    break;
+//                Log.d(Log.TAG, "setCodec attempt " + i + " result=" + ret);
+                if (ret) break;
+            }
+        } else {
+//            Log.e(Log.TAG, "Device not found for channel " + v.channel);
+        }
+
+        if (deviceConfig.toCheck) {
+            if (dev != null && dev.isDVR()) closeShare("视频参数设置");
+        }
+
+        if (ret) {
+            updateVideoCodecsInSettings(settings.videoCodecs);
+        } else {
+//            Log.w(Log.TAG, "保存取消，ret=false, channel=" + v.channel + " stream=" + v.streamType);
+        }
+    }
+
+
+    private void updateVideoCodecsInSettings(HashMap<String, VideoCodec> codecs) {
+        File file = new File(SETTING_FILE);
+        JSONObject root;
+        if (file.exists()) {
+            try {
+                String content = fileToString(file);
+                root = JSON.parseObject(content);
+            } catch (Exception e) {
+                root = new JSONObject();
+            }
+        } else {
+            root = new JSONObject();
+        }
+        // 单独将 videoCodecs 序列化放入 root
+        root.put("videoCodecs", JSON.toJSON(codecs));
+
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(file);
+            String json = root.toJSONString();
+            fos.write(json.getBytes("UTF-8"));
+            fos.flush();
+        } catch (Exception e) {
+            Log.e(Log.TAG, "更新 videoCodecs 失败: " + e.getMessage());
+        } finally {
+            if (fos != null) {
+                try { fos.close(); } catch (IOException ignored) {}
+            }
+        }
+    }
+
+
+    public static String fileToString(File file) {
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(file);
+            byte[] data = new byte[(int) file.length()];
+            fis.read(data);
+            return new String(data, "UTF-8");
+        } catch (Exception e) {
+            Log.e(Log.TAG, "读取文件失败: " + e.getMessage());
+            return null;
+        } finally {
+            if (fis != null) {
+                try {
+                    fis.close();
+                } catch (IOException ignored) {
                 }
             }
         }
-        if (deviceConfig.toCheck) {
-            if (dev.isDVR()) closeShare("视频参数设置");
-        }
-        if (ret) {
-            saveSettings(settings, SETTING_FILE);
-        }
     }
+
 
     @Override
     public ChannelStatus getChannelState(int channel, int stream) {

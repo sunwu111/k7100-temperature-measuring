@@ -1150,7 +1150,7 @@ public class Camera2Device extends Device {
     }
 
     public boolean setCodec(Settings.VideoCodec codec) {
-        return false;
+        return true;
     }
 
 

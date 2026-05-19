@@ -433,6 +433,7 @@ public class Settings {
 
     }
 
+
     public static class VideoCodec {
         public byte channel = 1;
         public byte streamType = 0;
@@ -505,6 +506,21 @@ public class Settings {
                 if (points[i].x == w && points[i].y == h) return (byte) i;
             return 8;
         }
+
+        @Override
+        public String toString() {
+            return "VideoCodec{" +
+                    "channel=" + channel +
+                    ", streamType=" + streamType +
+                    ", frame=" + frame +
+                    ", iFrame=" + iFrame +
+                    ", codec=" + codec +
+                    ", bps=" + bps +
+                    ", vbr=" + vbr +
+                    ", resolution=" + resolution +
+                    '}';
+        }
+
     }
 
 //    public static class VideoTimeItem {
