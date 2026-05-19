@@ -1194,6 +1194,7 @@ public class Camera2Device extends Device {
             Settings.VideoCodec vc = getVideoCodec(streamType);
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
 
+
             /////
 //            Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);         // 默认使用的是主码流
 
@@ -1201,6 +1202,11 @@ public class Camera2Device extends Device {
             if (mResolution.x > 1920 || mResolution.y > 1080) {
                 mResolution = new Point(1920, 1080);
             }
+
+            if ((mResolution.x == 800 && mResolution.y == 600)||(mResolution.x == 704 && mResolution.y == 576)){
+                mResolution = new Point(640, 480);
+            }
+
 //            mResolution = size;
             /////
 
