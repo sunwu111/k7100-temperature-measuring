@@ -6922,7 +6922,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         };
 
-        dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+
+        if (dev.isDVR()) {
+            dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+        }
+
+        if (dev.isCamera()) {
+            dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+        }
+
         return 0;
     }
 
