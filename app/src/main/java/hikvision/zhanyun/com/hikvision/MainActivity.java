@@ -267,6 +267,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final String CONFIG_FILE = DATA_DIR + "config.json";         // 设备核心设置，如服务器设置等，不可复位
     private static final String SETTING_FILE = DATA_DIR + "settings.json";  // 和各个通道相关的设置，可复位
     private static final String USB_STATE_FILE = DATA_DIR + "usb_state.json";  // 和各个通道相关的设置，可复位
+    private static final String KEY_USB_POWER = "usbPowerState";
 
     private static final String WIFIAP_FROM = "06:00:00";          //8点--18点wifi热点整点开启
     private static final String WIFIAP_UNTIL = "21:00:00";
@@ -344,6 +345,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static Handler serialHandler;
     private static Handler gimbalPowerHandler;
 
+
     private static Handler delayHandler = new Handler();
     private static AtomicBoolean powerClockSynced = new AtomicBoolean(false); // 供电板时钟同步标识
     private static WifiAP wifiAP;
@@ -400,8 +402,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static boolean rxBusReceiverRegistered = false;
     private final String SECRET = "p7K#9x!";
     private final String DOMAIN = "ssid_v1|";    // 域隔离 未来升级版本用 ssid_v2|
+
     public boolean sleepMode = false;    // 云台休眠模式与否： true 休眠模式， false 正常模式，2021-6-9，张总确认为单次休眠模式，重启或者第二天后无效
     public boolean sleepModeIr = false;    // 红外休眠模式与否： true 休眠模式， false 正常模式
+
     boolean irOn = false;
     //    private static final String[] SIGNAL_LEVELS = {"＿", "▁", "▂", "▄", "▆", "█"};
     private int DVR_BOOT_TIME = 120;        // DVR 启动到自检完成需要的时间 /////
@@ -1238,7 +1242,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-    private static final String KEY_USB_POWER = "usbPowerState";
+
     /**
      * 写入 USB 电源状态到文件（线程安全）
      * @param state 要保存的 boolean 值
@@ -1260,6 +1264,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * @return 保存的 boolean 值，若文件不存在或读取失败则返回 false
      */
     public static  boolean readUsbPowerState() {
+
+
+
         File file = new File(USB_STATE_FILE);
         if (!file.exists()) {
             return false;
@@ -2455,13 +2462,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
         try{
+
             usbPowerState = readUsbPowerState();
             Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
         }catch (Exception e){
             usbPowerState = false;
             writeUsbPowerState(false);
             Log.e(Log.TAG,"Exception::"+e.getMessage());
-        }  // 这个usb的状态有问题
+        }
 
         utilsThread.start();
         sendThread.start();
@@ -8539,6 +8547,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         /////
     }
+
 
     private void performDualLightFusion(int preset, boolean show, String fn, int recordPreset,
                                         Settings settings, boolean alert, IRSetting iRSetting,
