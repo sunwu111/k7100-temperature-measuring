@@ -8635,6 +8635,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         finishTask(fileName);
     }
 
+
     @Override
     public void onFileUploadEnd(long time, String fileName, int Channel, int preset, SPGProtocol.FILE_TYPE type) {
         fileUploadFailedTimes = 0;
@@ -8648,6 +8649,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             failedFileError.remove(fileName);
         }*/
     }
+
 
     @Override
     public List<CheckGroup> getCheckGroup(int Channel) {
