@@ -6918,6 +6918,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return 0;
     }
 
+
+
     private boolean isNetworkReachable(final String host, final int timeout) {
         boolean result = false;
         try {
