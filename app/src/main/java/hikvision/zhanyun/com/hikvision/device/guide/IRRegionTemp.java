@@ -153,22 +153,114 @@ public class IRRegionTemp {
         return (celsius * 9 / 5) + 32;
     }
 
+//    private float calibration(float mTemp, float distance, float tempCompensate, float focalLen, int measureUnit) {
+//
+//        /////
+//        if ((tempCompensate < -20 || tempCompensate > 20) && measureUnit == 0) {
+//            tempCompensate = 0;
+//        }
+//        /////
+//
+//        if (distance == -1) {
+//            return convertTemperatureIfNeeded(mTemp + tempCompensate);
+//        } else {
+//            if (MainActivity.tempEnvironment > 45 || MainActivity.tempEnvironment < 30) { //26.1
+//                return convertTemperatureIfNeeded(mTemp + tempCompensate);
+//            } else {
+//                float tempEnvironment = 0;
+//
+//                if (focalLen == 0) {
+//                    if (MainActivity.tempEnvironment > 31.5) {
+//                        tempEnvironment = (float) 31.5;
+//                    } else if (MainActivity.tempEnvironment < 20.1) {
+//                        tempEnvironment = (float) 20.1;
+//                    } else {
+//                        tempEnvironment = MainActivity.tempEnvironment;
+//                    }
+//                    if (distance >= 5) {
+////                        if (tempEnvironment >= 20.1 && tempEnvironment < 23.35) {
+////                            // 在环境温度20.1、21.1℃下训练
+////                            float result = (float) (0.15877362428989 * mTemp + 0.03382572685611610 * mTemp * tempEnvironment + 0.000568762047998612 * Math.pow(mTemp, 2) + 0.0127603166252144 * distance * mTemp - 0.01599677278868330 * distance * tempEnvironment + 0.00562172812956645 * Math.pow(distance, 2) + 6.79402618258558 + tempCompensate);
+////                            return convertTemperatureIfNeeded(result);
+////                        } elss`2e if (tempEnvironment >= 23.35 && tempEnvironment < 28.8) {
+////                            // 在环境温度26.1℃下训练
+////                            float result = (float) (1.02787184840106 * mTemp - 0.00688796445211396 * mTemp * tempEnvironment + 0.000231538399388359 * Math.pow(mTemp, 2) + 0.0142449480097793 * distance * mTemp - 0.00419013348339784 * distance * tempEnvironment - 0.00273546184703448 * Math.pow(distance, 2) - 102.941493097920 + tempCompensate + 4.003125 * tempEnvironment + 0.0068115234375 * Math.pow(tempEnvironment, 2) - 0.083534458812165 * distance);
+////                            return convertTemperatureIfNeeded(result);
+////                            /////
+////                        } else {
+////                            // 在环境温度31.5℃下训练
+////                            float result = (float) (0.334211331545139 * mTemp + 0.0108147621550984 * mTemp * tempEnvironment + 0.00224920165286945 * Math.pow(mTemp, 2) + 0.0142901880810952 * distance * mTemp - 0.0155825145903655 * distance * tempEnvironment - 0.00121501653620506 * Math.pow(distance, 2) + 8.59632351289234 + tempCompensate);
+////                            return convertTemperatureIfNeeded(result);
+////                        }
+//                        if (tempEnvironment >= 20.1 && tempEnvironment < 28.8) {
+//                            // 在环境温度20.1℃下训练
+//                            float result = (float) (0.15877362428989 * mTemp + 0.03382572685611610 * mTemp * tempEnvironment + 0.000568762047998612 * Math.pow(mTemp, 2) + 0.0127603166252144 * distance * mTemp - 0.01599677278868330 * distance * tempEnvironment + 0.00562172812956645 * Math.pow(distance, 2) + 6.79402618258558 + tempCompensate);
+//                            return convertTemperatureIfNeeded(result);
+//                            /////
+//                        } else {
+//                            // 在环境温度31.5℃下训练
+//                            float result = (float) (0.334211331545139 * mTemp + 0.0108147621550984 * mTemp * tempEnvironment + 0.00224920165286945 * Math.pow(mTemp, 2) + 0.0142901880810952 * distance * mTemp - 0.0155825145903655 * distance * tempEnvironment - 0.00121501653620506 * Math.pow(distance, 2) + 8.59632351289234 + tempCompensate);
+//                            return convertTemperatureIfNeeded(result);
+//                        }
+//                    } else {
+//                        if (tempEnvironment >= 20.1 && tempEnvironment < 23.35) {
+//                            // 在环境温度20.1、21.1℃下训练
+//                            float result = (float) (0.943895303715799 * mTemp + 0.0082590990834640 * mTemp * tempEnvironment - 0.001350543559191040 * Math.pow(mTemp, 2) - 0.0300506439658301 * distance + 0.00715246290155195 * distance * mTemp + 0.0579059394081716 * distance * tempEnvironment - 0.13343000379295 * Math.pow(distance, 2) - 3.81415641374014 + tempCompensate);
+//                            return convertTemperatureIfNeeded(result);
+//                        } else if (tempEnvironment >= 23.35 && tempEnvironment < 28.8) {
+//                            // 在环境温度26.1℃下训练
+//                            float result = (float) (0.903245665912011 * mTemp - 0.0018442323841424 * mTemp * tempEnvironment - 0.000029021659531106 * Math.pow(mTemp, 2) - 0.0771742905574536 * distance + 0.02246603139087500 * distance * mTemp + 0.0258679790589789 * distance * tempEnvironment - 0.16896491183911 * Math.pow(distance, 2) + 4.65722963123913 + tempCompensate);
+//                            return convertTemperatureIfNeeded(result);
+//                            /////
+//                        } else {
+//                            // 在环境温度31.5℃下训练
+//                            float result = (float) (0.593038727163982 * mTemp + 0.00414513557364064 * mTemp * tempEnvironment + 0.0014301096361578 * Math.pow(mTemp, 2) + 0.0264308271192987 * distance * mTemp - 0.0286257918198913 * distance * tempEnvironment + 7.26162147719285 + tempCompensate);
+//                            return convertTemperatureIfNeeded(result);
+//                        }
+//                    }
+//                } else if (focalLen == 1) {
+//                    if (MainActivity.tempEnvironment > 27.9) {
+//                        tempEnvironment = (float) 27.9;
+//                    } else if (MainActivity.tempEnvironment < 20.8) {
+//                        tempEnvironment = (float) 20.8;
+//                    } else {
+//                        tempEnvironment = MainActivity.tempEnvironment;
+//                    }
+//                    if (tempEnvironment >= 20.8 && tempEnvironment < 27.8) {
+//                        // 在环境温度20.8、20.9℃下训练
+//                        float result = (float) (0.616930190010917 * mTemp + 0.0187548514751856 * mTemp * tempEnvironment - 0.00071764380065283 * Math.pow(mTemp, 2) + 0.00933076609522052 * distance * mTemp - 0.00587884923560325 * distance * tempEnvironment + 0.00117773735567691 * Math.pow(distance, 2) + 2.61896041760863 + tempCompensate);
+//                        return convertTemperatureIfNeeded(result);
+//                    } else {
+//                        // 在环境温度27.8、27.9℃下训练
+//                        float result = (float) (0.857530105766053 * mTemp + 0.0052958037118762 * mTemp * tempEnvironment - 0.00052997563641385 * Math.pow(mTemp, 2) + 0.01155873356776480 * distance * mTemp - 0.01081127023102190 * distance * tempEnvironment + 0.00163268159792318 * Math.pow(distance, 2) + 42.1865244903270 + tempCompensate - 0.0535164916674412 * Math.pow(tempEnvironment, 2));
+//                        return convertTemperatureIfNeeded(result);
+//                    }
+//                } else {
+//                    return convertTemperatureIfNeeded(mTemp);
+//                }
+//            }
+//        }
+//    }
+
+
     private float calibration(float mTemp, float distance, float tempCompensate, float focalLen, int measureUnit) {
 
-        /////
         if ((tempCompensate < -20 || tempCompensate > 20) && measureUnit == 0) {
             tempCompensate = 0;
         }
-        /////
 
         if (distance == -1) {
             return convertTemperatureIfNeeded(mTemp + tempCompensate);
         } else {
-            if (MainActivity.tempEnvironment > 45 || MainActivity.tempEnvironment < 30) { //26.1
+            if (MainActivity.tempEnvironment > 45 || MainActivity.tempEnvironment < 0) {
                 return convertTemperatureIfNeeded(mTemp + tempCompensate);
             } else {
                 float tempEnvironment = 0;
-
+                /////
+                if ((tempCompensate < -20 || tempCompensate > 20) && measureUnit == 0) {
+                    tempCompensate = 0;
+                }
+                /////
                 if (focalLen == 0) {
                     if (MainActivity.tempEnvironment > 31.5) {
                         tempEnvironment = (float) 31.5;
@@ -178,23 +270,13 @@ public class IRRegionTemp {
                         tempEnvironment = MainActivity.tempEnvironment;
                     }
                     if (distance >= 5) {
-//                        if (tempEnvironment >= 20.1 && tempEnvironment < 23.35) {
-//                            // 在环境温度20.1、21.1℃下训练
-//                            float result = (float) (0.15877362428989 * mTemp + 0.03382572685611610 * mTemp * tempEnvironment + 0.000568762047998612 * Math.pow(mTemp, 2) + 0.0127603166252144 * distance * mTemp - 0.01599677278868330 * distance * tempEnvironment + 0.00562172812956645 * Math.pow(distance, 2) + 6.79402618258558 + tempCompensate);
-//                            return convertTemperatureIfNeeded(result);
-//                        } elss`2e if (tempEnvironment >= 23.35 && tempEnvironment < 28.8) {
-//                            // 在环境温度26.1℃下训练
-//                            float result = (float) (1.02787184840106 * mTemp - 0.00688796445211396 * mTemp * tempEnvironment + 0.000231538399388359 * Math.pow(mTemp, 2) + 0.0142449480097793 * distance * mTemp - 0.00419013348339784 * distance * tempEnvironment - 0.00273546184703448 * Math.pow(distance, 2) - 102.941493097920 + tempCompensate + 4.003125 * tempEnvironment + 0.0068115234375 * Math.pow(tempEnvironment, 2) - 0.083534458812165 * distance);
-//                            return convertTemperatureIfNeeded(result);
-//                            /////
-//                        } else {
-//                            // 在环境温度31.5℃下训练
-//                            float result = (float) (0.334211331545139 * mTemp + 0.0108147621550984 * mTemp * tempEnvironment + 0.00224920165286945 * Math.pow(mTemp, 2) + 0.0142901880810952 * distance * mTemp - 0.0155825145903655 * distance * tempEnvironment - 0.00121501653620506 * Math.pow(distance, 2) + 8.59632351289234 + tempCompensate);
-//                            return convertTemperatureIfNeeded(result);
-//                        }
-                        if (tempEnvironment >= 20.1 && tempEnvironment < 28.8) {
-                            // 在环境温度20.1℃下训练
+                        if (tempEnvironment >= 20.1 && tempEnvironment < 23.35) {
+                            // 在环境温度20.1、21.1℃下训练
                             float result = (float) (0.15877362428989 * mTemp + 0.03382572685611610 * mTemp * tempEnvironment + 0.000568762047998612 * Math.pow(mTemp, 2) + 0.0127603166252144 * distance * mTemp - 0.01599677278868330 * distance * tempEnvironment + 0.00562172812956645 * Math.pow(distance, 2) + 6.79402618258558 + tempCompensate);
+                            return convertTemperatureIfNeeded(result);
+                        } else if (tempEnvironment >= 23.35 && tempEnvironment < 26.1) { // 28.8
+                            // 在环境温度26.1℃下训练
+                            float result = (float) (1.02787184840106 * mTemp - 0.00688796445211396 * mTemp * tempEnvironment + 0.000231538399388359 * Math.pow(mTemp, 2) + 0.0142449480097793 * distance * mTemp - 0.00419013348339784 * distance * tempEnvironment - 0.00273546184703448 * Math.pow(distance, 2) - 102.941493097920 + tempCompensate + 4.003125 * tempEnvironment + 0.0068115234375 * Math.pow(tempEnvironment, 2) - 0.083534458812165 * distance);
                             return convertTemperatureIfNeeded(result);
                             /////
                         } else {
@@ -207,7 +289,7 @@ public class IRRegionTemp {
                             // 在环境温度20.1、21.1℃下训练
                             float result = (float) (0.943895303715799 * mTemp + 0.0082590990834640 * mTemp * tempEnvironment - 0.001350543559191040 * Math.pow(mTemp, 2) - 0.0300506439658301 * distance + 0.00715246290155195 * distance * mTemp + 0.0579059394081716 * distance * tempEnvironment - 0.13343000379295 * Math.pow(distance, 2) - 3.81415641374014 + tempCompensate);
                             return convertTemperatureIfNeeded(result);
-                        } else if (tempEnvironment >= 23.35 && tempEnvironment < 28.8) {
+                        } else if (tempEnvironment >= 23.35 && tempEnvironment < 26.1) {   // 28.8
                             // 在环境温度26.1℃下训练
                             float result = (float) (0.903245665912011 * mTemp - 0.0018442323841424 * mTemp * tempEnvironment - 0.000029021659531106 * Math.pow(mTemp, 2) - 0.0771742905574536 * distance + 0.02246603139087500 * distance * mTemp + 0.0258679790589789 * distance * tempEnvironment - 0.16896491183911 * Math.pow(distance, 2) + 4.65722963123913 + tempCompensate);
                             return convertTemperatureIfNeeded(result);
@@ -241,6 +323,8 @@ public class IRRegionTemp {
             }
         }
     }
+
+
 
 
 
