@@ -685,7 +685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-//                    batVoltage = 12.96f; // 唤醒
+                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -699,10 +699,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
 
                     //添加一个测试变量
-                    testBatAmperCount++;
-                    boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
-                    verificationVoltage = useHigh ? 13.4f : 12.96f;
-                    Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
+                    if (DEBUG){
+                        testBatAmperCount++;
+                        boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
+                        verificationVoltage = useHigh ? 13.4f : 12.96f;
+                        Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
+                    }
 
 
                     int oldMode = currentMode;
@@ -980,6 +982,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         switch (mode) {
             case MODE_FULL: {
+                isWakeupVideoPlaybackMode = false;
                 interfacePowerOn();
                 Log.i(TAG,
                         "切换到全工作模式：工作时间开启云台");
@@ -1006,6 +1009,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
             case MODE_SLEEP: {
 
+                isWakeupVideoPlaybackMode = false;
                 Log.i(TAG,
                         "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
                 interfacePowerOff();
@@ -2514,9 +2518,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
 //        frequency
-        frequency = readFrequency(); // 测试使用
-        Log.e(Log.TAG,"电源管理模式电压转变次数："+frequency);
-
+        if(DEBUG){
+            frequency = readFrequency(); // 测试使用
+            Log.e(Log.TAG,"电源管理模式电压转变次数："+frequency);
+        }
 
         try{
             usbPowerState = readUsbPowerState();
@@ -6096,7 +6101,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     Log.e(Log.TAG, "开启云台：" + reason);
                     gimbalPowerHandler.post(() -> {
-
                         powerControlNVR(true, 2);
                     });
                     SystemClock.sleep(1000);
@@ -6120,7 +6124,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void doSleep(String reason, int load) {
 
         if (currentMode == MODE_WAKEUP && isWakeupVideoPlaybackMode == true){
-            Log.e(Log.TAG,"唤醒模式下，查询录像文件15分钟内不对云台下电");
+            Log.e(Log.TAG,"唤醒模式下，进行直播或者查询录像，15分钟内不对云台下电");
             return;
         }
 
@@ -6849,12 +6853,28 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     public short startLiveVideo(int channel, final int streamType, int network, final int ssrc, final String server, final int port) {
 
+        final Device dev = channels.get(String.valueOf(channel));
+
+        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+
+            isWakeupVideoPlaybackMode = true;
+
+            if (dev.isDVR()) {
+                if (dev.isUSB()) {
+                    doWakeup("唤醒模式下进行红外直播预览", 3);
+                } else {
+                    doWakeup("唤醒模式下进行可见光直播预览", 2);
+                }
+            }
+
+            resetWakeupTimer();
+        }
+
+
         if (isSleepMode()){
             Log.e(Log.TAG,"设备处于休眠模式");
             return 2;
         }
-
-        final Device dev = channels.get(String.valueOf(channel));
 
 //        if (电量不够) return 2;
         if (dev == null) return 3;
@@ -7039,13 +7059,29 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     public void startLocalPlay(int channel, int preset) {
 
+        Device dev = channels.get(String.valueOf(channel));
+
+        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+
+            isWakeupVideoPlaybackMode = true;
+
+            if (dev.isDVR()) {
+                if (dev.isUSB()) {
+                    doWakeup("唤醒模式下进行红外直播预览", 3);
+                } else {
+                    doWakeup("唤醒模式下进行可见光直播预览", 2);
+                }
+            }
+
+            resetWakeupTimer();
+        }
+
 
         if (isSleepMode()){
             Log.e(TAG,"设备处于休眠模式，不响应拉流");
             return;
         }
 
-        Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return;
         if (dev.isLiving()) return;
 
@@ -7370,8 +7406,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
     private void resetWakeupTimer() {
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        utilsHandler.postDelayed(mResetWakeupFlagTask, 15 * 60 * 1000);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
     }
+
 
 
 
@@ -8345,6 +8382,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private void sleepDevice(final int channel, final String reason) {
+
+        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode){
+            Log.e(Log.TAG,"设备处于基础模式，并在拉流或者录像回放操作后的15分钟内，不进行关闭操作");
+            return;
+        }
+
         /////
         ////////
         boolean allDevIdle = true;
