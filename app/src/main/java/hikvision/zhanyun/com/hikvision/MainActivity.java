@@ -5256,7 +5256,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             aeroInfo.RainFall = data[9];             // 雨量
 
-            if (deviceConfig.aeroDevice == 7){
+            if (deviceConfig.aeroDevice == 6){
                 aeroInfo.RainFall = -999;
             }
 
@@ -9825,6 +9825,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+
     private class SPGPRunnable implements Runnable {
         final byte[] data;
 
@@ -9841,6 +9842,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
     }
+
 
     private class udpRunnable implements Runnable {
         @Override

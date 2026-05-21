@@ -795,8 +795,9 @@ public class HuanYuDevice extends MyOnvifDevice {
                 long currentTime = System.currentTimeMillis();
                 long diffSeconds = Math.abs(currentTime - ptzTime) / 1000;
 
-                // 插值大于10s的时候就重新校时
-                if (diffSeconds > 10) {
+                // 插值大于60s的时候就重新校时
+                Log.e(HuanyuDeviceLog,"时间差值大于1分钟");
+                if (diffSeconds > 60) {
                     Calendar now = Calendar.getInstance();
                     setTime(now.get(Calendar.YEAR),
                             now.get(Calendar.MONTH) + 1,

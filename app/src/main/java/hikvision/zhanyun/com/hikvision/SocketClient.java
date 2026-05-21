@@ -53,42 +53,6 @@ public class SocketClient {
         }
     }
 
-//    @RequiresApi(api = Build.VERSION_CODES.N)
-//    public boolean open() {
-//        if (!run) return false;
-//        try {
-//            if (isUDP) {
-//                if (udpSocket == null) {
-//                    udpSocket = new DatagramSocket();
-//                    livePacket = new DatagramPacket(new byte[MAX_UDP_PACK_SIZE], MAX_UDP_PACK_SIZE, address);
-//                    Log.d(Log.TAG, "开启UDP连接成功: " + address.getAddress() + ":" + address.getPort() + ", 本地端口: " + udpSocket.getLocalPort());
-//                }
-//            } else if (bio || is6735) { // blocked socket
-//                if (tcpSock == null || tcpSock.isClosed() || !tcpSock.isConnected()) {
-//                    tcpSock = new Socket();
-//                    tcpSock.connect(address, 3 * 1000);
-//                    tcpSock.setSoLinger(true, 1000);
-//                    Log.d(Log.TAG, "开启阻塞TCP连接成功: " + address.getAddress() + ":" + address.getPort() + ", 本地端口: " + tcpSock.getLocalPort());
-//                    dos = new DataOutputStream(tcpSock.getOutputStream());
-//                }
-//            } else { // unblocked socket
-//                if (tcpSocketChannel == null || !tcpSocketChannel.isConnected()) {
-//                    tcpSocketChannel = SocketChannel.open(address);
-//                    tcpSocketChannel.configureBlocking(false);
-//                    tcpSocketChannel.setOption(StandardSocketOptions.SO_LINGER, 0);
-//                    socketWriteBuffer.clear();
-//                    Log.d(Log.TAG, "开启非阻塞TCP连接: " + (tcpSocketChannel.isConnected() ? "成功" : "失败") +
-//                            address.getAddress() + ":" + address.getPort() + ", " +
-//                            "本地端口: " + tcpSocketChannel.getLocalAddress());
-//                }
-//            }
-//
-//            return true;
-//        } catch (Exception e) {
-//            Log.e(Log.TAG, "开启" + (isUDP ? "UDP" : "TCP") + "失败: " + address.getAddress() + ":" + address.getPort() + " => " + e.getMessage());
-//            return false;
-//        }
-//    }
 
 
     private int connectFailCount = 0;
@@ -153,7 +117,6 @@ public class SocketClient {
             return false;
         }
     }
-
 
 
     public void close() {
