@@ -164,7 +164,7 @@ public class IRRegionTemp {
         if (distance == -1) {
             return convertTemperatureIfNeeded(mTemp + tempCompensate);
         } else {
-            if (MainActivity.tempEnvironment > 45 || MainActivity.tempEnvironment < 26.1) {
+            if (MainActivity.tempEnvironment > 45 || MainActivity.tempEnvironment < 30) { //26.1
                 return convertTemperatureIfNeeded(mTemp + tempCompensate);
             } else {
                 float tempEnvironment = 0;

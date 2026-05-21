@@ -267,6 +267,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final String CONFIG_FILE = DATA_DIR + "config.json";         // 设备核心设置，如服务器设置等，不可复位
     private static final String SETTING_FILE = DATA_DIR + "settings.json";  // 和各个通道相关的设置，可复位
     private static final String USB_STATE_FILE = DATA_DIR + "usb_state.json";  // 和各个通道相关的设置，可复位
+    private static final String FREQUECY = DATA_DIR + "frequency.json";  // 测试文件，修改电压值的频率
+    private static final String KEY_FREQUENCY = "frequency";
+    private static int frequency;
+
     private static final String KEY_USB_POWER = "usbPowerState";
 
     private static final String WIFIAP_FROM = "06:00:00";          //8点--18点wifi热点整点开启
@@ -338,6 +342,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static HandlerThread gimbalPowerThread = new HandlerThread("云台上下电"); // 串口读写专用线程
 
+    private static int testBatAmperCount = 0;
+
 
     private static Handler utilsHandler;
     private static Handler sendHandler;
@@ -364,8 +370,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-//    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 2分钟
 //    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
@@ -682,15 +688,22 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
+
                     float verificationVoltage = batVoltage;
 
                     if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
                         Log.e(Log.TAG,"环境温度为：" + temperature);
-
                         if (verificationVoltage < 12.99f){
                             verificationVoltage = 12.96f;
                         }
                     }
+
+                    //添加一个测试变量
+                    testBatAmperCount++;
+                    boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
+                    verificationVoltage = useHigh ? 13.4f : 12.96f;
+                    Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
+
 
                     int oldMode = currentMode;
                     handlePowerModeByVoltage(verificationVoltage);
@@ -818,6 +831,48 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //            Log.e(Log.TAG,"缓存失败"+e.getMessage());
 //        }
 //    }
+
+
+    /**
+     * 写入频率值到文件
+     */
+    public static void writeFrequency(int frequency) {
+        File file = new File(FREQUECY);
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            JSONObject json = new JSONObject();
+            json.put(KEY_FREQUENCY, frequency);
+            String jsonString = json.toJSONString();
+            fos.write(jsonString.getBytes("UTF-8"));
+        } catch (Exception e) {
+            Log.e(Log.TAG, "writeFrequency Exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 读取频率值，如果文件不存在则自动创建并写入默认值 10，返回该值
+     */
+    public static int readFrequency() {
+        File file = new File(FREQUECY);
+        if (!file.exists()) {
+            // 文件不存在，创建并写入默认值 10
+            writeFrequency(10);
+            return 10;
+        }
+        try (FileInputStream fis = new FileInputStream(file)) {
+            byte[] data = new byte[(int) file.length()];
+            fis.read(data);
+            String jsonString = new String(data, "UTF-8");
+            JSONObject json = JSONObject.parseObject(jsonString);
+            return json.getIntValue(KEY_FREQUENCY); // 若 key 不存在默认返回 0，但我们保证一定有
+        } catch (Exception e) {
+            Log.e(Log.TAG, "readFrequency Exception: " + e.getMessage());
+            return 2; // 读取失败返回默认值
+        }
+    }
 
 
     private void cacheVideoFileList() {
@@ -1242,7 +1297,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-
     /**
      * 写入 USB 电源状态到文件（线程安全）
      * @param state 要保存的 boolean 值
@@ -1264,8 +1318,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * @return 保存的 boolean 值，若文件不存在或读取失败则返回 false
      */
     public static  boolean readUsbPowerState() {
-
-
 
         File file = new File(USB_STATE_FILE);
         if (!file.exists()) {
@@ -2461,8 +2513,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         loadPowerStateFromFile();  // 开机读取配置文件，候选模式切换时间，以及当前的模式。
 
 
-        try{
+//        frequency
+        frequency = readFrequency(); // 测试使用
+        Log.e(Log.TAG,"电源管理模式电压转变次数："+frequency);
 
+
+        try{
             usbPowerState = readUsbPowerState();
             Log.e(Log.TAG,"usbPowerState::"+usbPowerState);
         }catch (Exception e){
@@ -5254,7 +5310,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             aeroInfo.AtomosPress = data[2];       // 气压
             aeroInfo.WindDirection = (int) data[6];  // 风向
 
-            aeroInfo.RainFall = data[9];             // 雨量
+            aeroInfo.RainFall = data[9];             // 雨量间隔累计
 
             if (deviceConfig.aeroDevice == 6){
                 aeroInfo.RainFall = -999;
@@ -7325,6 +7381,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev == null) return 0;
 
         if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+
+            doWakeup("查询录像文件个数", 2);
+            // 这个地方不要修改isWakeupVideoPlaybackMode的状态，否则后续的查询文件列表直接失败
 
             return VideoFiles.readCachedCount(channel,videoType,startTime,stopTime);   // 返回的是根据时间查询得到的结果
         }
