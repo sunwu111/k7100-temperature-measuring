@@ -7527,11 +7527,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 wakeupDevice(dev, "可见光机芯回放");
             }
         }
-        /////
 
-        TaskManager.add(TaskManager.Task.Playback.toString()); /////
+        TaskManager.add(TaskManager.Task.Playback.toString());
+
         if (dev.isPlaybacking()) {
             dev.playbackStop();
+            try {
+                Thread.sleep(200);
+            } catch (Exception e) {
+            }
         }
 
 //        String taskName = "playback";

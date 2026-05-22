@@ -1,24 +1,16 @@
 package hikvision.zhanyun.com.hikvision.device;
 
-import static hikvision.zhanyun.com.hikvision.MainActivity.MODE_WAKEUP;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isIRPhotoing;
 import static hikvision.zhanyun.com.hikvision.MainActivity.isVLPhotoing;
-import static hikvision.zhanyun.com.hikvision.MainActivity.settings;
-import static hikvision.zhanyun.com.hikvision.Settings.PhotoConfig.getImageSize;
 import static lyh.Utils.PERIOD_HOUR;
-import static lyh.Utils.formatDateTime;
-import static lyh.Utils.lo;
 import static lyh.Utils.su;
-
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
-import android.os.Environment;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.text.TextUtils;
 
@@ -27,8 +19,6 @@ import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.zhjinrui.batcom.RS485Impl;
-
-import org.apache.commons.io.FilenameUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -44,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -51,184 +42,59 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicLong;
 
-import hikvision.zhanyun.com.hikvision.MainActivity;
 import hikvision.zhanyun.com.hikvision.RtspClient;
+import hikvision.zhanyun.com.hikvision.RtspClientCallback;
 import hikvision.zhanyun.com.hikvision.Settings;
 import hikvision.zhanyun.com.hikvision.bean.PTZPosition;
 import hikvision.zhanyun.com.hikvision.rto.RTPH264;
 import hikvision.zhanyun.com.hikvision.utils.Log;
 import lyh.Utils;
 import okhttp3.Response;
-import java.util.Base64;
 
 
 public class HuanYuDevice extends MyOnvifDevice {
-    private List<Settings.FileItem> videoFiles = new ArrayList<>();
-
-
-    private String HuanyuDeviceLog = "HuanyuDeviceLog";
-
+    //      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
+    private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
+    private static final int MAX_LOGIN_RETRY = 20;
+    private static final int MAX_REAL_LENGTH = 27;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
+    private static final long AUTO_FOCUS_DELAY = 5000; // 5秒延迟
+    private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
+    final Base64.Decoder decoder = Base64.getDecoder();
+    final Base64.Encoder encoder = Base64.getEncoder();
+    private final AtomicLong playbackSession = new AtomicLong(0);
     private final String url;
+    private List<Settings.FileItem> videoFiles = new ArrayList<>();
+    private String HuanyuDeviceLog = "HuanyuDeviceLog";
     private long session;
     private long loginTime = 0;
     private int deviceId;
-
-    private  List<String> diyOsd =  new ArrayList<>();
-    private  List<String> osdToArray =  new ArrayList<>();
-
-    private RecordRespParam.RecordItems recordList = new  RecordRespParam.RecordItems();
-
-    final Base64.Decoder decoder = Base64.getDecoder();
-    final Base64.Encoder encoder = Base64.getEncoder();
-    private byte brightness = 50;  // 记录模拟调节光圈的亮度
-    private boolean toCheck = false; ///////
-    private boolean useAudio; /////
-
-
-
-    private static class PhotoReadiness {
-        boolean positionStable;
-        boolean focusStable;
-
-        PhotoReadiness(boolean positionStable, boolean focusStable) {
-            this.positionStable = positionStable;
-            this.focusStable = focusStable;
-        }
-    }
+    private List<String> diyOsd = new ArrayList<>();
+    private List<String> osdToArray = new ArrayList<>();
 
 
     // TODO 注意：这个设备当中的查询和设置的channel均设置为0才有正确结果
     // TODO 如果发现返回为false，并且session为0，大概念为没有登录机芯，出现前面的问题，建议在具体函数使用的时候加上login()
-
-    public static class RequestBody {
-        public final int id;
-        public final Caller call;
-        public final long session;
-        public Object params;
-
-        public RequestBody(int id, long session, Caller caller) {
-            this.id = id;
-            this.call = caller;
-            this.session = session;
-        }
-    }
-
-
-    public static class ThisRespBody {
-        public int id;
-        public boolean result;
-        public long session;
-        public Object params;
-    }
-
-    public static class Caller {
-        public final String service;
-        public final String method;
-
-        public Caller(String service, String method) {
-            this.service = service;
-            this.method = method;
-        }
-    }
-
-
-    public static class LogInParam {
-        public final String userName;
-        public final String password;
-        public final String random;
-        public final int encryptType;
-
-        public LogInParam(String user, String password, int encryptType) {
-            this.userName = user;
-            this.password = "e9707aeb6479958a00da5feafffa89c1";
-            this.random = "123456";
-            this.encryptType = encryptType;
-        }
-    }
-
-    public static class OSDParam {
-        public int channel = 0;
-        public int osdDispType;
-        public Tables table = new Tables();
-
-        public static class Tables {
-            public TimeLine timeTitle;
-            public TextLine channelTitle;
-            public Property property;
-            public ArrayList<TextLine> custom = new ArrayList<>();
-        }
-
-        public static class TextLine {
-            public boolean enable;
-            public String data;
-            public int[] rect;
-        }
-
-        public static class TimeLine {
-            public boolean enable;
-            public boolean enableWeek;
-            public int[] rect;
-        }
-        public static class Property {
-            public int OSDFont;
-        }
-    }
-
-
-
-    public static class RecordTimeRegion {
-        public String recordType = "Timing"; // 目前只需要定时录像
-        public String startTime;
-        public String stopTime;
-
-        public RecordTimeRegion() {}
-        public RecordTimeRegion(Date from, Date to) {
-            startTime = UTCTimeFormat(from);
-            stopTime = UTCTimeFormat(to);
-        }
-    }
-
-
-    public static class RecordReqParam {
-        public final int channel;
-        public RecordTimeRegion recordSearchCount;
-        public ItemSearch recordSearchItem;
-
-        public RecordReqParam(int channel) {
-            this.channel = channel;
-        }
-
-        public static class ItemSearch extends RecordTimeRegion {
-            public final int[] itemRange = new int[2];
-            public ItemSearch(Date begin, Date end, int from, int to) {
-                super(begin, end);
-                itemRange[0] = from;
-                itemRange[1] = to;
+    private RecordRespParam.RecordItems recordList = new RecordRespParam.RecordItems();
+    private byte brightness = 50;  // 记录模拟调节光圈的亮度
+    private boolean toCheck = false; ///////
+    private boolean useAudio; /////
+    private volatile int loginRetryCount = 0;
+    private volatile long lastLoginAttemptTime = 0;
+    private Handler mFocusHandler = new Handler();
+    private boolean mIsManualFocus = false;
+    private Runnable mAutoFocusRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mIsManualFocus) {
+                autofocus();
+                mIsManualFocus = false;
             }
         }
-    }
-
-
-    public static class RecordRespParam {
-        public static class RecordAmount extends RecordTimeRegion {
-            public int count;
-        }
-
-        public static class RecordItems extends RecordTimeRegion {
-            public ArrayList<RecordItem> recordItem = new ArrayList<>();
-
-            public static class RecordItem {
-                public long startTime;
-                public long stopTime;
-                public int recordSize;
-                public int recordIndex;
-                public String recordName;
-                public String playUrl;
-                public String recordUrl;
-            }
-        }
-    }
+    };
+    private boolean isMoving = false;
+    private long lastCmd2Time = 0;  // 记录符合条件的cmd==2的时间
 
 
     public HuanYuDevice(int ID, Context context, String ip, int port, String User, String pwd, boolean toCheck, boolean useAudio) {
@@ -241,15 +107,25 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        login();
     }
 
-
     private static String UTCTimeFormat(final Date date) {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd@HH:mm:ss#");
         return format.format(date).replace("@", "T").replace("#", "Z");
     }
 
+    public static String convertToUtcFormat(String localTime) throws DateTimeParseException {
+        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyy-M-d-H-m-s");
+        LocalDateTime localDateTime = LocalDateTime.parse(localTime, inputFormatter);
+        ZonedDateTime utcDateTime = localDateTime
+                .atZone(ZoneId.of("UTC+8"))  // 标记为东八区时间
+                .withZoneSameInstant(ZoneId.of("UTC"));  // 转换为UTC时间
+
+        DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
+        return utcDateTime.format(outputFormatter);
+    }
 
     /**
      * 检查 eth0 网口是否开启（通过分析 ifconfig 输出）
+     *
      * @return true - 网口已开启，false - 网口未开启
      */
     private boolean isEth0Enabled() {
@@ -299,14 +175,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return false;
     }
 
-
-
-//      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
-    private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
-    private static final int MAX_LOGIN_RETRY = 20;
-    private volatile int loginRetryCount = 0;
-    private volatile long lastLoginAttemptTime = 0;
-
     private boolean login() {
 
         if (isSessionValid() && isEth0Enabled()) {
@@ -340,8 +208,8 @@ public class HuanYuDevice extends MyOnvifDevice {
 //                Log.i(HuanyuDeviceLog, String.format("登录请求第 %d 次尝试", requestRetryCount + 1));
 
                 Response response = http_request(url, JSON.toJSONString(body));
-                if (response == null){
-                    Log.e(HuanyuDeviceLog,"login::response is null");
+                if (response == null) {
+                    Log.e(HuanyuDeviceLog, "login::response is null");
                     return false;
                 }
 
@@ -396,7 +264,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         Log.i(HuanyuDeviceLog, "登录失败，重试次数：" + loginRetryCount + "/" + MAX_LOGIN_RETRY);
         return false;
     }
-
 
 
     private void openShare() {
@@ -459,7 +326,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         Log.i(HuanyuDeviceLog, "退出登录失败");
         return false;
     }
-
 
 
     @Override
@@ -526,8 +392,6 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-
-
     private String getRecordSearchCountJson(String startTime, String stopTime) {
         try {
             // 创建JSON对象
@@ -567,8 +431,8 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     private int parseRecordSearchCountRes(Response response) {
 
-        if (response == null){
-            Log.e(HuanyuDeviceLog,"login::response is null");
+        if (response == null) {
+            Log.e(HuanyuDeviceLog, "login::response is null");
             return 0;
         }
 
@@ -663,10 +527,10 @@ public class HuanYuDevice extends MyOnvifDevice {
                     fileItem.size = item.getInteger("recordSize");
                     fileItem.type = 0;
 
-                    long startTimeStamp = item.getLong("startTime")*1000;
+                    long startTimeStamp = item.getLong("startTime") * 1000;
                     time = new Date(startTimeStamp);
                     fileItem.begin = new Settings.TimeRecord(time.getTime());
-                    long stopTimeStamp = item.getLong("stopTime")*1000;
+                    long stopTimeStamp = item.getLong("stopTime") * 1000;
                     time = new Date(stopTimeStamp);
                     fileItem.end = new Settings.TimeRecord(time.getTime());
                     fileItems.add(fileItem);
@@ -701,7 +565,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         fileList.type = videoType;
 
 
-        Log.e(Log.TAG,"startTime");
+        Log.e(Log.TAG, "startTime");
 
         try {
             Response countResponse = http_request(url, getRecordSearchCountJson(startTime, stopTime));
@@ -735,61 +599,140 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
-
-    public static String convertToUtcFormat(String localTime) throws DateTimeParseException {
-        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyy-M-d-H-m-s");
-        LocalDateTime localDateTime = LocalDateTime.parse(localTime, inputFormatter);
-        ZonedDateTime utcDateTime = localDateTime
-                .atZone(ZoneId.of("UTC+8"))  // 标记为东八区时间
-                .withZoneSameInstant(ZoneId.of("UTC"));  // 转换为UTC时间
-
-        DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
-        return utcDateTime.format(outputFormatter);
-    }
-
-
     @Override
     public boolean playbackStart(String startS, String endS, int ssrc) {
+
+        final long currentSession = playbackSession.incrementAndGet();
+
         this.ssrcPlayback = ssrc;
 
         String start_time = convertToUtcFormat(startS);
         String end_time = convertToUtcFormat(endS);
-
-        String resource = String.format("Stream/Replay/101?starttime=%s&endtime=%s",start_time,end_time);
+        String resource = String.format("Stream/Replay/101?starttime=%s&endtime=%s", start_time, end_time);
 
         rtph264 = new RTPH264(ssrc);
 
-        if (rtspPlaybackClient != null) rtspPlaybackClient.stop();
+        if (rtspPlaybackClient != null) {
+            try {
+                rtspPlaybackClient.stop();
+            } catch (Exception e) {
+            }
+        }
 
-        rtspPlaybackClient = new RtspClient(server, 554,user, password, resource, rtspPlaybackCallback);
+        rtspPlaybackClient = new RtspClient(server, 554, user, password, resource, new RtspClientCallback() {
+                    @Override
+                    public void onPacket(int channel, byte[] packet, int len) {
+
+                        // 旧session直接丢弃
+                        if (currentSession != playbackSession.get()) {
+                            return;
+                        }
+
+                        if (channel != 0) {
+                            return;
+                        }
+
+                        if (packet == null || len <= 12) {
+                            return;
+                        }
+
+                        try {
+                            final byte[] data = new byte[len];
+                            System.arraycopy(packet, 0, data, 0, len);
+                            data[8] = (byte) (ssrc >> 24);
+                            data[9] = (byte) (ssrc >> 16);
+                            data[10] = (byte) (ssrc >> 8);
+                            data[11] = (byte) (ssrc);
+
+                            onVideoFrame(data);
+
+                        } catch (Exception e) {
+                            Log.e(HuanyuDeviceLog, "回放RTP异常:" + e.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onResponse(
+                            List<String> headers,
+                            byte[] body) {
+
+                    }
+                });
 
         if (!rtspPlaybackClient.start(useAudio)) {
-            Log.e(HuanyuDeviceLog, "云台回放失败: " + resource);
+            Log.e(HuanyuDeviceLog, "回放启动失败");
             return false;
         }
 
         setState(DevState.PLAYBACKING);
-        Log.i(HuanyuDeviceLog, "云台回放: " + resource);
+
+        Log.i(HuanyuDeviceLog, "回放启动成功 session=" + currentSession);
 
         return true;
     }
 
 
+//    @Override
+//    public boolean playbackStart(String startS, String endS, int ssrc) {
+//        this.ssrcPlayback = ssrc;
+//
+//        String start_time = convertToUtcFormat(startS);
+//        String end_time = convertToUtcFormat(endS);
+//
+//        String resource = String.format("Stream/Replay/101?starttime=%s&endtime=%s",start_time,end_time);
+//
+//        rtph264 = new RTPH264(ssrc);
+//
+//        if (rtspPlaybackClient != null) rtspPlaybackClient.stop();
+//
+//        rtspPlaybackClient = new RtspClient(server, 554,user, password, resource, rtspPlaybackCallback);
+//
+//        if (!rtspPlaybackClient.start(useAudio)) {
+//            Log.e(HuanyuDeviceLog, "云台回放失败: " + resource);
+//            return false;
+//        }
+//
+//        setState(DevState.PLAYBACKING);
+//        Log.i(HuanyuDeviceLog, "云台回放: " + resource);
+//
+//        return true;
+//    }
 
     @Override
     public boolean playbackStop() {
-//        Log.d(HuanyuDeviceLog, "寰宇回放停止");
-        if (rtspPlaybackClient != null) rtspPlaybackClient.stop();
-        rtspPlaybackClient = null;
+
+        // 旧session失效
+        playbackSession.incrementAndGet();
+
+        Log.i(HuanyuDeviceLog, "停止回放 session=" + playbackSession.get());
+
+        if (rtspPlaybackClient != null) {
+            try {
+                rtspPlaybackClient.stop();
+            } catch (Exception e) {
+                Log.e(HuanyuDeviceLog, "停止回放异常:" + e.getMessage());
+            }
+            rtspPlaybackClient = null;
+        }
         return true;
     }
 
 
-    public void timeSync(){
-        if (login()){
+//    @Override
+//    public boolean playbackStop() {
+////        Log.d(HuanyuDeviceLog, "寰宇回放停止");
+//        if (rtspPlaybackClient != null) rtspPlaybackClient.stop();
+//        rtspPlaybackClient = null;
+//        return true;
+//    }
+
+    // 2026-05-22 08:46:03.763 : HuanyuDeviceLog : 获取机芯的时间：2026-05-22 08:46:03
+    // 2026-05-22 08:46:03.767 : HuanyuDeviceLog : 时间差值大于1分钟
+    public void timeSync() {
+        if (login()) {
             // 获取机芯时间
             String ptzTimeStr = getPTZTime();
-                Log.e(HuanyuDeviceLog, "获取机芯的时间：" + ptzTimeStr);
+            Log.e(HuanyuDeviceLog, "获取机芯的时间：" + ptzTimeStr);
 
             try {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
@@ -798,8 +741,9 @@ public class HuanYuDevice extends MyOnvifDevice {
                 long diffSeconds = Math.abs(currentTime - ptzTime) / 1000;
 
                 // 插值大于60s的时候就重新校时
-                Log.e(HuanyuDeviceLog,"时间差值大于1分钟");
+
                 if (diffSeconds > 60) {
+                    Log.e(HuanyuDeviceLog, "时间差值大于1分钟");
                     Calendar now = Calendar.getInstance();
                     setTime(now.get(Calendar.YEAR),
                             now.get(Calendar.MONTH) + 1,
@@ -820,6 +764,74 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         }
 
+    }
+
+    @Override
+    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
+        try {
+            setState(DevState.PHOTOING);
+
+            if (login()) {
+                if (preset != 0 || wait) {
+                    move(2, preset);
+                    SystemClock.sleep(20 * 1000);
+                } else {
+                    // 原有 else 分支
+                }
+
+                // 获取当前配置的分辨率
+                Point imageSize = Settings.PhotoConfig.getImageSize(photoConfig.size);
+                boolean is640x480 = (imageSize.x == 640 && imageSize.y == 480);
+                boolean is320x240 = (imageSize.x == 320 && imageSize.y == 240);
+
+                boolean downloadSuccess;
+                if (is640x480) {
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=640&height=480";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                } else if (is320x240) {
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=320&height=240";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                } else {
+                    downloadSuccess = !snapURI.equals("") && download(snapURI, filename);
+                }
+
+                if (!downloadSuccess) {
+                    clearState(DevState.PHOTOING);
+                    return false;
+                }
+
+            } else {
+                Log.e(HuanyuDeviceLog, "拍照的时候未正常登录机芯，拍照失败");
+                return false;
+            }
+
+            File file = new File(filename);
+            long stamp = getTimestampFromFilename(filename);
+            BitmapFactory.Options bitmapOption = new BitmapFactory.Options();
+            bitmapOption.inMutable = true;
+            Bitmap bitmap = BitmapFactory.decodeFile(filename, bitmapOption);
+
+            if (bitmap != null) {
+                bitmap = processPhoto(bitmap, stamp, preset, aps, alert);
+                drawWatermark(bitmap);
+                controllerCallback.onFrame(bitmap);
+                Utils.saveBitmapAsJPEG(bitmap, filename, 90);
+                bitmap.recycle();
+            }
+
+            if (file.exists()) {
+                clearState(DevState.PHOTOING);
+                controllerCallback.onPhotoTaked(stamp, this.id, preset, filename);
+                return true;
+            }
+
+        } catch (Exception e) {
+            Log.e(HuanyuDeviceLog, "Onvif抓拍错误: " + e.getMessage());
+            return false;
+        } finally {
+            clearState(DevState.PHOTOING);
+        }
+        return false;
     }
 
 
@@ -886,82 +898,9 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        return false;
 //    }
 
-
-    @Override
-    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
-        try {
-            setState(DevState.PHOTOING);
-
-            if (login()) {
-                if (preset != 0 || wait) {
-                    move(2, preset);
-                    SystemClock.sleep(20 * 1000);
-                } else {
-                    // 原有 else 分支
-                }
-
-                // 获取当前配置的分辨率
-                Point imageSize = Settings.PhotoConfig.getImageSize(photoConfig.size);
-                boolean is640x480 = (imageSize.x == 640 && imageSize.y == 480);
-                boolean is320x240 = (imageSize.x == 320 && imageSize.y == 240);
-
-                boolean downloadSuccess;
-                if (is640x480) {
-                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=640&height=480";
-                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
-                }else if (is320x240){
-                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=320&height=240";
-                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
-                } else {
-                    downloadSuccess = !snapURI.equals("") && download(snapURI, filename);
-                }
-
-                if (!downloadSuccess) {
-                    clearState(DevState.PHOTOING);
-                    return false;
-                }
-
-            } else {
-                Log.e(HuanyuDeviceLog, "拍照的时候未正常登录机芯，拍照失败");
-                return false;
-            }
-
-            File file = new File(filename);
-            long stamp = getTimestampFromFilename(filename);
-            BitmapFactory.Options bitmapOption = new BitmapFactory.Options();
-            bitmapOption.inMutable = true;
-            Bitmap bitmap = BitmapFactory.decodeFile(filename, bitmapOption);
-
-            if (bitmap != null) {
-                bitmap = processPhoto(bitmap, stamp, preset, aps, alert);
-                drawWatermark(bitmap);
-                controllerCallback.onFrame(bitmap);
-                Utils.saveBitmapAsJPEG(bitmap, filename, 90);
-                bitmap.recycle();
-            }
-
-            if (file.exists()) {
-                clearState(DevState.PHOTOING);
-                controllerCallback.onPhotoTaked(stamp, this.id, preset, filename);
-                return true;
-            }
-
-        } catch (Exception e) {
-            Log.e(HuanyuDeviceLog, "Onvif抓拍错误: " + e.getMessage());
-            return false;
-        } finally {
-            clearState(DevState.PHOTOING);
-        }
-        return false;
-    }
-
-
-
-
-
     // 给红外使用
-    public boolean checkDeviceReadiness(int preset){
-        if(login()){
+    public boolean checkDeviceReadiness(int preset) {
+        if (login()) {
 
             if (preset != 0) {
 
@@ -1009,11 +948,10 @@ public class HuanYuDevice extends MyOnvifDevice {
             return true;
 
         } else {
-            Log.e(HuanyuDeviceLog,"拍照的时候未正常登录机芯，拍照失败");
+            Log.e(HuanyuDeviceLog, "拍照的时候未正常登录机芯，拍照失败");
             return false;
         }
     }
-
 
     // 给红外使用
     private boolean waitForPositionStable(int timeoutSeconds) {
@@ -1063,7 +1001,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         Log.e(HuanyuDeviceLog, "等待坐标稳定超时，坐标仍未稳定");
         return false;
     }
-
 
     private PhotoReadiness waitForPositionAndFocusStable(int timeoutSeconds) {
 
@@ -1143,7 +1080,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     }
 
-
     /**
      * 等待设备就绪
      */
@@ -1163,24 +1099,23 @@ public class HuanYuDevice extends MyOnvifDevice {
         return false;
     }
 
-
     /**
      * 获取当前PTZ坐标
      * {"id":2,"params":{"Action":0,"FocusPos":30973,"PanPos":0,"TiltPos":999,"ZoomPos":0},"result":true,"session":2013644384}
      */
     private PTZPosition getCurrentPTZPosition() {
 
-        if(login()){
+        if (login()) {
             try {
 
-                Response response = http_request(url,getPTZPosParamJson());
+                Response response = http_request(url, getPTZPosParamJson());
 
-                if (response == null){
-                    Log.e(HuanyuDeviceLog,"login::response is null");
+                if (response == null) {
+                    Log.e(HuanyuDeviceLog, "login::response is null");
                     return null;
                 }
 
-                String  responseBody = response.body().string();
+                String responseBody = response.body().string();
 
                 Log.e(HuanyuDeviceLog, "获取PTZ位置response: " + responseBody);
 
@@ -1205,13 +1140,12 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Log.e(HuanyuDeviceLog, "获取PTZ位置失败: " + e.getMessage());   // 获取PTZ位置失败: closed
                 return null;
             }
-        }else {
+        } else {
             Log.e(HuanyuDeviceLog, "登录机芯失败");
             return null;
         }
 
     }
-
 
     // {"id":2,"params":{"Action":0,"FocusPos":30973,"PanPos":0,"TiltPos":999,"ZoomPos":0},"result":true,"session":2013644384}
     private boolean isPositionEqual(PTZPosition pos1, PTZPosition pos2) {
@@ -1223,7 +1157,6 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Math.abs(pos1.TiltPos - pos2.TiltPos) <= TOLERANCE &&   // 垂直参数
                 Math.abs(pos1.ZoomPos - pos2.ZoomPos) <= TOLERANCE;     // 变倍参数
     }
-
 
     // 获取当前坐标
     private String getPTZPosParamJson() {
@@ -1247,8 +1180,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
-
-
 
     private String setPTZPosParamJson(int action, int panPos, int tiltPos, int zoomPos, int focusPos, int channel) {
 
@@ -1279,7 +1210,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
     private String setPTPositionZeroJson(int channel) {
 
         Map<String, Object> params = new HashMap<>();
@@ -1298,7 +1228,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
     private String getProgramInfoJson() {
         Map<String, Object> call = new HashMap<>();
         call.put("service", "program");
@@ -1312,42 +1241,38 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
-
-    private String presetPointConfigJson(){
+    private String presetPointConfigJson() {
 
         Map<String, Object> call = new HashMap<>();
-        call.put("service","ptz");
-        call.put("method","getPresetConfig");
+        call.put("service", "ptz");
+        call.put("method", "getPresetConfig");
 
         Map<String, Object> request = new HashMap<>();
-        request.put("session",session);
-        request.put("id",deviceId);
-        request.put("call",call);
+        request.put("session", session);
+        request.put("id", deviceId);
+        request.put("call", call);
 
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
-
 
     // 设备重启的json  delay 范围 [5,20]s
-    private String restartDeviceJson(int delay){
+    private String restartDeviceJson(int delay) {
         Map<String, Object> call = new HashMap<>();
-        call.put("service","program");
-        call.put("method","reboot");
+        call.put("service", "program");
+        call.put("method", "reboot");
 
         Map<String, Object> params = new HashMap<>();
-        params.put("delay",delay);
+        params.put("delay", delay);
 
 
         Map<String, Object> request = new HashMap<>();
-        request.put("session",session);
-        request.put("id",deviceId);
-        request.put("call",call);
-        request.put("params",params);
+        request.put("session", session);
+        request.put("id", deviceId);
+        request.put("call", call);
+        request.put("params", params);
 
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
-
 
     // 设备重启
     private boolean restartDevice(int delay) {
@@ -1373,9 +1298,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             return responseJson.getBoolean("result");
 
         } catch (IOException e) {
-            Log.e(HuanyuDeviceLog, "读取响应体失败"+e);
+            Log.e(HuanyuDeviceLog, "读取响应体失败" + e);
         } catch (JSONException e) {
-            Log.e(HuanyuDeviceLog, "解析JSON失败"+e);
+            Log.e(HuanyuDeviceLog, "解析JSON失败" + e);
         }
 
         return false;
@@ -1394,9 +1319,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
-    private String  getPTZTime() {
-        if (login()){
+    private String getPTZTime() {
+        if (login()) {
             Response response = http_request(url, getTimeJson());
 
 
@@ -1442,7 +1366,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return "null";
     }
 
-
     private String setTimeJson(String time, int timeZone) {
         Map<String, Object> call = new HashMap<>();
         call.put("service", "program");
@@ -1461,49 +1384,48 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
-    private String setConfigJson(int brightness,int contrast,int saturation,int sharpness,int hue,String scene,int channel){
+    private String setConfigJson(int brightness, int contrast, int saturation, int sharpness, int hue, String scene, int channel) {
 
         // 先看看有没有对应的参数设置，如果没有，当需要设置黑白的时候，color = 0，设置饱和度为0
         Map<String, Object> videoColor = new HashMap<>();
 
-        videoColor.put("brightness",brightness);
-        videoColor.put("contrast",contrast);
-        videoColor.put("saturation",saturation);
-        videoColor.put("sharpness",sharpness);
-        videoColor.put("hue",hue);
+        videoColor.put("brightness", brightness);
+        videoColor.put("contrast", contrast);
+        videoColor.put("saturation", saturation);
+        videoColor.put("sharpness", sharpness);
+        videoColor.put("hue", hue);
 
         Map<String, Object> auto = new HashMap<>();
-        auto.put("videoColor",videoColor);
+        auto.put("videoColor", videoColor);
 
         Map<String, Object> table = new HashMap<>();
 
-        table.put("scene",scene);
-        table.put("auto",auto);
+        table.put("scene", scene);
+        table.put("auto", auto);
 
         Map<String, Object> params = new HashMap<>();
 
-        params.put("channel",channel);
-        params.put("table",table);
+        params.put("channel", channel);
+        params.put("table", table);
 
         Map<String, Object> call = new HashMap<>();
 
-        call.put("service","videoIn");
-        call.put("method","setConfig");
+        call.put("service", "videoIn");
+        call.put("method", "setConfig");
 
         Map<String, Object> body = new HashMap<>();
 
-        body.put("call",call);
-        body.put("params",params);
-        body.put("id",deviceId);
-        body.put("session",session);
+        body.put("call", call);
+        body.put("params", params);
+        body.put("id", deviceId);
+        body.put("session", session);
 
         return JSON.toJSONString(body, SerializerFeature.PrettyFormat);
     }
 
     // 设置图像参数配置（亮度、对比度、色调、饱和度、锐度）
-    private boolean setConfig(int brightness,int contrast,int saturation,int sharpness,int hue, String scene,int channel) {
-        Response response = http_request(url, setConfigJson(brightness,contrast,saturation,sharpness,hue,scene,channel));
+    private boolean setConfig(int brightness, int contrast, int saturation, int sharpness, int hue, String scene, int channel) {
+        Response response = http_request(url, setConfigJson(brightness, contrast, saturation, sharpness, hue, scene, channel));
 
         if (response == null || !response.isSuccessful()) {
             Log.e(HuanyuDeviceLog, "设置失败");
@@ -1535,7 +1457,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return false;
     }
-
 
     // 获取图像参数配置
     // 构造获取图像参数配置的请求JSON
@@ -1594,9 +1515,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         return null;
     }
 
-
     // 这个设置图像参数配置的函数可
-    private String buildColorImageConfigRequestJson(String mode,int channel) {
+    private String buildColorImageConfigRequestJson(String mode, int channel) {
         Map<String, Object> daynight = new HashMap<>();
         daynight.put("mode", mode);
 
@@ -1625,9 +1545,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
-    private String setColorImageConfigRequest(String mode,int channel) {
-        Response response = http_request(url, buildColorImageConfigRequestJson(mode,channel));
+    private String setColorImageConfigRequest(String mode, int channel) {
+        Response response = http_request(url, buildColorImageConfigRequestJson(mode, channel));
 
         // 检查响应有效性
         if (response == null || !response.isSuccessful()) {
@@ -1660,8 +1579,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         return null;
     }
 
-
-    public String photoNightJson(){
+    public String photoNightJson() {
 
         return String.format("{\n" +
                 "    \"session\": %d,\n" +
@@ -1709,11 +1627,10 @@ public class HuanYuDevice extends MyOnvifDevice {
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
-                "}",session,id);
+                "}", session, id);
     }
 
-
-    public String photoDayJson(){
+    public String photoDayJson() {
         return String.format("{\n" +
                 "    \"session\": %d,\n" +
                 "    \"id\": %d,\n" +
@@ -1760,9 +1677,8 @@ public class HuanYuDevice extends MyOnvifDevice {
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
-                "}",session,id);
+                "}", session, id);
     }
-
 
     @Override
     public boolean setPhotoParam(Settings.PhotoConfig v) {
@@ -1770,7 +1686,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         Log.e(HuanyuDeviceLog, "设置图像参数");
 
         // 根据颜色模式选择对应的JSON配置
-        Log.e(HuanyuDeviceLog,"v.color"+v.color);
+        Log.e(HuanyuDeviceLog, "v.color" + v.color);
         String mode = v.color == 1 ? photoDayJson() : photoNightJson();
 
         // 构建图像参数配置JSON
@@ -1804,8 +1720,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             Response response_2 = http_request(url, photoParamJson);
 
 
-            if (response_1 == null || response_2 == null){
-                Log.e(HuanyuDeviceLog,"login::response is null");
+            if (response_1 == null || response_2 == null) {
+                Log.e(HuanyuDeviceLog, "login::response is null");
                 return false;
             }
 
@@ -1876,8 +1792,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
-
     // 查询视频参数配置
     private String getConfigJson(int channel) {
 
@@ -1928,7 +1842,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return null;
     }
 
-
     @Override
     public boolean setCodec(Settings.VideoCodec v) {
 
@@ -1943,7 +1856,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             if (v.streamType == 0) {
                 stream = "main";
                 // 比较配置的分辨率与(1280, 720), (1920, 1080)哪个近，哪个近就用哪个
-                int[][] resolutions = {{1280, 720}, {1920, 1080},{1280,960}};
+                int[][] resolutions = {{1280, 720}, {1920, 1080}, {1280, 960}};
                 double minDistance = Float.MAX_VALUE;
                 for (int[] res : resolutions) {
                     float distance = (float) Math.sqrt(Math.pow(size.x - res[0], 2) + Math.pow(size.y - res[1], 2));
@@ -1956,7 +1869,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 // 非主码流只能设置(720, 576)分辨率
             } else if (v.streamType == 1) {    // {{252,288},{640,480},{704,576},{1280,720}}
                 stream = "extra1";
-                int[][] resolutions = {{252,288},{640,480},{704,576},{1280,720}};
+                int[][] resolutions = {{252, 288}, {640, 480}, {704, 576}, {1280, 720}};
                 double minDistance = Float.MAX_VALUE;
                 for (int[] res : resolutions) {
                     float distance = (float) Math.sqrt(Math.pow(size.x - res[0], 2) + Math.pow(size.y - res[1], 2));
@@ -1968,7 +1881,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 }
             } else if (v.streamType == 2) {       // {{352,288},{640,480},{704,576}}
                 stream = "extra2";
-                int[][] resolutions = {{352,288},{640,480},{704,576}};
+                int[][] resolutions = {{352, 288}, {640, 480}, {704, 576}};
                 double minDistance = Float.MAX_VALUE;
                 for (int[] res : resolutions) {
                     float distance = (float) Math.sqrt(Math.pow(size.x - res[0], 2) + Math.pow(size.y - res[1], 2));
@@ -2026,9 +1939,9 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"streamType\": \"videoandaudio\"\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,stream, v.frame > 25 ? 25 : v.frame,iFrame, v.bps,v.vbr==0?"constant":"variable", x, y);
+                    "}", session, id, stream, v.frame > 25 ? 25 : v.frame, iFrame, v.bps, v.vbr == 0 ? "constant" : "variable", x, y);
 
-            Log.e(HuanyuDeviceLog, "json"+json);
+            Log.e(HuanyuDeviceLog, "json" + json);
 
             Response response = http_request(url, json);
 
@@ -2094,18 +2007,17 @@ public class HuanYuDevice extends MyOnvifDevice {
                 return false;
             }
         }
-        Log.e(HuanyuDeviceLog,"登录失败");
+        Log.e(HuanyuDeviceLog, "登录失败");
         return false;
     }
 
-
     @Override
     public Settings.VideoCodec getVideoCodec(int streamType) {
-        try{
+        try {
             Settings.VideoCodec vc = new Settings.VideoCodec();
             vc.resolution = this.codec.get(streamType).resolution;
             vc.vbr = (byte) this.codec.get(streamType).vbr;
-            vc.bps = (short)this.codec.get(streamType).bps;
+            vc.bps = (short) this.codec.get(streamType).bps;
             vc.streamType = (byte) streamType;
             vc.channel = (byte) id;
 
@@ -2119,7 +2031,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     /**
      * 更新编解码器配置
      */
@@ -2132,7 +2043,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     // 先释放旧的编码器
                     uninitVideoEncoder(); /////
                     // 初始化新的编码器
-                    initVideoEncoder(v.streamType, (int) size.x, (int) size.y,false); /////
+                    initVideoEncoder(v.streamType, (int) size.x, (int) size.y, false); /////
                     Log.d(HuanyuDeviceLog, "Codec updated successfully for stream: " + v.streamType);
                 }
             } finally {
@@ -2142,8 +2053,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         });
     }
 
-
-    public  String convertToRecordPlanConfig(List<Settings.VideoTimeItem> videoTimeTable,long session,int deviceId) {
+    public String convertToRecordPlanConfig(List<Settings.VideoTimeItem> videoTimeTable, long session, int deviceId) {
         // 构建基础JSON结构
         String template = "{\n" +
                 "  \"session\": " + session + ",\n" +
@@ -2182,7 +2092,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         return String.format(template, weekSchedules.toString());
     }
 
-    private  String buildTimeArray(List<Settings.VideoTimeItem> videoTimeTable) {
+    private String buildTimeArray(List<Settings.VideoTimeItem> videoTimeTable) {
         StringBuilder timeArrayBuilder = new StringBuilder();
 
         // 处理videoTimeTable中的每个时间段
@@ -2238,9 +2148,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         return timeArrayBuilder.toString();
     }
 
-
-
-    private String getRecordPlanJson(int channel,List<Settings.VideoTimeItem> list) {
+    private String getRecordPlanJson(int channel, List<Settings.VideoTimeItem> list) {
         // 构建最外层请求对象
         Map<String, Object> request = new HashMap<>();
         request.put("session", session);
@@ -2289,7 +2197,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             }
 
             // 其余8-n个无效时间段
-            for (int i = 1; i < 8-list.size(); i++) {
+            for (int i = 1; i < 8 - list.size(); i++) {
                 timeArray.add(buildTimeItem(0, 0, 0, 0, "Timing"));
             }
 
@@ -2325,9 +2233,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return timeItem;
     }
 
-
-    //The requested profile token ProfileToken does not exist
-
     private String VideoTimeItemIsNone(long session, int deviceId) {
         String timeItem = "{\"beginTime\":{\"hour\":0,\"min\":0},\"endTime\":{\"hour\":0,\"min\":0},\"recordType\":\"Timing\"}";
         String timeArray = "[" + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "," + timeItem + "]";
@@ -2348,11 +2253,13 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
+    //The requested profile token ProfileToken does not exist
+
     @Override
     public boolean setRecordTimes(List<Settings.VideoTimeItem> list) {
         Log.i(HuanyuDeviceLog, "设置定时录像============");
 
-        if (login()){
+        if (login()) {
 
             String recordPlanJson;
 
@@ -2400,7 +2307,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     }
 
-
     private String buildGetTimeRequestJson() {
         Map<String, Object> call = new HashMap<>();
         call.put("service", "program");
@@ -2414,8 +2320,6 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
-
-
 
     private void getDeviceTime() {
         // 发送请求
@@ -2489,7 +2393,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     // 设置时间
     private String buildSetTimeRequestJson(int year, int month, int day,
                                            int hour, int minute, int second, int timeZone) {
@@ -2514,14 +2417,11 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
-
-    // {"session":1476701696,"id":2,"call":{"service":"program","method":"setTime"},"params":{"time":"2025-12-08 17:01:26","timeZone":13}}
-
     @Override
     public boolean setTime(int year, int month, int day,
                            int hour, int minute, int second) {
 
-        if(login()){
+        if (login()) {
             String requestJson = buildSetTimeRequestJson(year, month, day, hour, minute, second, 13);
 
 //            Log.e(HuanyuDeviceLog, "进行时间的同步json："+requestJson);
@@ -2559,22 +2459,22 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
 
 
+    // {"session":1476701696,"id":2,"call":{"service":"program","method":"setTime"},"params":{"time":"2025-12-08 17:01:26","timeZone":13}}
 
     @Override
     public boolean imageFusion(int stream, int preset, boolean show, String filename, Bitmap image_rgb, int recordPreset) {
         return true;
     }
 
-
     public String createStatusTextOsd(long session, int id, Settings.OSD osd, String content) {
         diyOsd = Arrays.asList(content.split("\n"));
         osdToArray = Arrays.asList(truncateText(osd.text).split("\n"));
         int osdSize = osd.size;  //TODO 只有五种选择 16 32 48 64 自定义                     // osdsize = 1 的时候，间隔设置为21，osdsize = 2的时候，间隔设置为45
 
-        int OSDInterval = osdSize == 1?25:45;
+        int OSDInterval = osdSize == 1 ? 25 : 45;
 
-        int dateX =  osdSize == 1?21:20;
-        int dateY =  osdSize == 1?30:9;
+        int dateX = osdSize == 1 ? 21 : 20;
+        int dateY = osdSize == 1 ? 30 : 9;
 
         // 构建custom部分
         StringBuilder customBuilder = new StringBuilder();
@@ -2726,11 +2626,8 @@ public class HuanYuDevice extends MyOnvifDevice {
                 "}";
 
         return String.format(jsonTemplate, session, id,
-                customBuilder.toString(), osdSize-1, (osd.time == 1), (osd.time == 1),dateX,dateY);
+                customBuilder.toString(), osdSize - 1, (osd.time == 1), (osd.time == 1), dateX, dateY);
     }
-
-
-    private static final int MAX_REAL_LENGTH = 27;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
 
     private boolean isChineseChar(char c) {
         Character.UnicodeBlock ub = Character.UnicodeBlock.of(c);
@@ -2774,7 +2671,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return sb.toString();
     }
 
-
     public String truncateText(String newText) {
         if (newText == null || newText.isEmpty()) {
             return "";
@@ -2797,11 +2693,9 @@ public class HuanYuDevice extends MyOnvifDevice {
         return result;
     }
 
-
-
     @Override
-    public boolean updateStatusText(Settings.OSD osd,String content, boolean osdNull) {
-        if(login()) {
+    public boolean updateStatusText(Settings.OSD osd, String content, boolean osdNull) {
+        if (login()) {
             String updateStatusTextosdJson = createStatusTextOsd(session, deviceId, osd, content);
 
             Response response = http_request(url, updateStatusTextosdJson);
@@ -2833,19 +2727,18 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Log.i(HuanyuDeviceLog, "OSD设置失败，login false");
                 return false;
             }
-        }else {
+        } else {
             Log.e(HuanyuDeviceLog, "HTTP请求失败");
             return false;
         }
     }
-
 
     private void goPreset(int para) {
         goPreset(para, 0); // 初始重试次数为0
     }
 
     private void goPreset(int para, int retryCount) {
-        if(login()){
+        if (login()) {
             String goPresetJson = String.format("{\n" +
                     "    \"session\": %d,\n" +
                     "    \"id\": %d,\n" +
@@ -2884,7 +2777,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     boolean result = responseJson.getBooleanValue("result");
                     if (!result && retryCount < 2) {
 
-                        if ((retryCount + 1) == 1){
+                        if ((retryCount + 1) == 1) {
                             Log.e(HuanyuDeviceLog, "第" + (retryCount + 1) + "次调用失败，请求JSON: " + goPresetJson);
                         }
 
@@ -2902,15 +2795,14 @@ public class HuanYuDevice extends MyOnvifDevice {
                 }
 
             } catch (IOException e) {
-                Log.e(HuanyuDeviceLog, "读取响应体失败"+e);
+                Log.e(HuanyuDeviceLog, "读取响应体失败" + e);
             } catch (JSONException e) {
-                Log.e(HuanyuDeviceLog, "解析JSON失败"+e);
+                Log.e(HuanyuDeviceLog, "解析JSON失败" + e);
             }
         }
     }
 
-
-    public void setPreset(int para){
+    public void setPreset(int para) {
         if (login()) {
             String goPresetJson = String.format("{\n" +
                     "    \"session\": %d,\n" +
@@ -2930,15 +2822,14 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             Response response = http_request(url, goPresetJson);
 
-            if (response == null){
-                Log.e(HuanyuDeviceLog,"setPreset::response is null");
+            if (response == null) {
+                Log.e(HuanyuDeviceLog, "setPreset::response is null");
                 return;
             }
 
             parseResponse(response);
         }
     }
-
 
     private void deletePreset(int presetNum) {
         if (login()) {
@@ -2963,9 +2854,9 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     /**
      * 解析HTTP响应
+     *
      * @param response HTTP响应对象
      * @return 解析是否成功，如果响应有效且包含result字段返回true，否则返回false
      */
@@ -2992,17 +2883,16 @@ public class HuanYuDevice extends MyOnvifDevice {
             return responseJson.getBooleanValue("result");
 
         } catch (IOException e) {
-            Log.e(HuanyuDeviceLog, "读取响应体失败"+e);
+            Log.e(HuanyuDeviceLog, "读取响应体失败" + e);
             return false;
         } catch (JSONException e) {
-            Log.e(HuanyuDeviceLog, "解析JSON失败"+e);
+            Log.e(HuanyuDeviceLog, "解析JSON失败" + e);
             return false;
         }
     }
 
-
-    private void right(int para){
-        if(login()){
+    private void right(int para) {
+        if (login()) {
             String goPresetJson = String.format("{\n" +
                     "    \"session\": %d,\n" +
                     "    \"id\": %d,\n" +
@@ -3017,13 +2907,12 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": 0\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para));
 
             Response response = http_request(url, goPresetJson);
             parseResponse(response);
         }
     }
-
 
     private void left(int para) {
         if (login()) {
@@ -3041,15 +2930,14 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": 0\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
         }
     }
 
-
-    private void singleStepControl(int xSpeed , int ySpeed){
+    private void singleStepControl(int xSpeed, int ySpeed) {
         if (login()) {
             String json = String.format("{\n" +
                     "    \"session\": %d,\n" +
@@ -3071,7 +2959,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             parseResponse(response);
         }
     }
-
 
     private void up(int para) {
         if (login()) {
@@ -3096,7 +2983,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     private void down(int para) {
         if (login()) {
             String json = String.format("{\n" +
@@ -3113,20 +2999,16 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": %d\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
         }
     }
 
-
-
     private void invalidateSession() {
         loginTime = 0;
     }
-
-
 
     private void zoomIn(int cmd) {
         if (login()) {
@@ -3183,7 +3065,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     private void irisAdjust(int brigh) {
         if (login()) {
             String json = String.format("{\n" +
@@ -3216,9 +3097,8 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     private void focusIncrease(int cmd) {
-        if (login()){
+        if (login()) {
             int focusCtrl = 300;
             if (cmd == 13) {
                 focusCtrl = 300;
@@ -3244,9 +3124,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
-
-    private void focusDecrease(int cmd ) {
+    private void focusDecrease(int cmd) {
         if (login()) {
             int focusCtrl = 300;
             if (cmd == 14) {
@@ -3311,22 +3189,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(requestMap, SerializerFeature.PrettyFormat);
     }
 
-
-
-    private Handler mFocusHandler = new Handler();
-    private boolean mIsManualFocus = false;
-    private static final long AUTO_FOCUS_DELAY = 5000; // 5秒延迟
-    private Runnable mAutoFocusRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (mIsManualFocus) {
-                autofocus();
-                mIsManualFocus = false;
-            }
-        }
-    };
-
-
     public int getPTZSpeed(int para) {
         if (para <= 15) {
             return 15;
@@ -3345,7 +3207,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     // stop问题
     private void stop() {
         int maxRetries = 3;
@@ -3353,7 +3214,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         for (int i = 0; i < maxRetries; i++) {
             if (!login()) {
-                Log.e(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：登录失败");
+                Log.e(HuanyuDeviceLog, "stop() 第 " + (i + 1) + " 次重试：登录失败");
                 if (i < maxRetries - 1) {
                     SystemClock.sleep(1000);
                 }
@@ -3386,7 +3247,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             }
 
             // 命令失败，强制让 session 失效，下次循环重新登录
-            Log.w(HuanyuDeviceLog, "stop() 第 " + (i+1) + " 次重试：命令失败，强制重新登录");
+            Log.w(HuanyuDeviceLog, "stop() 第 " + (i + 1) + " 次重试：命令失败，强制重新登录");
             invalidateSession();
 
             if (i < maxRetries - 1) {
@@ -3398,13 +3259,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             Log.e(HuanyuDeviceLog, "停止云台失败，已重试 " + maxRetries + " 次");
         }
     }
-
-
-
-    private boolean isMoving = false;
-    private long lastCmd2Time = 0;  // 记录符合条件的cmd==2的时间
-    private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
-
 
     @Override
     public void move(int cmd, int para) {
@@ -3458,39 +3312,39 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 1) {
             // 摄像机打开电源
         } else if (cmd == 2) {
-            if (para != 0){
+            if (para != 0) {
                 goPreset(para);
             }
         } else if (cmd == 3) {
-            if (isMoving){
+            if (isMoving) {
                 stop();
                 SystemClock.sleep(500);
             }
-            singleStepControl(0,50);
+            singleStepControl(0, 50);
             SystemClock.sleep(700);
             stop();
         } else if (cmd == 4) {
-            if (isMoving){
+            if (isMoving) {
                 stop();
                 SystemClock.sleep(500);
             }
-            singleStepControl(0,-50);
+            singleStepControl(0, -50);
             SystemClock.sleep(700);
             stop();
         } else if (cmd == 5) {
-            if (isMoving){
+            if (isMoving) {
                 stop();
                 SystemClock.sleep(500);
             }
-            singleStepControl(-200,0);
+            singleStepControl(-200, 0);
             SystemClock.sleep(700);
             stop();
         } else if (cmd == 6) {
-            if (isMoving){
+            if (isMoving) {
                 stop();
                 SystemClock.sleep(500);
             }
-            singleStepControl(200,0);
+            singleStepControl(200, 0);
             SystemClock.sleep(700);
             stop();
         } else if (cmd == 7) {
@@ -3502,7 +3356,7 @@ public class HuanYuDevice extends MyOnvifDevice {
             SystemClock.sleep(1000);
             stop();
         } else if (cmd == 9) {
-            if (para != 0){
+            if (para != 0) {
                 setPreset(para);
             }
         } else if (cmd == 10) {
@@ -3510,7 +3364,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 11) {
             if (brightness < 100) {
                 brightness += 15;
-                if(brightness >100){
+                if (brightness > 100) {
                     brightness = 100;
                 }
             }
@@ -3520,7 +3374,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 12) {
             if (brightness > 0) {
                 brightness -= 15;
-                if(brightness <0){
+                if (brightness < 0) {
                     brightness = 0;
                 }
             }
@@ -3579,73 +3433,73 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 49) {
             if (isMoving) {
                 stop();
-            }else {
+            } else {
                 isMoving = true;
                 down(para);
             }
         } else if (cmd == 50) {
             if (isMoving) {
                 stop();
-            }else {
+            } else {
                 isMoving = true;
                 up(para);
             }
         } else if (cmd == 51) {
             if (isMoving) {
                 stop();
-            }else {
+            } else {
                 isMoving = true;
                 left(para);
             }
         } else if (cmd == 52) {
             if (isMoving) {
                 stop();
-            }else {
+            } else {
                 isMoving = true;
                 right(para);
             }
         } else if (cmd == 53) {              // TODO 斜角转动的情况，还是会双轴转动
-            if (toCheck){
-                singleStepControl(-200,0);
+            if (toCheck) {
+                singleStepControl(-200, 0);
                 SystemClock.sleep(500);
                 stop();
-                singleStepControl(0,200);
+                singleStepControl(0, 200);
                 SystemClock.sleep(500);
                 stop();
-            }else {
+            } else {
                 topLeft(para);
             }
         } else if (cmd == 54) {
-            if (toCheck){
-                singleStepControl(200,0);
+            if (toCheck) {
+                singleStepControl(200, 0);
                 SystemClock.sleep(500);
                 stop();
-                singleStepControl(0,200);
+                singleStepControl(0, 200);
                 SystemClock.sleep(500);
                 stop();
-            }else {
+            } else {
                 topRight(para);
             }
         } else if (cmd == 55) {
-            if (toCheck){
-                singleStepControl(-200,0);
+            if (toCheck) {
+                singleStepControl(-200, 0);
                 SystemClock.sleep(500);
                 stop();
-                singleStepControl(0,-200);
+                singleStepControl(0, -200);
                 SystemClock.sleep(500);
                 stop();
-            }else {
+            } else {
                 bottomLeft(para);
             }
         } else if (cmd == 56) {
-            if (toCheck){
-                singleStepControl(200,0);
+            if (toCheck) {
+                singleStepControl(200, 0);
                 SystemClock.sleep(500);
                 stop();
-                singleStepControl(0,-200);
+                singleStepControl(0, -200);
                 SystemClock.sleep(500);
                 stop();
-            }else {
+            } else {
                 bottomRight(para);
             }
         } else if (cmd == 57) {
@@ -3655,7 +3509,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 59) {
             if (brightness < 100) {
                 brightness += ((float) para / 200) * 10.0f;
-                if(brightness >100){
+                if (brightness > 100) {
                     brightness = 100;
                 }
             }
@@ -3663,7 +3517,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 60) {
             if (brightness > 0) {
                 brightness -= ((float) para / 200) * 10.0f;
-                if(brightness <0){
+                if (brightness < 0) {
                     brightness = 0;
                 }
             }
@@ -3674,16 +3528,15 @@ public class HuanYuDevice extends MyOnvifDevice {
                 int group = (para - CHECK_LINE_START_PTZ_INDEX) / CHECK_LINE_PTZ_COUNT;
                 int idx = (para - CHECK_LINE_START_PTZ_INDEX) % CHECK_LINE_PTZ_COUNT + 1;
 
-                updateStatusText(osd,String.format("巡检组 %d, 巡检位: %d", group, idx), false);
+                updateStatusText(osd, String.format("巡检组 %d, 巡检位: %d", group, idx), false);
                 SystemClock.sleep(PTZ_PRESET_MOVE_TIME);
-                updateStatusText(osd,getStatusText(), false);
+                updateStatusText(osd, getStatusText(), false);
             }).start();
             goPreset(para);
         }
 
         Log.d(HuanyuDeviceLog, String.format("摄像机调节: %d, %d", cmd, para));
     }
-
 
     private void topLeft(int para) {
         if (login()) {
@@ -3701,7 +3554,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": -%d\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para),getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para), getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
@@ -3724,7 +3577,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": -%d\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para),getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para), getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
@@ -3747,7 +3600,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": %d\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para),getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para), getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
@@ -3770,7 +3623,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"y\": %d\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id,getPTZSpeed(para),getPTZSpeed(para));
+                    "}", session, id, getPTZSpeed(para), getPTZSpeed(para));
 
             Response response = http_request(url, json);
             parseResponse(response);
@@ -3900,7 +3753,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     private void setLeftLimit() {
         if (login()) {
             String json = String.format("{\n" +
@@ -3926,7 +3778,6 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
     private void setRightLimit() {
         if (login()) {
             String json = String.format("{\n" +
@@ -3951,9 +3802,6 @@ public class HuanYuDevice extends MyOnvifDevice {
             parseResponse(response);
         }
     }
-
-
-
 
     private void manualfocus() {
         if (login()) {
@@ -3990,12 +3838,10 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-
-
     private void autofocus() {
         Log.e(HuanyuDeviceLog, "执行自动聚焦操作");
 
-        if(login()){
+        if (login()) {
             String json = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -4024,6 +3870,143 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             Response response = http_request(url, json);
             parseResponse(response);
+        }
+    }
+
+    private static class PhotoReadiness {
+        boolean positionStable;
+        boolean focusStable;
+
+        PhotoReadiness(boolean positionStable, boolean focusStable) {
+            this.positionStable = positionStable;
+            this.focusStable = focusStable;
+        }
+    }
+
+    public static class RequestBody {
+        public final int id;
+        public final Caller call;
+        public final long session;
+        public Object params;
+
+        public RequestBody(int id, long session, Caller caller) {
+            this.id = id;
+            this.call = caller;
+            this.session = session;
+        }
+    }
+
+    public static class ThisRespBody {
+        public int id;
+        public boolean result;
+        public long session;
+        public Object params;
+    }
+
+    public static class Caller {
+        public final String service;
+        public final String method;
+
+        public Caller(String service, String method) {
+            this.service = service;
+            this.method = method;
+        }
+    }
+
+    public static class LogInParam {
+        public final String userName;
+        public final String password;
+        public final String random;
+        public final int encryptType;
+
+        public LogInParam(String user, String password, int encryptType) {
+            this.userName = user;
+            this.password = "e9707aeb6479958a00da5feafffa89c1";
+            this.random = "123456";
+            this.encryptType = encryptType;
+        }
+    }
+
+    public static class OSDParam {
+        public int channel = 0;
+        public int osdDispType;
+        public Tables table = new Tables();
+
+        public static class Tables {
+            public TimeLine timeTitle;
+            public TextLine channelTitle;
+            public Property property;
+            public ArrayList<TextLine> custom = new ArrayList<>();
+        }
+
+        public static class TextLine {
+            public boolean enable;
+            public String data;
+            public int[] rect;
+        }
+
+        public static class TimeLine {
+            public boolean enable;
+            public boolean enableWeek;
+            public int[] rect;
+        }
+
+        public static class Property {
+            public int OSDFont;
+        }
+    }
+
+    public static class RecordTimeRegion {
+        public String recordType = "Timing"; // 目前只需要定时录像
+        public String startTime;
+        public String stopTime;
+
+        public RecordTimeRegion() {
+        }
+
+        public RecordTimeRegion(Date from, Date to) {
+            startTime = UTCTimeFormat(from);
+            stopTime = UTCTimeFormat(to);
+        }
+    }
+
+    public static class RecordReqParam {
+        public final int channel;
+        public RecordTimeRegion recordSearchCount;
+        public ItemSearch recordSearchItem;
+
+        public RecordReqParam(int channel) {
+            this.channel = channel;
+        }
+
+        public static class ItemSearch extends RecordTimeRegion {
+            public final int[] itemRange = new int[2];
+
+            public ItemSearch(Date begin, Date end, int from, int to) {
+                super(begin, end);
+                itemRange[0] = from;
+                itemRange[1] = to;
+            }
+        }
+    }
+
+    public static class RecordRespParam {
+        public static class RecordAmount extends RecordTimeRegion {
+            public int count;
+        }
+
+        public static class RecordItems extends RecordTimeRegion {
+            public ArrayList<RecordItem> recordItem = new ArrayList<>();
+
+            public static class RecordItem {
+                public long startTime;
+                public long stopTime;
+                public int recordSize;
+                public int recordIndex;
+                public String recordName;
+                public String playUrl;
+                public String recordUrl;
+            }
         }
     }
 
