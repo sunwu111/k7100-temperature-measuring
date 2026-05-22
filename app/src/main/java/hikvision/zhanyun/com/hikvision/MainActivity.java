@@ -685,7 +685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-                    batVoltage = 13.40f; // 全功能f
+                    batVoltage = 13.40f; // 全功能
 //                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
@@ -920,6 +920,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
 
+
         for (int i = 0; i < 3; i++) {
             boolean errcode = RS485Impl.Instance().gpioOpenRJ45();
             Log.i(Log.TAG, String.format("RJ45上电%s", errcode ? "成功" : "失败"));
@@ -940,6 +941,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 break;
             }
         }
+
 
         for (int i = 0; i < 3; i++) {
             boolean errcode = RS485Impl.Instance().gpioCloseUSB();
@@ -2711,13 +2713,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         onlineEnd = 0;
         Log.i(Log.TAG,"程序启动完成，设备ID：" + deviceConfig.deviceId);
 
-        utilsHandler.postDelayed(() -> {
-//            if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
-            if(currentMode == MODE_FULL){  // 只有在汇能精电下才有电源管理
-                Log.i(Log.TAG,"开始缓存");
-                cacheVideoFileList();
-            }  // 缓存信息
-        },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
+//        utilsHandler.postDelayed(() -> {
+////            if(currentMode == MODE_FULL && deviceConfig.chargeControl == 6){  // 只有在汇能精电下才有电源管理
+//            if(currentMode == MODE_FULL){  // 只有在汇能精电下才有电源管理
+//                Log.i(Log.TAG,"开始缓存");
+//                cacheVideoFileList();
+//            }  // 缓存信息
+//        },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
+//
+
     }
 
 
