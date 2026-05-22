@@ -700,6 +700,9 @@ public class HuanYuDevice extends MyOnvifDevice {
         Settings.FileList fileList = new Settings.FileList();
         fileList.type = videoType;
 
+
+        Log.e(Log.TAG,"startTime");
+
         try {
             Response countResponse = http_request(url, getRecordSearchCountJson(startTime, stopTime));
             int totalCount = parseRecordSearchCountRes(countResponse);

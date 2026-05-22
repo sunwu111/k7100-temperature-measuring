@@ -685,7 +685,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-                    batVoltage = 12.96f; // 唤醒
+                    batVoltage = 13.40f; // 全功能f
+//                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
@@ -9321,6 +9322,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return false;
     }
 
+
     private void requestUsbPermission() {
         UsbDevice device = DeviceUtils.getGuideUsbDevice(this);
         if (device == null) {
@@ -9332,6 +9334,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             DeviceUtils.requestUsbPermission(this, device);
         }
     }
+
 
     /**
      * 重启气象仪，以便复位雨量
@@ -9371,6 +9374,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }else {
             s = RS485Impl.Instance().getAeroInfo4WithoutHNJD();
         }
+
+
 
         Log.w(Log.TAG, "获取气象仪数据：" + s);
         if ("".equals(s)) return false;
@@ -9940,7 +9945,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             try {
                 spgProtocol.handlerOrder(data[7], data, deviceConfig.aiAccTest); /////
             } catch (Exception e) {
-                Log.e(Log.TAG, "协议处理异常：" + e.getMessage());
+                Log.e(Log.TAG, "协议处理异常：" + e);
             }
         }
     }
