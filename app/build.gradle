@@ -1,0 +1,120 @@
+apply plugin: 'com.android.application'
+
+def vcode = new Date().format('yyyyMMdd').toInteger()
+def buildNumber = 0;
+def vb = new File("version.build")
+if (vb.exists())
+    buildNumber = vb.readLines()[0].toInteger() + 1
+println("当前编译版本号: " + buildNumber.toString())
+
+android {
+
+    compileSdkVersion 28
+    buildToolsVersion '28.0.3'
+
+    signingConfigs {
+        release {
+            storeFile file("../platform.jks")
+            storePassword 'admin12345'
+            keyAlias 'batcom'
+            keyPassword 'admin12345'
+        }
+        debug {
+            storeFile file("../platform.jks")
+            storePassword 'admin12345'
+            keyAlias 'batcom'
+            keyPassword 'admin12345'
+        }
+    }
+
+
+    defaultConfig {
+        applicationId "hikvision.zhanyun.com.hikvision"
+        minSdkVersion 28
+        versionCode 1
+        versionName "1.0.1.0.40"
+//        versionName "1.0.1.0.23--sleep"
+
+        renderscriptTargetApi 18
+        renderscriptSupportModeEnabled true
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
+
+        // 构建时间
+        String verStr = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone("Asia/Shanghai"))
+        buildConfigField("String", "BUILD_TIME", "\"${verStr}\"")
+
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+                abiFilters "armeabi-v7a"
+            }
+        }
+    }
+
+    buildTypes {
+
+        debug {
+            minifyEnabled false
+            debuggable true
+            jniDebuggable true
+            signingConfig signingConfigs.debug
+            versionNameSuffix "-debug"
+        }
+
+        release {
+            minifyEnabled true
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            versionNameSuffix ""
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+
+            def buildType = variant.buildType.name
+            def versionName = variant.versionName
+
+            def apkName = "K7100-V${versionName}.apk"
+
+            outputFileName = apkName
+        }
+    }
+}
+
+
+dependencies {
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    implementation 'androidx.appcompat:appcompat:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation 'com.alibaba:fastjson:1.1.71.android'
+    implementation 'be.teletask.onvif:onvif:+'
+    implementation 'com.googlecode.mp4parser:isoparser:1.0.6'
+    implementation 'org.aspectj:aspectjrt:1.6.2'
+    implementation project(path: ':renderscript-toolkit')
+    implementation project(path: ':opencv')
+    implementation 'commons-io:commons-io:2.4'
+    implementation files('libs/libuvccameraJar_v1.1.jar')
+    implementation 'com.hwangjr.rxbus:rxbus:2.0.0'
+    implementation 'io.netty:netty-all:4.1.9.Final'
+    implementation 'com.blankj:utilcode:1.27.0'
+    implementation 'org.greenrobot:eventbus:3.1.1'
+}
+

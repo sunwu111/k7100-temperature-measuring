@@ -1,0 +1,33 @@
+{
+  "server": "183.47.15.148",
+  "port": 12000,
+  "device_id": "CW0001",
+  "max_upload_image_size": 900,
+  "max_upload_file_size": 900,
+  "object_detect": 4,
+  "rotate": 0,
+  "ai_server": "127.0.0.1",
+  "distance" : 5000,
+  "channels": [
+    {
+      "id": 1,
+      "name": "球机",
+      "type": 2,
+      "server": "192.168.200.11",
+      "port": 80,
+      "user": "admin",
+      "password": "admin888"
+    },
+    {
+      "id": 2,
+      "name": "红外",
+      "type": 6,
+      "server": "192.168.200.11",
+      "port": 80,
+      "user": "admin",
+      "password": "admin888"
+    }
+  ],
+  "main_board": 1,
+  "wifi": true
+}

@@ -1,0 +1,9 @@
+open ftp.zhjinrui.com
+lwvms
+lwvms2019
+mkdir SPGP
+cd SPGP
+binary
+put ¸üÐÂ¼ÇÂ¼.txt
+put SPGP.apk
+bye

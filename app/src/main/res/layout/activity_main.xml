@@ -1,0 +1,1590 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:hardwareAccelerated="true"
+    tools:context=".MainActivity">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <SurfaceView
+            android:id="@+id/svVideo"
+            android:layout_width="match_parent"
+            android:layout_height="208dp"
+            tools:ignore="MissingConstraints" />
+
+        <SurfaceView
+            android:id="@+id/svDraw"
+            android:layout_width="match_parent"
+            android:layout_height="208dp"
+            tools:ignore="MissingConstraints" />
+
+        <Spinner
+            android:id="@+id/cbChannels"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            app:layout_constraintEnd_toEndOf="@+id/btnStop"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/svVideo" />
+
+        <Button
+            android:id="@+id/btnAdd"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_add"
+            android:onClick="btnAddClick"
+            app:layout_constraintStart_toEndOf="@+id/btnStop"
+            app:layout_constraintTop_toBottomOf="@+id/svVideo" />
+
+        <Button
+            android:id="@+id/btnDel"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_delete"
+            android:onClick="btnDeleteClick"
+            app:layout_constraintStart_toStartOf="@+id/btnPhoto"
+            app:layout_constraintTop_toBottomOf="@+id/svVideo" />
+
+        <Button
+            android:id="@+id/btnEdit"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_edit"
+            android:onClick="btnEditClick"
+            app:layout_constraintStart_toStartOf="@+id/btnVideo"
+            app:layout_constraintTop_toBottomOf="@+id/svVideo" />
+
+        <Button
+            android:id="@+id/btnSleep"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="left"
+            android:layout_marginStart="8dp"
+            android:background="@android:drawable/ic_menu_compass"
+            android:onClick="btnSleepClick"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/cbChannels" />
+
+        <Button
+            android:id="@+id/btnPlay"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_media_play"
+            android:onClick="btnPlayClick"
+            app:layout_constraintStart_toEndOf="@+id/btnSleep"
+            app:layout_constraintTop_toTopOf="@+id/btnSleep" />
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_media_pause"
+            android:onClick="btnStopClick"
+            app:layout_constraintStart_toEndOf="@+id/btnPlay"
+            app:layout_constraintTop_toTopOf="@+id/btnPlay" />
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_save"
+            android:onClick="btnSaveClick"
+            app:layout_constraintStart_toEndOf="@+id/btnStop"
+            app:layout_constraintTop_toTopOf="@+id/btnPlay" />
+
+        <Button
+            android:id="@+id/btnPhoto"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_camera"
+            android:onClick="btnPhotoClick"
+            app:layout_constraintStart_toEndOf="@+id/btnSave"
+            app:layout_constraintTop_toTopOf="@+id/btnPlay" />
+
+        <Button
+            android:id="@+id/btnVideo"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:background="@android:drawable/ic_menu_slideshow"
+            android:onClick="btnVideoClick"
+            app:layout_constraintStart_toEndOf="@+id/btnPhoto"
+            app:layout_constraintTop_toTopOf="@+id/btnPlay" />
+
+        <TextView
+            android:id="@+id/tvState"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="left|center_vertical"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:textColor="#333333"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toStartOf="@+id/btnDown"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/btnPlay"
+            tools:text="球机状态：" />
+
+        <Button
+            android:id="@+id/btnUp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/camera_move_up"
+            app:layout_constraintEnd_toStartOf="@+id/btnRight"
+            app:layout_constraintTop_toBottomOf="@+id/svVideo" />
+
+        <Button
+            android:id="@+id/btnZoomin"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/zoomin"
+            app:layout_constraintStart_toEndOf="@+id/btnUp"
+            app:layout_constraintTop_toTopOf="@+id/btnUp" />
+
+        <Button
+            android:id="@+id/btnLeft"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_below="@id/btnUp"
+            android:background="@drawable/camera_move_left"
+            app:layout_constraintEnd_toStartOf="@+id/btnUp"
+            app:layout_constraintTop_toTopOf="@+id/btnConfig" />
+
+        <Button
+            android:id="@+id/btnConfig"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_centerInParent="true"
+            android:layout_toRightOf="@id/btnLeft"
+            android:background="@drawable/setting"
+            android:onClick="btnDebugClick"
+            app:layout_constraintEnd_toStartOf="@+id/btnRight"
+            app:layout_constraintTop_toBottomOf="@+id/btnUp" />
+
+        <Button
+            android:id="@+id/btnRight"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_below="@id/btnUp"
+            android:layout_marginEnd="8dp"
+            android:layout_toRightOf="@id/btnUp"
+            android:background="@drawable/camera_move_right"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/btnConfig" />
+
+        <Button
+            android:id="@+id/btnDown"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_below="@+id/btnLeft"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/camera_move_down"
+            app:layout_constraintStart_toEndOf="@+id/btnLeft"
+            app:layout_constraintTop_toBottomOf="@+id/btnConfig" />
+
+        <Button
+            android:id="@+id/btnZoomout"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/zoomout"
+            app:layout_constraintStart_toEndOf="@+id/btnUp"
+            app:layout_constraintTop_toTopOf="@+id/btnDown" />
+
+        <Spinner
+            android:id="@+id/cbType"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:entries="@array/devType"
+            app:layout_constraintStart_toStartOf="@+id/tvState"
+            app:layout_constraintEnd_toEndOf="@+id/btnStop"
+            app:layout_constraintTop_toTopOf="@+id/etCamID" />
+
+        <TextView
+            android:id="@+id/tvCamID"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="相机 ID"
+            app:layout_constraintEnd_toStartOf="@+id/etCamID"
+            app:layout_constraintTop_toTopOf="@+id/etCamID" />
+
+        <EditText
+            android:id="@+id/etCamID"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp"
+            android:ems="10"
+            android:hint="相机 ID: 0, 1, 2...."
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/btnVideo"
+            app:layout_constraintTop_toTopOf="@+id/tbRotate" />
+
+        <TextView
+            android:id="@+id/tvDVRIP"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="地址"
+            app:layout_constraintEnd_toStartOf="@+id/etDVRIP"
+            app:layout_constraintTop_toTopOf="@+id/etDVRIP" />
+
+        <EditText
+            android:id="@+id/etDVRIP"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ems="10"
+            android:hint="球机地址"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintStart_toStartOf="@+id/irTempAdj"
+            app:layout_constraintTop_toBottomOf="@+id/cbType" />
+
+        <TextView
+            android:id="@+id/tvDVRPort"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="端口"
+            app:layout_constraintEnd_toStartOf="@+id/etDVRPort"
+            app:layout_constraintTop_toTopOf="@+id/etDVRPort" />
+
+        <EditText
+            android:id="@+id/etDVRPort"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="球机端口"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/etCamID"
+            app:layout_constraintTop_toTopOf="@+id/etDVRIP" />
+
+        <TextView
+            android:id="@+id/tvDVRUser"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="用户名"
+            app:layout_constraintEnd_toStartOf="@+id/etDVRUser"
+            app:layout_constraintTop_toTopOf="@+id/etDVRUser" />
+
+        <EditText
+            android:id="@+id/etDVRUser"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="用户名"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintStart_toStartOf="@+id/irTempAdj"
+            app:layout_constraintEnd_toEndOf="@+id/etDVRIP"
+            app:layout_constraintTop_toBottomOf="@+id/etDVRIP" />
+
+        <TextView
+            android:id="@+id/tvDVRPwd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="密码"
+            app:layout_constraintEnd_toStartOf="@+id/etDVRPwd"
+            app:layout_constraintTop_toBottomOf="@+id/etDVRPort" />
+
+        <EditText
+            android:id="@+id/etDVRPwd"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="密码"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/etDVRPort"
+            app:layout_constraintTop_toBottomOf="@+id/etDVRPort" />
+
+        <TextView
+            android:id="@+id/tvPort"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="端口"
+            app:layout_constraintEnd_toStartOf="@+id/etPort"
+            app:layout_constraintTop_toTopOf="@+id/etPort" />
+
+        <View
+            android:id="@+id/divider2"
+            android:layout_width="368dp"
+            android:layout_height="1dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="?android:attr/listDivider"
+            android:visibility="visible"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.296"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/irVerDisplacement" />
+
+        <RelativeLayout
+            android:id="@+id/fragment_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintBottom_toTopOf="@+id/textVersion"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/cbType" />
+
+        <!--静态加载Framgment-->
+        <!--<fragment
+            android:id="@+id/iray_fragment"
+            android:name="hikvision.zhanyun.com.hikvision.IrayFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            />-->
+
+        <Spinner
+            android:id="@+id/spnChargeController"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/chargeController"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/etConfidence"
+            app:layout_constraintTop_toTopOf="@+id/spnAeroDevice" />
+
+        <TextView
+            android:id="@+id/tvChargeController"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="充电器"
+            app:layout_constraintStart_toStartOf="@+id/tvMainBoarder"
+            app:layout_constraintTop_toTopOf="@+id/tvAeroDevice" />
+
+        <TextView
+            android:id="@+id/tvAeroDevice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
+            android:text="气象仪"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvPopCamera" />
+
+        <Spinner
+            android:id="@+id/spnAeroDevice"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:entries="@array/aeroDevice"
+            app:layout_constraintEnd_toEndOf="@+id/spnPopCamera"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/spnAI"
+            app:layout_constraintTop_toBottomOf="@+id/spnPopCamera" />
+
+        <CheckBox
+            android:id="@+id/cbToCheck"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:onClick="btnCbBatOnlyClick"
+            android:text="抽检模式"
+            android:textAlignment="viewStart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvAeroDevice" />
+
+        <EditText
+            android:id="@+id/etConfidence"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="0~100，置信度"
+            android:inputType="number"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/etPort"
+            app:layout_constraintTop_toBottomOf="@+id/etTraffic" />
+
+        <EditText
+            android:id="@+id/etID"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="60dp"
+            android:ems="10"
+            android:hint="设备编号"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/etServer"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etServer" />
+
+        <!--            android:text="珠海金锐电力科技有限公司，版权所有\n软件版本: "-->
+        <TextView
+            android:id="@+id/textVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="right|center_vertical"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:text="软件版本: "
+            android:textAlignment="center"
+            android:textColor="#ff7f7f7f"
+            android:textSize="10sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.432"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/spnZoomRatio"
+            app:layout_constraintVertical_bias="0.861" />
+
+        <EditText
+            android:id="@+id/etServer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="60dp"
+            android:layout_marginTop="8dp"
+            android:ems="10"
+            android:hint="服务器地址"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/etDVRUser"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/divider2" />
+
+        <EditText
+            android:id="@+id/etPort"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="服务器端口"
+            android:inputType="number"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/etDVRPwd"
+            app:layout_constraintTop_toTopOf="@+id/etServer" />
+
+        <View
+            android:id="@+id/divider"
+            android:layout_width="368dp"
+            android:layout_height="1dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:background="?android:attr/listDivider"
+            android:visibility="visible"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etDVRUser" />
+
+        <Spinner
+            android:id="@+id/spnAI"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="60dp"
+            android:layout_marginTop="8dp"
+            android:entries="@array/aiMethod"
+            app:layout_constraintEnd_toEndOf="@+id/etID"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etID" />
+
+        <EditText
+            android:id="@+id/etTraffic"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="每月流量，单位 GB"
+            android:inputType="number"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/etPort"
+            app:layout_constraintTop_toBottomOf="@+id/etPort" />
+
+        <TextView
+            android:id="@+id/tvTraffic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="流量"
+            app:layout_constraintEnd_toStartOf="@+id/etTraffic"
+            app:layout_constraintTop_toTopOf="@+id/etTraffic" />
+
+        <TextView
+            android:id="@+id/tvConfidence"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="置信度"
+            app:layout_constraintEnd_toStartOf="@+id/etConfidence"
+            app:layout_constraintTop_toTopOf="@+id/tvAI" />
+
+        <TextView
+            android:id="@+id/tvServer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="服务器"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/etServer" />
+
+        <TextView
+            android:id="@+id/tvID"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="设备 ID"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etServer" />
+
+        <TextView
+            android:id="@+id/tvAI"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
+            android:text="AI 检测"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/spnAI" />
+
+        <Spinner
+            android:id="@+id/spnPopCamera"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:entries="@array/popCamera"
+            app:layout_constraintEnd_toEndOf="@+id/spnAI"
+            app:layout_constraintStart_toStartOf="@+id/spnAI"
+            app:layout_constraintTop_toBottomOf="@+id/spnAI" />
+
+        <TextView
+            android:id="@+id/tvPopCamera"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"
+            android:text="画中画"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvAI" />
+
+        <TextView
+            android:id="@+id/tvMainBoarder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="主控板"
+            app:layout_constraintStart_toStartOf="@+id/tvConfidence"
+            app:layout_constraintTop_toTopOf="@+id/tvPopCamera" />
+
+        <Spinner
+            android:id="@+id/spnMainBoarder"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/mainBoarder"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/etConfidence"
+            app:layout_constraintTop_toTopOf="@+id/spnPopCamera" />
+
+
+        <CheckBox
+            android:id="@+id/cbPhotoCheck"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
+            android:onClick="btnCbPhotoCheckClick"
+            android:text="拍照策略自检测"
+            android:textAlignment="viewStart"
+            app:layout_constraintStart_toStartOf="@+id/tvChargeController"
+            app:layout_constraintTop_toBottomOf="@+id/tvChargeController" />
+
+        <CheckBox
+            android:id="@+id/switchAudio"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
+            android:onClick="btnCbToCheckClick"
+            android:text="音频切换"
+            android:textAlignment="viewStart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/cbToCheck" />
+
+        <TextView
+            android:id="@+id/tvIrTempAdj"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="温度补偿"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/irTempAdj"
+            app:layout_constraintTop_toTopOf="@+id/irTempAdj" />
+
+        <EditText
+            android:id="@+id/irTempAdj"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:ems="10"
+            android:hint="补偿温度，单位℃"
+            android:textSize="12sp"
+            android:inputType="numberDecimal|numberSigned"
+            app:layout_constraintStart_toEndOf="@+id/tvIrTempAdj"
+            app:layout_constraintEnd_toEndOf="@+id/etDVRUser"
+            app:layout_constraintTop_toBottomOf="@+id/divider" />
+
+        <TextView
+            android:id="@+id/tvIrObjDistance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="测温距离"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irObjDistance" />
+
+        <EditText
+            android:id="@+id/irObjEmi"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="0~1小数，目标发射率"
+            android:textSize="12sp"
+            android:inputType="numberDecimal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/etDVRPwd"
+            app:layout_constraintTop_toTopOf="@+id/irTempAdj" />
+
+        <TextView
+            android:id="@+id/tvIrTempEnv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="环境温度"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/irObjDistance" />
+
+        <TextView
+            android:id="@+id/tvIrHumiEnv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="环境湿度"
+            app:layout_constraintEnd_toStartOf="@+id/irHumiEnv"
+            app:layout_constraintTop_toTopOf="@+id/irHumiEnv" />
+
+        <TextView
+            android:id="@+id/tvIrVideoMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="2dp"
+            android:text="视频模式"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irVideoMode" />
+
+        <TextView
+            android:id="@+id/tvIrObjEmi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="发射率"
+            app:layout_constraintEnd_toStartOf="@+id/irObjEmi"
+            app:layout_constraintTop_toTopOf="@+id/irObjEmi" />
+
+        <TextView
+            android:id="@+id/tvIrShutterInv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="快门间隔"
+            app:layout_constraintEnd_toStartOf="@+id/irShutterInv"
+            app:layout_constraintTop_toTopOf="@+id/irShutterInv" />
+
+        <TextView
+            android:id="@+id/tvIrTempRef"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="反射温度"
+            app:layout_constraintEnd_toStartOf="@+id/irTempRef"
+            app:layout_constraintTop_toBottomOf="@+id/irObjEmi" />
+
+        <EditText
+            android:id="@+id/irHumiEnv"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="0~1小数，环境湿度"
+            android:textSize="12sp"
+            android:inputType="numberDecimal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/irTempRef"
+            app:layout_constraintTop_toBottomOf="@+id/irTempRef" />
+
+        <EditText
+            android:id="@+id/irObjDistance"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="测温距离，单位米"
+            android:textSize="12sp"
+            android:inputType="numberDecimal|numberSigned"
+            app:layout_constraintStart_toStartOf="@+id/irTempAdj"
+            app:layout_constraintEnd_toEndOf="@+id/irTempAdj"
+            app:layout_constraintTop_toBottomOf="@+id/irTempAdj" />
+
+        <EditText
+            android:id="@+id/irTempEnv"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="环境温度，单位℃"
+            android:textSize="12sp"
+            android:inputType="numberSigned|numberDecimal"
+            app:layout_constraintStart_toStartOf="@+id/irTempAdj"
+            app:layout_constraintEnd_toEndOf="@+id/irTempAdj"
+            app:layout_constraintTop_toBottomOf="@+id/irObjDistance" />
+
+        <Spinner
+            android:id="@+id/irVideoMode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:spinnerMode="dropdown"
+            android:entries="@array/irVideoMode"
+            app:layout_constraintStart_toEndOf="@+id/tvIrVideoMode"
+            app:layout_constraintEnd_toEndOf="@+id/irTempEnv"
+            app:layout_constraintTop_toBottomOf="@+id/irTempEnv" />
+
+        <EditText
+            android:id="@+id/irTempRef"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="目标反射温度，单位℃"
+            android:inputType="numberSigned|numberDecimal"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/irObjEmi"
+            app:layout_constraintTop_toBottomOf="@+id/irObjEmi" />
+
+        <TextView
+            android:id="@+id/tvIrOperator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="2dp"
+            android:text="区域绘制"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irOperator" />
+
+        <TextView
+            android:id="@+id/tvPreset"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="预置位"
+            app:layout_constraintEnd_toStartOf="@+id/spnPreset"
+            app:layout_constraintTop_toTopOf="@+id/spnPreset" />
+
+        <CheckBox
+            android:id="@+id/irGlobalAlarm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="@string/irGlobalAlarm"
+            app:layout_constraintStart_toStartOf="@+id/tvIrObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/irObjFlag" />
+
+        <CheckBox
+            android:id="@+id/irThresholdAlarm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irThresholdAlarm"
+            app:layout_constraintStart_toEndOf="@+id/irGlobalAlarm"
+            app:layout_constraintTop_toTopOf="@+id/irGlobalAlarm" />
+
+        <CheckBox
+            android:id="@+id/irEnvAlarm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irEnvAlarm"
+            app:layout_constraintStart_toEndOf="@+id/irThresholdAlarm"
+            app:layout_constraintTop_toTopOf="@+id/irThresholdAlarm" />
+
+        <CheckBox
+            android:id="@+id/irComAlarm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irComAlarm"
+            android:textSize="11sp"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toEndOf="@+id/irEnvAlarm"
+            app:layout_constraintTop_toTopOf="@+id/irEnvAlarm" />
+
+        <CheckBox
+            android:id="@+id/irHotTrace"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="@string/irHotpotTrace"
+            app:layout_constraintStart_toStartOf="@+id/tvIrObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/irGlobalAlarm" />
+
+        <CheckBox
+            android:id="@+id/irPaletteDisp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irPaletteDisplay"
+            app:layout_constraintStart_toEndOf="@+id/irHotTrace"
+            app:layout_constraintTop_toTopOf="@+id/irHotTrace" />
+
+        <EditText
+            android:id="@+id/irShutterInv"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="快门校正间隔"
+            android:textSize="12sp"
+            android:inputType="numberDecimal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/irHumiEnv"
+            app:layout_constraintTop_toBottomOf="@+id/irHumiEnv" />
+
+        <Spinner
+            android:id="@+id/spnPreset"
+            android:layout_width="50dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:entries="@array/preset"
+            android:dropDownHeight="200dp"
+            app:layout_constraintStart_toStartOf="@+id/irShutterInv"
+            app:layout_constraintTop_toBottomOf="@+id/irShutterInv" />
+
+        <Button
+            android:id="@+id/btnAddPreset"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/zoomin"
+            app:layout_constraintBottom_toBottomOf="@+id/spnPreset"
+            app:layout_constraintStart_toEndOf="@+id/spnPreset"
+            app:layout_constraintTop_toTopOf="@+id/spnPreset" />
+
+        <Button
+            android:id="@+id/btnRemovePreset"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/zoomout"
+            app:layout_constraintStart_toEndOf="@+id/btnAddPreset"
+            app:layout_constraintTop_toTopOf="@+id/btnAddPreset" />
+
+        <Button
+            android:id="@+id/btnEditPreset"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/setting"
+            app:layout_constraintStart_toEndOf="@+id/btnRemovePreset"
+            app:layout_constraintTop_toTopOf="@+id/btnRemovePreset" />
+
+        <Spinner
+            android:id="@+id/irOperator"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:entries="@array/irRegionOp"
+            app:layout_constraintStart_toEndOf="@+id/tvIrOperator"
+            app:layout_constraintEnd_toEndOf="@+id/irVideoMode"
+            app:layout_constraintTop_toBottomOf="@+id/irVideoMode" />
+
+        <TextView
+            android:id="@+id/tvIrResolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="分辨率"
+            app:layout_constraintEnd_toStartOf="@+id/irResolution"
+            app:layout_constraintTop_toTopOf="@+id/irResolution" />
+
+        <Spinner
+            android:id="@+id/irResolution"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:entries="@array/irRes"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/spnPreset"
+            app:layout_constraintTop_toBottomOf="@+id/spnPreset" />
+
+        <TextView
+            android:id="@+id/tvIrFocalLen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="焦距"
+            app:layout_constraintEnd_toStartOf="@+id/irFocalLen"
+            app:layout_constraintTop_toTopOf="@+id/irFocalLen" />
+
+        <Spinner
+            android:id="@+id/irFocalLen"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:spinnerMode="dropdown"
+            android:entries="@array/irFocalLen"
+            app:layout_constraintStart_toEndOf="@+id/tvIrOperator"
+            app:layout_constraintEnd_toEndOf="@+id/irOperator"
+            app:layout_constraintTop_toBottomOf="@+id/irOperator" />
+
+        <TextView
+            android:id="@+id/tvIrRegionDistance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="目标距离"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irRegionDistance" />
+
+        <EditText
+            android:id="@+id/irRegionDistance"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:ems="10"
+            android:hint="目标距离，单位米"
+            android:textSize="12sp"
+            android:inputType="numberSigned|numberDecimal"
+            app:layout_constraintStart_toEndOf="@+id/tvIrRegionDistance"
+            app:layout_constraintEnd_toEndOf="@+id/irFocalLen"
+            app:layout_constraintTop_toBottomOf="@+id/irFocalLen" />
+
+        <TextView
+            android:id="@+id/tvIrRegionEmi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="10dp"
+            android:text="目标发射率"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toStartOf="@+id/irRegionEmi"
+            app:layout_constraintTop_toTopOf="@+id/irRegionEmi" />
+
+        <EditText
+            android:id="@+id/irRegionEmi"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="目标发射率"
+            android:textSize="12sp"
+            android:inputType="numberDecimal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/irResolution"
+            app:layout_constraintTop_toBottomOf="@+id/irResolution" />
+
+        <TextView
+            android:id="@+id/tvIrObjFlag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="3dp"
+            android:text="目标标志"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irObjFlag" />
+
+        <Spinner
+            android:id="@+id/irObjFlag"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:entries="@array/irObjectFlag"
+            app:layout_constraintStart_toEndOf="@+id/tvIrObjFlag"
+            app:layout_constraintEnd_toEndOf="@+id/irRegionDistance"
+            app:layout_constraintTop_toBottomOf="@+id/irRegionDistance" />
+
+        <TextView
+            android:id="@+id/tvIrObjType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="目标类型"
+            app:layout_constraintEnd_toStartOf="@+id/irObjType"
+            app:layout_constraintTop_toTopOf="@+id/irObjType" />
+
+        <Spinner
+            android:id="@+id/irObjType"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/irObjectType"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/irRegionEmi"
+            app:layout_constraintTop_toBottomOf="@+id/irRegionEmi" />
+
+        <CheckBox
+            android:id="@+id/irImageStitch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irImageStitch"
+            android:textSize="11sp"
+            app:layout_constraintStart_toEndOf="@+id/irPaletteDisp"
+            app:layout_constraintTop_toTopOf="@+id/irPaletteDisp" />
+
+        <CheckBox
+            android:id="@+id/irImageFusion"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/irImageFusion"
+            app:layout_constraintStart_toEndOf="@+id/irImageStitch"
+            app:layout_constraintTop_toTopOf="@+id/irImageStitch" />
+
+        <TextView
+            android:id="@+id/tvIrAngle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="旋转角度"
+            app:layout_constraintBottom_toBottomOf="@+id/irAngle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irAngle" />
+
+        <EditText
+            android:id="@+id/irAngle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:ems="10"
+            android:hint="旋转角度，单位度"
+            android:inputType="numberSigned|numberDecimal"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintStart_toEndOf="@+id/tvIrAngle"
+            app:layout_constraintTop_toBottomOf="@+id/irHotTrace" />
+
+        <TextView
+            android:id="@+id/tvIrHorDisplacement"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="水平位移"
+            app:layout_constraintBottom_toBottomOf="@+id/irHorDisplacement"
+            app:layout_constraintEnd_toStartOf="@+id/irHorDisplacement"
+            app:layout_constraintTop_toTopOf="@+id/irHorDisplacement" />
+
+        <EditText
+            android:id="@+id/irHorDisplacement"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="水平位移，单位像素"
+            android:inputType="numberSigned|numberDecimal"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="@+id/irAngle"
+            app:layout_constraintEnd_toEndOf="@+id/irObjType"
+            app:layout_constraintStart_toStartOf="@+id/irObjType"
+            app:layout_constraintTop_toTopOf="@+id/irAngle" />
+
+        <TextView
+            android:id="@+id/tvIrVerDisplacement"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="垂直位移"
+            app:layout_constraintBottom_toBottomOf="@+id/irVerDisplacement"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/irVerDisplacement" />
+
+        <EditText
+            android:id="@+id/irVerDisplacement"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:ems="10"
+            android:hint="垂直位移，单位像素"
+            android:inputType="numberSigned|numberDecimal"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintStart_toEndOf="@+id/tvIrVerDisplacement"
+            app:layout_constraintTop_toBottomOf="@+id/irAngle" />
+
+        <View
+            android:id="@+id/divider4"
+            android:layout_width="368dp"
+            android:layout_height="1dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="?android:attr/listDivider"
+            android:visibility="visible"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.296"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/switchAudio" />
+
+        <EditText
+            android:id="@+id/tbRotate"
+            android:layout_width="50dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:contentDescription="旋转度数"
+            android:hint="@string/cameraRotate"
+            android:inputType="number|text"
+            android:singleLine="true"
+            android:text="0"
+            android:textSize="12sp"
+            app:layout_constraintStart_toEndOf="@+id/cbType"
+            app:layout_constraintTop_toBottomOf="@+id/tvState" />
+
+        <TextView
+            android:id="@+id/tvBitRateType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:layout_marginStart="8dp"
+            android:text="位率类型"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/spnBitRateType" />
+
+        <Spinner
+            android:id="@+id/spnBitRateType"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:entries="@array/bitRateType"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/irObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/divider4" />
+
+        <TextView
+            android:id="@+id/tvStreamType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="码流类型"
+            app:layout_constraintEnd_toStartOf="@+id/spnStreamType"
+            app:layout_constraintTop_toTopOf="@+id/spnStreamType" />
+
+        <Spinner
+            android:id="@+id/spnStreamType"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/streamType"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/spnChargeController"
+            app:layout_constraintTop_toTopOf="@+id/spnBitRateType" />
+
+        <TextView
+            android:id="@+id/tvFrame"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="帧率"
+            app:layout_constraintEnd_toStartOf="@+id/etFrame"
+            app:layout_constraintTop_toTopOf="@+id/etFrame" />
+
+        <EditText
+            android:id="@+id/etFrame"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="1-30 帧每秒可调"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintStart_toStartOf="@+id/irObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/spnBitRateType" />
+
+        <TextView
+            android:id="@+id/textView38"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="降噪方式"
+            app:layout_constraintEnd_toStartOf="@+id/spnDenoiseMode"
+            app:layout_constraintTop_toTopOf="@+id/spnDenoiseMode" />
+
+        <Spinner
+            android:id="@+id/spnDenoiseMode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/denoiseMode"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/spnChargeController"
+            app:layout_constraintTop_toTopOf="@+id/spnGainControl" />
+
+        <TextView
+            android:id="@+id/tvGainControl"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="增益控制"
+            app:layout_constraintBottom_toBottomOf="@+id/spnGainControl"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+
+        <Spinner
+            android:id="@+id/spnGainControl"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:entries="@array/bainControl"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/irObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+
+        <TextView
+            android:id="@+id/tvFocusMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="聚焦模式"
+            app:layout_constraintEnd_toStartOf="@+id/spnFocusMode"
+            app:layout_constraintTop_toTopOf="@+id/spnFocusMode" />
+
+        <Spinner
+            android:id="@+id/spnFocusMode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/focusMode"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/spnChargeController"
+            app:layout_constraintTop_toTopOf="@+id/etFrame" />
+
+        <CheckBox
+            android:id="@+id/cbBackLightCom"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="@string/backLightCom"
+            app:layout_constraintStart_toStartOf="@+id/tvGainControl"
+            app:layout_constraintTop_toBottomOf="@+id/spnGainControl" />
+
+        <CheckBox
+            android:id="@+id/cbStrongLightSup"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/strongLightSup"
+            app:layout_constraintStart_toEndOf="@+id/cbBackLightCom"
+            app:layout_constraintTop_toTopOf="@+id/cbBackLightCom" />
+
+        <CheckBox
+            android:id="@+id/cbElectronicFog"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/electronicFog"
+            app:layout_constraintStart_toEndOf="@+id/cbStrongLightSup"
+            app:layout_constraintTop_toTopOf="@+id/cbStrongLightSup" />
+
+        <CheckBox
+            android:id="@+id/cbLowLight"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/lowLight"
+            app:layout_constraintStart_toEndOf="@+id/cbElectronicFog"
+            app:layout_constraintTop_toTopOf="@+id/cbElectronicFog" />
+
+        <CheckBox
+            android:id="@+id/cbVideoLoss"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:text="@string/videoLoss"
+            app:layout_constraintStart_toStartOf="@+id/cbBackLightCom"
+            app:layout_constraintTop_toBottomOf="@+id/cbBackLightCom" />
+
+        <CheckBox
+            android:id="@+id/cbVideoBlock"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/videoBlock"
+            app:layout_constraintStart_toEndOf="@+id/cbVideoLoss"
+            app:layout_constraintTop_toTopOf="@+id/cbVideoLoss" />
+
+        <CheckBox
+            android:id="@+id/cbVideoOutFocus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/videoOutFocus"
+            app:layout_constraintStart_toEndOf="@+id/cbVideoBlock"
+            app:layout_constraintTop_toTopOf="@+id/cbVideoBlock" />
+
+        <CheckBox
+            android:id="@+id/cbVideoScreenDist"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/videoScreenDist"
+            app:layout_constraintStart_toEndOf="@+id/cbVideoOutFocus"
+            app:layout_constraintTop_toTopOf="@+id/cbVideoOutFocus" />
+
+        <TextView
+            android:id="@+id/tvCruise"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="巡线组号"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/spnCruise" />
+
+        <Spinner
+            android:id="@+id/spnCruise"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:entries="@array/checkLine"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/cbVideoLoss" />
+
+        <TextView
+            android:id="@+id/tvCruiseDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="停留时间"
+            app:layout_constraintEnd_toStartOf="@+id/etCruiseDuration"
+            app:layout_constraintTop_toTopOf="@+id/etCruiseDuration" />
+
+        <EditText
+            android:id="@+id/etCruiseDuration"
+            android:layout_width="158dp"
+            android:layout_height="37dp"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="停留时间，单位秒"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintStart_toStartOf="@+id/spnStreamType"
+            app:layout_constraintTop_toTopOf="@+id/spnCruise" />
+
+        <TextView
+            android:id="@+id/tvCruiseSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="巡线速率"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/etCruiseSpeed" />
+
+        <EditText
+            android:id="@+id/etCruiseSpeed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="巡线速率"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/spnCruise" />
+
+        <Button
+            android:id="@+id/btnAddCruise"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/zoomin"
+            app:layout_constraintBottom_toBottomOf="@+id/etCruiseSpeed"
+            app:layout_constraintStart_toEndOf="@+id/etCruiseSpeed"
+            app:layout_constraintTop_toTopOf="@+id/etCruiseSpeed" />
+
+        <Button
+            android:id="@+id/btnRemoveCruise"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/zoomout"
+            app:layout_constraintStart_toEndOf="@+id/btnAddCruise"
+            app:layout_constraintTop_toTopOf="@+id/btnAddCruise" />
+
+        <Button
+            android:id="@+id/btnEditCruise"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@drawable/setting"
+            app:layout_constraintStart_toEndOf="@+id/btnRemoveCruise"
+            app:layout_constraintTop_toTopOf="@+id/btnRemoveCruise" />
+
+        <TextView
+            android:id="@+id/tvPtzSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="运动速率"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/etPtzSpeed" />
+
+        <EditText
+            android:id="@+id/etPtzSpeed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="运动速率"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/etCruiseSpeed" />
+
+        <TextView
+            android:id="@+id/tvResolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="分辨率"
+            app:layout_constraintEnd_toStartOf="@+id/spnResolution"
+            app:layout_constraintTop_toTopOf="@+id/spnResolution" />
+
+        <Spinner
+            android:id="@+id/spnResolution"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:entries="@array/resolution"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/spnStreamType"
+            app:layout_constraintTop_toTopOf="@+id/etPtzSpeed" />
+
+        <TextView
+            android:id="@+id/tvAITest"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="算法兼容"
+            app:layout_constraintEnd_toStartOf="@+id/btnAITest"
+            app:layout_constraintTop_toTopOf="@+id/btnAITest" />
+
+        <Button
+            android:id="@+id/btnAITest"
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_toRightOf="@+id/btnSleep"
+            android:drawableLeft="@android:drawable/ic_media_play"
+            android:onClick="btnAIClick"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/etPtzSpeed" />
+
+        <CheckBox
+            android:id="@+id/cbAIAccTest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:onClick="btnCbAIAccTestClick"
+            android:text="算法性能检验"
+            android:textAlignment="viewStart"
+            app:layout_constraintStart_toStartOf="@+id/tvResolution"
+            app:layout_constraintTop_toBottomOf="@+id/tvResolution" />
+
+        <TextView
+            android:id="@+id/tvZoomRatio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:text="变焦倍数"
+            app:layout_constraintEnd_toStartOf="@+id/spnZoomRatio"
+            app:layout_constraintTop_toTopOf="@+id/spnZoomRatio" />
+
+        <Spinner
+            android:id="@+id/spnZoomRatio"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:entries="@array/zoomRatio"
+            android:dropDownHeight="200dp"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/btnAITest" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
+

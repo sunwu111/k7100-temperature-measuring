@@ -1,0 +1,4 @@
+1.第一次使用需要把配置文件config.ini 存放在 手机储存根目录/HikVisionInfo 下 ，参考.../SPGP-Android项目里的config.ini格式。 
+2.第一次安装App需要同意超级权限；
+3.第一次调用手机系统摄像头需要同意权限
+4.hikvisionKey.jks的密码是zysc123123
