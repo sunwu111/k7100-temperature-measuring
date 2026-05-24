@@ -1,26 +1,27 @@
-# Android/Gradle generated files
-.gradle/
-**/build/
-**/.cxx/
+# ===============================
+# 1. 默认忽略所有文件
+# ===============================
+*
 
-# IDE/user-local files
-.idea/
-*.iml
-local.properties
+# ===============================
+# 2. 允许目录结构（否则 Git 无法进入子目录）
+# ===============================
+!*/
 
-# Generated packages and temporary outputs
-*.apk
-*.ap_
-*.aab
-*.dex
-*.class
-*.log
+# ===============================
+# 3. 放行 app/src 目录下所有内容
+# ===============================
+!app/
+!app/src/
+!app/src/**
 
-# Native build intermediates
-.externalNativeBuild/
-
-# Duplicate OpenCV copy; the project uses the root :opencv module.
-app/opencv/
-
-# Local notes
-编译和查看实时日志.md
+# ===============================
+# 4. 放行 根目录 的 更新内容.md
+# ===============================
+!更新内容.md
+!APK更新记录.txt
+!build.gradle
+!gradle.properties
+!local.properties
+!README.md
+!编译和查看实时日志.md
