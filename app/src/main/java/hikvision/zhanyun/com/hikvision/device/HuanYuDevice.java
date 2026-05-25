@@ -58,7 +58,7 @@ public class HuanYuDevice extends MyOnvifDevice {
     //      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
     private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
     private static final int MAX_LOGIN_RETRY = 20;
-    private static final int MAX_REAL_LENGTH = 27;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
+    private static final int MAX_REAL_LENGTH = 61;        // 每行最多61个英文字符，或30个汉字
     private static final long AUTO_FOCUS_DELAY = 5000; // 5秒延迟
     private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
     final Base64.Decoder decoder = Base64.getDecoder();
@@ -620,44 +620,44 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
 
         rtspPlaybackClient = new RtspClient(server, 554, user, password, resource, new RtspClientCallback() {
-                    @Override
-                    public void onPacket(int channel, byte[] packet, int len) {
+            @Override
+            public void onPacket(int channel, byte[] packet, int len) {
 
-                        // 旧session直接丢弃
-                        if (currentSession != playbackSession.get()) {
-                            return;
-                        }
+                // 旧session直接丢弃
+                if (currentSession != playbackSession.get()) {
+                    return;
+                }
 
-                        if (channel != 0) {
-                            return;
-                        }
+                if (channel != 0) {
+                    return;
+                }
 
-                        if (packet == null || len <= 12) {
-                            return;
-                        }
+                if (packet == null || len <= 12) {
+                    return;
+                }
 
-                        try {
-                            final byte[] data = new byte[len];
-                            System.arraycopy(packet, 0, data, 0, len);
-                            data[8] = (byte) (ssrc >> 24);
-                            data[9] = (byte) (ssrc >> 16);
-                            data[10] = (byte) (ssrc >> 8);
-                            data[11] = (byte) (ssrc);
+                try {
+                    final byte[] data = new byte[len];
+                    System.arraycopy(packet, 0, data, 0, len);
+                    data[8] = (byte) (ssrc >> 24);
+                    data[9] = (byte) (ssrc >> 16);
+                    data[10] = (byte) (ssrc >> 8);
+                    data[11] = (byte) (ssrc);
 
-                            onVideoFrame(data);
+                    onVideoFrame(data);
 
-                        } catch (Exception e) {
-                            Log.e(HuanyuDeviceLog, "回放RTP异常:" + e.getMessage());
-                        }
-                    }
+                } catch (Exception e) {
+                    Log.e(HuanyuDeviceLog, "回放RTP异常:" + e.getMessage());
+                }
+            }
 
-                    @Override
-                    public void onResponse(
-                            List<String> headers,
-                            byte[] body) {
+            @Override
+            public void onResponse(
+                    List<String> headers,
+                    byte[] body) {
 
-                    }
-                });
+            }
+        });
 
         if (!rtspPlaybackClient.start(useAudio)) {
             Log.e(HuanyuDeviceLog, "回放启动失败");
@@ -2516,7 +2516,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     String s = osdToArray.get(osdToArrayIndex);
                     String encodedCustomText = Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8));
 //                    int rectY = 470 * getImageSize(settings.photoConfig.get(String.valueOf(1)).size).y / 512 + (i - 6) * OSDInterval; // 每行间隔49   // 818
-                    int rectY = 900 + (i - 6) * OSDInterval;
+                    int rectY = 850 + (i - 6) * OSDInterval;
 
                     customBuilder.append("                {\n")
                             .append(String.format("                    \"data\": \"%s\",\n", encodedCustomText))
@@ -2692,6 +2692,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         return result;
     }
+
 
     @Override
     public boolean updateStatusText(Settings.OSD osd, String content, boolean osdNull) {
