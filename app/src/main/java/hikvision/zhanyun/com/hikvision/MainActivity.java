@@ -202,29 +202,6 @@ import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
 
-import hikvision.zhanyun.com.hikvision.Settings.AeroInfo;
-import hikvision.zhanyun.com.hikvision.Settings.BatteryInfo;
-import hikvision.zhanyun.com.hikvision.Settings.Channel;
-import hikvision.zhanyun.com.hikvision.Settings.ChannelStatus;
-import hikvision.zhanyun.com.hikvision.Settings.CheckGroup;
-import hikvision.zhanyun.com.hikvision.Settings.CheckScheduleItem;
-import hikvision.zhanyun.com.hikvision.Settings.CruiseGroup;
-import hikvision.zhanyun.com.hikvision.Settings.DetectInfo;
-import hikvision.zhanyun.com.hikvision.Settings.DeviceConfig;
-import hikvision.zhanyun.com.hikvision.Settings.Features;
-import hikvision.zhanyun.com.hikvision.Settings.FileDir;
-import hikvision.zhanyun.com.hikvision.Settings.FileList;
-import hikvision.zhanyun.com.hikvision.Settings.FireAlarmInfo;
-import hikvision.zhanyun.com.hikvision.Settings.HeartBeat;
-import hikvision.zhanyun.com.hikvision.Settings.OSD;
-import hikvision.zhanyun.com.hikvision.Settings.OnlineCfg;
-import hikvision.zhanyun.com.hikvision.Settings.Parameters;
-import hikvision.zhanyun.com.hikvision.Settings.PhotoConfig;
-import hikvision.zhanyun.com.hikvision.Settings.PhotoTimeItem;
-import hikvision.zhanyun.com.hikvision.Settings.TimeRecord;
-import hikvision.zhanyun.com.hikvision.Settings.TrafficeUsage;
-import hikvision.zhanyun.com.hikvision.Settings.VideoCodec;
-import hikvision.zhanyun.com.hikvision.Settings.VideoTimeItem;
 import hikvision.zhanyun.com.hikvision.device.AipuDevice;
 import hikvision.zhanyun.com.hikvision.device.Camera2Device;
 import hikvision.zhanyun.com.hikvision.device.Device;
@@ -308,10 +285,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RC_PHOTO_STRIDE = 100;
     private static final long MIN_INIT_INTERVAL = 1000;
 
-    //    private static final long STORAGE_USAGE_INTERVAL_MS = 30 * 60 * 1000;  // 30分钟
+//    private static final long STORAGE_USAGE_INTERVAL_MS = 30 * 60 * 1000;  // 30分钟
 //    private static final long STORAGE_USAGE_INTERVAL_MS = 1 * 60 * 1000;
     private static final int MAX_REAL_LENGTH = 61;
-    private static final int MAX_HUANYU_REAL_LENGTH = MAX_REAL_LENGTH * 2;
     private static final long MAX_INTERVAL = 1000 * 60 * 30;  // 最大间隔30分钟
     public static boolean isIRPhotoing = false;
     public static boolean isVLPhotoing = false;
@@ -394,9 +370,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-    //    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
     private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 2分钟
-    //    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -709,7 +685,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-                    // batVoltage = 13.40f; // 全功能
+                    batVoltage = 13.40f; // 全功能
 //                    batVoltage = 12.96f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
@@ -1799,13 +1775,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static String Location2String(Location location) {
 
-        return "位置000.000000E 000.000000EN";  // 测试用例
+//                return "位置000.000000E 000.000000EN";  // 测试用例
 
         /////
-        // if (settings.location == null || settings.location.isEmpty()) {
-        //     loadLocationFromConfig();
-        // }
-        // return settings.location != null ? settings.location : "";
+        if (settings.location == null || settings.location.isEmpty()) {
+            loadLocationFromConfig();
+        }
+        return settings.location != null ? settings.location : "";
         /////
     }
 
@@ -1867,7 +1843,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-
     // 画面附加信息内容，如电量，流量，电压等
     public static String getStatusText() {
         try {
@@ -1899,7 +1874,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (deviceConfig.chargeControl == 6) {
                         tempEnvironment = Math.max(tempEnvControl, tempEnvRegion);  // 汇能精电/硕日控制器温度与环境温度框的最高温比较，取最大值
                     }
-//                    Log.e(Log.TAG,"batVoltage:"+batVoltage);
+
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
 
                         // 不带微气象
@@ -1966,6 +1941,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 deviceConfig.wifi ? 1 : 0
                         );
                     }
+
 
                     // 如果是三路板，显示一二路电流
                 } else if (deviceConfig.chargeControl == 3) { /////
@@ -5334,6 +5310,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return batteryInfo;
     }
 
+
+
     private void doWifiAction(boolean on) {
         /*delayHandler.removeCallbacksAndMessages(wifiOperatorToken);
         delayHandler.postDelayed(()-> {
@@ -5624,7 +5602,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (!DEBUG) {
                     if (offLineRecode.getRecordGap() < PERIOD_HOUR * 2) {           // 若累计离线时间达到或超过2小时，
                         Log.i(Log.TAG, "心跳超时，重启安卓系统");
-                        //                        restartApplication(this, 5);
+    //                        restartApplication(this, 5);
                         rebootSystem("心跳超时"); // sunwu
                     } else {
                         offLineRecode.clearRecord();
@@ -7847,8 +7825,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         } else {
             // 对osd进行截断，显示通道名不能太长
             if (channel ==  1){
-                osd.text = truncateText(osd.text,
-                        device.type == DEVICE_DVR_HUANYU ? MAX_HUANYU_REAL_LENGTH : MAX_REAL_LENGTH);
+                osd.text = truncateText(osd.text);       // 通道二不进行截断
             }
 
             settings.osds.put(String.valueOf(channel), osd);
@@ -7909,17 +7886,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     public String truncateText(String newText) {
-        return truncateText(newText, MAX_REAL_LENGTH);
-    }
-
-    public String truncateText(String newText, int maxRealLength) {
         if (newText == null) {
             return "";
         }
 
         int realLength = calculateRealLength(newText);
-        if (realLength > maxRealLength) {
-            newText = truncateTextByRealLength(newText, maxRealLength);
+        if (realLength > MAX_REAL_LENGTH) {
+            newText = truncateTextByRealLength(newText, MAX_REAL_LENGTH);
             Log.e(Log.TAG, "自定义的OSD太长，进行了截断，原长度：" + realLength);
         }
         return newText;
@@ -7931,9 +7904,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            int charLength = isChineseChar(c) ? 2 : 1;
+            int charLength = (c >= '\u4e00' && c <= '\u9fa5') ? 2 : 1;
 
-            if (currentLength + charLength > maxLength) {
+            if (currentLength + charLength > maxLength - 3) {
                 break;
             }
 
