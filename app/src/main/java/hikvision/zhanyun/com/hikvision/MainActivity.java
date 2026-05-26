@@ -6765,7 +6765,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        if (dev.isCamera() && !prepareDualCameraStreamTask(dev, "录像")) {
+        if (dev.isCamera() && !prepareDualCameraRecordTask(dev)) {
             synchronized (videoQueue) {
                 isVideoTaskRunning = false;
             }
@@ -6859,7 +6859,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        if (dev.isCamera() && !prepareDualCameraStreamTask(dev, "录像")) {
+        if (dev.isCamera() && !prepareDualCameraRecordTask(dev)) {
             return;
         }
 
@@ -7047,6 +7047,25 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (other == null) return true;
         if (isCameraOpenBusy(other)) {
             Log.i(Log.TAG, "MIPI摄像头通道" + other.id + "正在占用，通道" + dev.id + taskName + "暂不执行");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean prepareDualCameraRecordTask(Device dev) {
+        Device other = getOtherDualCamera(dev);
+        if (other == null) return true;
+        if (other.isLiving()) {
+            Log.i(Log.TAG, "录像优先，停止通道" + other.id + "拉流");
+            other.liveStop();
+            if (other.streamClient != null) {
+                other.streamClient.close();
+                other.streamClient = null;
+            }
+            finishTask(TaskManager.Task.Living.toString());
+        }
+        if (other.isOpening() || other.isPhotoing() || other.isRecording()) {
+            Log.i(Log.TAG, "MIPI摄像头通道" + other.id + "正在占用，通道" + dev.id + "录像暂不执行");
             return false;
         }
         return true;
