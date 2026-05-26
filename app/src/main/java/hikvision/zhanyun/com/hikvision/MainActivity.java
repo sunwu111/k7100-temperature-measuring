@@ -521,8 +521,27 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    class PhotoTask {
+        int channel;
+        int preset;
+        boolean show;
+        String filename;
+        boolean alert;
+
+        public PhotoTask(int channel, int preset, boolean show, String filename, boolean alert) {
+            this.channel = channel;
+            this.preset = preset;
+            this.show = show;
+            this.filename = filename;
+            this.alert = alert;
+        }
+    }
+
     private final Queue<VideoTask> videoQueue = new LinkedList<>();
     private boolean isVideoTaskRunning = false;
+    private String currentCameraVideoTaskFile = null;
+    private final Queue<PhotoTask> cameraPhotoQueue = new LinkedList<>();
+    private boolean isCameraPhotoTaskRunning = false;
 
 
     /*
@@ -1409,10 +1428,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
             if (photoFailerMap.containsKey(file)) photoFailerMap.remove(file);
+            finishCameraPhotoTask(channel);
         }
 
         @Override
         public void onPhotoFailed(int channel, int preset, String filename) {
+            finishCameraPhotoTask(channel);
             if (channel != 3) {
                 for (Device dev : channels.values()) {
                     if (dev.type == DEVICE_DVR_AIPU) {
@@ -1542,6 +1563,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                uploadHandler.post(() -> spgProtocol.doUploadFile(timestamp, file, channel, 0, SPGProtocol.FILE_TYPE.VIDEO, captureType)); ///////
             else
                 TaskManager.remove(file);
+            if (dev.isCamera() && file.equals(currentCameraVideoTaskFile)) {
+                currentCameraVideoTaskFile = null;
+            }
 
             /////
             if (dev.isDVR()) {
@@ -1566,6 +1590,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             /////
             Device dev = channels.get(String.valueOf(channel));
+            if (dev.isCamera() && filename.equals(currentCameraVideoTaskFile)) {
+                currentCameraVideoTaskFile = null;
+            }
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+            tryStartNextVideoTask();
             if (dev.isDVR()) {
                 if (dev.isUSB()) {
                     sleepDevice(channel, "红外录制失败");
@@ -6734,6 +6765,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
+        if (dev.isCamera() && !prepareDualCameraStreamTask(dev, "录像")) {
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+            tryStartNextVideoTask();
+            return;
+        }
+
         if (dev.isLiving()) {
             dev.liveStop();
         }
@@ -6741,6 +6780,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         cpuLock();
         String fn = getFileName(channel, stream, EXT_MP4, time);
         TaskManager.add(fn);
+        if (dev.isCamera()) {
+            currentCameraVideoTaskFile = fn;
+        }
 
         /////
         if (dev.isDVR()) {
@@ -6817,9 +6859,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
+        if (dev.isCamera() && !prepareDualCameraStreamTask(dev, "录像")) {
+            return;
+        }
+
         cpuLock();
         String fn = getFileName(item.channel, item.stream, EXT_MP4, item.duration);
         TaskManager.add(fn);
+        if (dev.isCamera()) {
+            currentCameraVideoTaskFile = fn;
+        }
 
         /////
         if (dev.isDVR()) {
@@ -6977,6 +7026,87 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     /**
      * 平台不支持打开2个以上摄像头，拍照和拉流需要检查并关闭另一个直播摄像头
      */
+    private boolean isDualCameraChannel(Device dev) {
+        if (dev == null || !dev.isCamera() || (dev.id != 2 && dev.id != 3)) return false;
+        Device ch2 = channels.get("2");
+        Device ch3 = channels.get("3");
+        return ch2 != null && ch3 != null && ch2.isCamera() && ch3.isCamera();
+    }
+
+    private Device getOtherDualCamera(Device dev) {
+        if (!isDualCameraChannel(dev)) return null;
+        return channels.get(dev.id == 2 ? "3" : "2");
+    }
+
+    private boolean isCameraOpenBusy(Device dev) {
+        return dev != null && (dev.isOpening() || dev.isLiving() || dev.isRecording() || dev.isPhotoing());
+    }
+
+    private boolean prepareDualCameraStreamTask(Device dev, String taskName) {
+        Device other = getOtherDualCamera(dev);
+        if (other == null) return true;
+        if (isCameraOpenBusy(other)) {
+            Log.i(Log.TAG, "MIPI摄像头通道" + other.id + "正在占用，通道" + dev.id + taskName + "暂不执行");
+            return false;
+        }
+        return true;
+    }
+
+    private void preemptOtherDualCameraForPhoto(Device dev) {
+        Device other = getOtherDualCamera(dev);
+        if (other == null) return;
+        if (other.isLiving()) {
+            Log.i(Log.TAG, "拍照优先，停止通道" + other.id + "拉流");
+            other.liveStop();
+            if (other.streamClient != null) {
+                other.streamClient.close();
+                other.streamClient = null;
+            }
+            finishTask(TaskManager.Task.Living.toString());
+        }
+        if (other.isRecording()) {
+            Log.i(Log.TAG, "拍照优先，停止通道" + other.id + "录像");
+            other.videoStop();
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+            if (currentCameraVideoTaskFile != null) {
+                finishTask(currentCameraVideoTaskFile);
+                currentCameraVideoTaskFile = null;
+            }
+        }
+    }
+
+    private void enqueueCameraPhotoTask(int channel, int preset, boolean show, String filename, boolean alert) {
+        synchronized (cameraPhotoQueue) {
+            cameraPhotoQueue.offer(new PhotoTask(channel, preset, show, filename, alert));
+        }
+        tryStartNextCameraPhotoTask();
+    }
+
+    private void tryStartNextCameraPhotoTask() {
+        utilsHandler.post(() -> {
+            PhotoTask task;
+            synchronized (cameraPhotoQueue) {
+                if (isCameraPhotoTaskRunning) return;
+                task = cameraPhotoQueue.poll();
+                if (task == null) return;
+                isCameraPhotoTaskRunning = true;
+            }
+            takePhotoInternal(task.channel, task.preset, task.show, task.filename, task.alert);
+        });
+    }
+
+    private void finishCameraPhotoTask(int channel) {
+        Device dev = channels.get(String.valueOf(channel));
+        if (!isDualCameraChannel(dev)) return;
+        synchronized (cameraPhotoQueue) {
+            isCameraPhotoTaskRunning = false;
+        }
+        utilsHandler.postDelayed(this::tryStartNextCameraPhotoTask, 500);
+        tryStartNextVideoTask();
+    }
+
     private void closeOtherPlayingCamera(Device dev) {
         if (dev == null) return;
         for (Device camera : channels.values()) {
@@ -7044,9 +7174,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isCamera()) {
             if (dev.isLiving()) return 1;
             // 录制优先
-            if (devBusyRecording()) return 3;
+            if (!prepareDualCameraStreamTask(dev, "拉流")) return 3;
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
         }
         /////
 
@@ -7235,9 +7364,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
         if (dev.isCamera()) {
-            if (devBusyRecording()) return;
+            if (!prepareDualCameraStreamTask(dev, "拉流")) return;
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
         }
         /////
 
@@ -8634,9 +8762,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
 
     private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert) {
+        Device dev = channels.get(String.valueOf(channel));
+        if (isDualCameraChannel(dev)) {
+            enqueueCameraPhotoTask(channel, preset, show, filename, alert);
+            return;
+        }
+        takePhotoInternal(channel, preset, show, filename, alert);
+    }
+
+    private void takePhotoInternal(int channel, int preset, boolean show, String filename, boolean alert) {
 
         if (isSleepMode()){
             Log.e(TAG,"设备处于休眠模式，不响应拍照");
+            finishCameraPhotoTask(channel);
             return;
         }
 
@@ -8660,8 +8798,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (dev.isCamera()) {
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
-            if (dev.isRecording()) dev.videoStop();
+            preemptOtherDualCameraForPhoto(dev);
         }
         /////
 

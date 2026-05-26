@@ -1015,6 +1015,7 @@ public class Camera2Device extends Device {
         closePreviewSession();
         stopBackgroundThread();
         clearState(DevState.OPENING);
+        clearState(DevState.PHOTOING);
     }
 
     /*
@@ -1314,6 +1315,7 @@ public class Camera2Device extends Device {
                 mOnShow = show;
 
                 mCameraPhotoing = true;
+                setState(DevState.PHOTOING);
 
                 takePhotoOnce.set(true);
                 photoDone.set(false);
@@ -1357,6 +1359,7 @@ public class Camera2Device extends Device {
                     close();
                 }
                 mCameraPhotoing = false;
+                clearState(DevState.PHOTOING);
             }
         });
         return true;
