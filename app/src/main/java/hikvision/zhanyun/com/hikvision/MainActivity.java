@@ -537,11 +537,33 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    class LiveTask {
+        int channel;
+        int streamType;
+        int network;
+        int ssrc;
+        String server;
+        int port;
+
+        public LiveTask(int channel, int streamType, int network, int ssrc, String server, int port) {
+            this.channel = channel;
+            this.streamType = streamType;
+            this.network = network;
+            this.ssrc = ssrc;
+            this.server = server;
+            this.port = port;
+        }
+    }
+
+    // 短视频任务串行执行，MIPI 双通道忙时只等待，不丢弃队首任务。
     private final Queue<VideoTask> videoQueue = new LinkedList<>();
     private boolean isVideoTaskRunning = false;
     private String currentCameraVideoTaskFile = null;
+    // CH2/CH3 拍照共用同一条队列，保证跨通道拍照按请求顺序完成。
     private final Queue<PhotoTask> cameraPhotoQueue = new LinkedList<>();
     private boolean isCameraPhotoTaskRunning = false;
+    // 拉流请求在拍照或录像占用 MIPI 时等待，等资源释放后再响应。
+    private final Queue<LiveTask> cameraLiveQueue = new LinkedList<>();
 
 
     /*
@@ -1580,6 +1602,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isVideoTaskRunning = false;
             }
             tryStartNextVideoTask();
+            tryStartNextCameraLiveTask();
 
             /////
         }
@@ -1597,6 +1620,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isVideoTaskRunning = false;
             }
             tryStartNextVideoTask();
+            tryStartNextCameraLiveTask();
             if (dev.isDVR()) {
                 if (dev.isUSB()) {
                     sleepDevice(channel, "红外录制失败");
@@ -6978,8 +7002,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         utilsHandler.post(() -> {
             synchronized (videoQueue) {
                 if (isVideoTaskRunning) return;
-                VideoTask task = videoQueue.poll();
+                VideoTask task = videoQueue.peek();
                 if (task == null) return;
+                Device dev = channels.get(String.valueOf(task.channel));
+                if (dev != null && dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+                    return;
+                }
+                videoQueue.poll();
                 isVideoTaskRunning = true;
                 Log.i(Log.TAG, "开始执行视频任务: channel=" + task.channel + ", stream=" + task.stream);
                 takeVideo(task.channel, task.stream, task.time, task.upload);
@@ -7042,10 +7071,43 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return dev != null && (dev.isOpening() || dev.isLiving() || dev.isRecording() || dev.isPhotoing());
     }
 
+    private boolean hasQueuedOrRunningCameraPhotoTask() {
+        synchronized (cameraPhotoQueue) {
+            return isCameraPhotoTaskRunning || !cameraPhotoQueue.isEmpty();
+        }
+    }
+
+    // 停止被抢占通道的拉流，并同步关闭上报链路，避免残留 Living 任务。
+    private void stopDualCameraLive(Device dev, String reason) {
+        if (dev == null || !dev.isLiving()) return;
+        Log.i(Log.TAG, reason + dev.id);
+        dev.liveStop();
+        if (dev.streamClient != null) {
+            dev.streamClient.close();
+            dev.streamClient = null;
+        }
+        finishTask(TaskManager.Task.Living.toString());
+    }
+
+    // 拉流和短视频都需要独占 MIPI，拍照队列未清空或任一通道正在打开/拍照/录像时等待。
+    private boolean canRunDualCameraStreamTaskNow(Device dev) {
+        if (!isDualCameraChannel(dev)) return true;
+        if (hasQueuedOrRunningCameraPhotoTask()) return false;
+        if (dev.isOpening() || dev.isPhotoing() || dev.isRecording()) return false;
+        Device other = getOtherDualCamera(dev);
+        if (other == null) return true;
+        if (other.isOpening() || other.isPhotoing() || other.isRecording()) return false;
+        return true;
+    }
+
     private boolean prepareDualCameraStreamTask(Device dev, String taskName) {
         Device other = getOtherDualCamera(dev);
         if (other == null) return true;
-        if (isCameraOpenBusy(other)) {
+        // 跨通道拉流可以抢占对方拉流，但不能抢占对方拍照或录像。
+        if (other.isLiving()) {
+            stopDualCameraLive(other, "MIPI拉流优先，停止通道");
+        }
+        if (other.isOpening() || other.isPhotoing() || other.isRecording()) {
             Log.i(Log.TAG, "MIPI摄像头通道" + other.id + "正在占用，通道" + dev.id + taskName + "暂不执行");
             return false;
         }
@@ -7119,11 +7181,54 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void finishCameraPhotoTask(int channel) {
         Device dev = channels.get(String.valueOf(channel));
         if (!isDualCameraChannel(dev)) return;
+        boolean hasNextPhoto;
         synchronized (cameraPhotoQueue) {
             isCameraPhotoTaskRunning = false;
+            hasNextPhoto = !cameraPhotoQueue.isEmpty();
         }
-        utilsHandler.postDelayed(this::tryStartNextCameraPhotoTask, 500);
+        // 拍照优先级最高；连续拍照全部完成后，才释放短视频和拉流队列。
+        if (hasNextPhoto) {
+            utilsHandler.postDelayed(this::tryStartNextCameraPhotoTask, 500);
+            return;
+        }
         tryStartNextVideoTask();
+        tryStartNextCameraLiveTask();
+    }
+
+    private void enqueueCameraLiveTask(int channel, int streamType, int network, int ssrc, String server, int port) {
+        synchronized (cameraLiveQueue) {
+            cameraLiveQueue.offer(new LiveTask(channel, streamType, network, ssrc, server, port));
+        }
+        tryStartNextCameraLiveTask();
+    }
+
+    private void tryStartNextCameraLiveTask() {
+        utilsHandler.post(() -> {
+            LiveTask task;
+            synchronized (cameraLiveQueue) {
+                task = cameraLiveQueue.peek();
+                if (task == null) return;
+            }
+
+            Device dev = channels.get(String.valueOf(task.channel));
+            if (dev == null) {
+                synchronized (cameraLiveQueue) {
+                    cameraLiveQueue.poll();
+                }
+                tryStartNextCameraLiveTask();
+                return;
+            }
+
+            // 队首拉流如果暂时拿不到 MIPI，继续留在队列里等待下一次资源释放。
+            if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+                return;
+            }
+
+            synchronized (cameraLiveQueue) {
+                cameraLiveQueue.poll();
+            }
+            startLiveVideo(task.channel, task.streamType, task.network, task.ssrc, task.server, task.port);
+        });
     }
 
     private void closeOtherPlayingCamera(Device dev) {
@@ -7167,6 +7272,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        if (电量不够) return 2;
         if (dev == null) return 3;
         if (dev.isLiving()) return 1; /////
+        if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+            enqueueCameraLiveTask(channel, streamType, network, ssrc, server, port);
+            return 0;
+        }
 
         cpuLock();
 

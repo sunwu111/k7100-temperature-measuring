@@ -1295,7 +1295,8 @@ public class Camera2Device extends Device {
                     mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
                 }
 
-                if (!isLiving()){
+                // 同通道拉流/录像中拍照要复用当前会话，避免打断正在进行的流式任务。
+                if (!isLiving() && !isRecording()){
                     createPreviewSession(mResolution.x, mResolution.y, false);
                 }
 
