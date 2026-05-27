@@ -1169,6 +1169,12 @@ public class Camera2Device extends Device {
             if (cb != null) cb.openSucceed();
             return true;
         }
+        if (isLiving() || isRecording()) {
+            // 同通道拉流/录像中允许拍照，直接复用当前 Camera 会话，不能重新打开导致流式任务中断。
+            Log.i(Log.TAG, "摄像头正在拉流或录像，复用当前会话");
+            if (cb != null) cb.openSucceed();
+            return true;
+        }
         if (mMainBoard == 1) {
             MipiSwitch.switchTo(camID);
         }
