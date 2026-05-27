@@ -7005,7 +7005,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 VideoTask task = videoQueue.peek();
                 if (task == null) return;
                 Device dev = channels.get(String.valueOf(task.channel));
-                if (dev != null && dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+                if (dev != null && dev.isCamera() && !canRunDualCameraStreamTaskNow(dev, false)) {
                     return;
                 }
                 videoQueue.poll();
@@ -7077,6 +7077,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    private boolean hasQueuedOrRunningCameraVideoTask() {
+        synchronized (videoQueue) {
+            if (isVideoTaskRunning) return true;
+            for (VideoTask task : videoQueue) {
+                Device dev = channels.get(String.valueOf(task.channel));
+                if (isDualCameraChannel(dev)) return true;
+            }
+            return false;
+        }
+    }
+
     // 停止被抢占通道的拉流，并同步关闭上报链路，避免残留 Living 任务。
     private void stopDualCameraLive(Device dev, String reason) {
         if (dev == null || !dev.isLiving()) return;
@@ -7089,10 +7100,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         finishTask(TaskManager.Task.Living.toString());
     }
 
-    // 拉流和短视频都需要独占 MIPI，拍照队列未清空或任一通道正在打开/拍照/录像时等待。
-    private boolean canRunDualCameraStreamTaskNow(Device dev) {
+    // 拉流和短视频都需要独占 MIPI；正在拉流的通道可以被新拉流或短视频抢占。
+    private boolean canRunDualCameraStreamTaskNow(Device dev, boolean liveRequest) {
         if (!isDualCameraChannel(dev)) return true;
         if (hasQueuedOrRunningCameraPhotoTask()) return false;
+        if (liveRequest && hasQueuedOrRunningCameraVideoTask()) return false;
         if (dev.isOpening() || dev.isPhotoing() || dev.isRecording()) return false;
         Device other = getOtherDualCamera(dev);
         if (other == null) return true;
@@ -7220,7 +7232,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
             // 队首拉流如果暂时拿不到 MIPI，继续留在队列里等待下一次资源释放。
-            if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+            if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev, true)) {
                 return;
             }
 
@@ -7272,9 +7284,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        if (电量不够) return 2;
         if (dev == null) return 3;
         if (dev.isLiving()) return 1; /////
-        if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev)) {
+        if (dev.isCamera() && !canRunDualCameraStreamTaskNow(dev, true)) {
             enqueueCameraLiveTask(channel, streamType, network, ssrc, server, port);
             return 0;
+        }
+
+        if (dev.isCamera()) {
+            if (dev.isLiving()) return 1;
+            if (!prepareDualCameraStreamTask(dev, "拉流")) return 3;
         }
 
         cpuLock();
@@ -7297,15 +7314,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev.isLiving() && ssrc != dev.ssrcLive) {
             stopLiveVideo(channel, streamType, dev.ssrcLive);
         }
-
-        /////
-        if (dev.isCamera()) {
-            if (dev.isLiving()) return 1;
-            // 录制优先
-            if (!prepareDualCameraStreamTask(dev, "拉流")) return 3;
-            // 如果另一个摄像头在直播，停掉直播
-        }
-        /////
 
         if (dev.streamClient == null) {
             dev.streamClient = new SocketClient(server, port, network == 0);
