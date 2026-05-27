@@ -7195,6 +7195,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return true;
     }
 
+
     private boolean prepareDualCameraRecordTask(int channel, Device dev) {
         Device other = getOtherDualCamera(channel);
         if (other == null) return true;
@@ -7210,6 +7211,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         return true;
     }
+
 
     private void preemptOtherDualCameraForPhoto(Device dev) {
         Device other = getOtherDualCamera(dev);
@@ -7275,12 +7277,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         tryStartNextCameraLiveTask();
     }
 
+
     private void enqueueCameraLiveTask(int channel, int streamType, int network, int ssrc, String server, int port) {
         synchronized (cameraLiveQueue) {
             cameraLiveQueue.offer(new LiveTask(channel, streamType, network, ssrc, server, port));
         }
         tryStartNextCameraLiveTask();
     }
+
 
     private void tryStartNextCameraLiveTask() {
         utilsHandler.post(() -> {
@@ -7528,6 +7532,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         /////
     }
+
 
     public void startLocalPlay(int channel, int preset) {
 
