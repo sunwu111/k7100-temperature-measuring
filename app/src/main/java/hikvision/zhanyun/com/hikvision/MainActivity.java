@@ -1857,20 +1857,18 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static String Location2String(Location location) {
 
-               return "位置000.000000E 000.000000EN";  // 测试用例
+//                return "位置000.000000E 000.000000N";  // 测试用例
 
-        /////
-        // if (settings.location == null || settings.location.isEmpty()) {
-        //     loadLocationFromConfig();
-        // }
-        // return settings.location != null ? settings.location : "";
-        /////
+        if (settings.location == null || settings.location.isEmpty()) {
+            loadLocationFromConfig();
+        }
+        return settings.location != null ? settings.location : "";
+
     }
 
 
     private static String aeroStatusText() {
 //        return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
-
 
         AeroInfo aeroInfo = aeroInfoAtomicReference.get();
 
@@ -1923,11 +1921,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return "";
         }
     }
-    
 
 
     // 画面附加信息内容，如电量，流量，电压等
     public static String getStatusText() {
+
+        Float cpuTemp = AndroidThermalMonitor.getCpuTemperature();
+
         try {
             if (deviceConfig.onlyShowBat) {
                 if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) {
@@ -1957,13 +1957,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (deviceConfig.chargeControl == 6) {
                         tempEnvironment = Math.max(tempEnvControl, tempEnvRegion);  // 汇能精电/硕日控制器温度与环境温度框的最高温比较，取最大值
                     }
-//                    Log.e(Log.TAG,"batVoltage:"+batVoltage);
+
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
 
                         // 不带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行：通信
-                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃\n" +        // 第三行：电池
+                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +        // 第三行：电池
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +       // 第四行：太阳能
                                         "%s\n" +                                   // 第六行：位置
                                         "软件V%s %s %d",                       // 第七行：版本
@@ -1978,6 +1978,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batAmper,
                                 batPrecent,
                                 temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -1995,7 +1996,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行：通信
-                                        "电池%3.2fV/%2.2fA/%d%%\n" +               // 第三行：电池（不显示温度）
+                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +               // 第三行：电池（不显示温度）
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +       // 第四行：太阳能
                                         "%s" +                                     // 第五行：微气象（内部带\n）
                                         "%s\n" +                                   // 第六行：位置
@@ -2010,6 +2011,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batVoltage,
                                 batAmper,
                                 batPrecent,
+                                temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -2025,16 +2028,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         );
                     }
 
+
                     // 如果是三路板，显示一二路电流
-                } else if (deviceConfig.chargeControl == 3) { /////
-                    //                return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA/%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
-                    //                        netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
-                    //                        subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
-                    //                        solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler1, loadAmpler2, getBatPercent(), temperature, humidity, /////
-                    //                        aeroStatusText(),
-                    //                        Location2String(devLocation));
-
-
+                } else if (deviceConfig.chargeControl == 3) {
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                         return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.2fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
@@ -2050,15 +2046,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 aeroStatusText(),
                                 Location2String(devLocation));
                     }
-
-                } else if (deviceConfig.chargeControl == 7) {  // getBatPercent()
-                    //                return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
-                    //                        netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
-                    //                        subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
-                    //                        solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler, getBatPercent(), temperature, humidity,
-                    //                        aeroStatusText(),
-                    //                        Location2String(devLocation));
-
+                } else if (deviceConfig.chargeControl == 7) {
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                         return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
@@ -2079,7 +2067,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 不带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃\n" +         // 第三行
+                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +         // 第三行
                                         "太阳能%3.1fV/%2.2fA 负载%2.2fA\n" +        // 第四行
                                         "%s\n" +                                    // 第六行
                                         "软件V%s %s %d",                        // 第七行
@@ -2094,6 +2082,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batAmper,
                                 getBatPercent(),
                                 temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -2111,7 +2100,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                        "电池%3.1fV/%2.2fA/%d%%\n" +         // 第三行
+                                        "电池%3.1fV/%2.2fA/%d%%%3.1f℃/%3.1f℃\n" +         // 第三行
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +        // 第四行
                                         "%s" +                                      // 第五行：微气象（内部自带\n）
                                         "%s\n" +                                    // 第六行
@@ -2126,6 +2115,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batVoltage,
                                 batAmper,
                                 getBatPercent(),
+                                temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
