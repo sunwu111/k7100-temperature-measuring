@@ -81,6 +81,7 @@ public class Camera2Device extends Device {
     private int mFilePreset;
     private Point mResolution;
     private long mLockFocusTime = 0;  // 记录AF和AE开始时间，超时强制退出
+    private Timer recordStopTimer;
     private final static HandlerThread scheduledThread = new HandlerThread("摄像机拍照线程");
     private static Handler scheduledHandler;
     /////
@@ -1025,6 +1026,11 @@ public class Camera2Device extends Device {
     public boolean videoStop() {
         try {
             //Log.i(Log.TAG, "停止录制");
+            if (recordStopTimer != null) {
+                // 跨通道拍照抢占短视频时立即取消原定时器，避免稍后误回调录像完成。
+                recordStopTimer.cancel();
+                recordStopTimer = null;
+            }
             unlockFocus();
             close();
             super.videoStop();
@@ -1084,7 +1090,8 @@ public class Camera2Device extends Device {
             initVideoEncoder(stream, mResolution.x, mResolution.y, false);   // 录制短视频使用配置文件中的分辨率和I帧间隔
             /////
 
-            new Timer("recordStop").schedule(new TimerTask() { /////
+            recordStopTimer = new Timer("recordStop");
+            recordStopTimer.schedule(new TimerTask() { /////
                 @Override
                 public void run() {
                     procVideoHandler.removeCallbacksAndMessages(null); /////

@@ -559,6 +559,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private final Queue<VideoTask> videoQueue = new LinkedList<>();
     private boolean isVideoTaskRunning = false;
     private String currentCameraVideoTaskFile = null;
+    private int currentCameraVideoTaskChannel = -1;
     // CH2/CH3 拍照共用同一条队列，保证跨通道拍照按请求顺序完成。
     private final Queue<PhotoTask> cameraPhotoQueue = new LinkedList<>();
     private boolean isCameraPhotoTaskRunning = false;
@@ -1587,6 +1588,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 TaskManager.remove(file);
             if (dev.isCamera() && file.equals(currentCameraVideoTaskFile)) {
                 currentCameraVideoTaskFile = null;
+                currentCameraVideoTaskChannel = -1;
             }
 
             /////
@@ -1615,6 +1617,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Device dev = channels.get(String.valueOf(channel));
             if (dev.isCamera() && filename.equals(currentCameraVideoTaskFile)) {
                 currentCameraVideoTaskFile = null;
+                currentCameraVideoTaskChannel = -1;
             }
             synchronized (videoQueue) {
                 isVideoTaskRunning = false;
@@ -6806,6 +6809,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         TaskManager.add(fn);
         if (dev.isCamera()) {
             currentCameraVideoTaskFile = fn;
+            currentCameraVideoTaskChannel = channel;
         }
 
         /////
@@ -6852,6 +6856,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             public void openFailed(int errcode) {
                 DeviceExceptionManager.openFailed();
                 finishTask(fn);
+                if (dev.isCamera() && fn.equals(currentCameraVideoTaskFile)) {
+                    currentCameraVideoTaskFile = null;
+                    currentCameraVideoTaskChannel = -1;
+                }
 
                 if (deviceConfig.toCheck && channel == 2) {
                     applyPowerTuning();
@@ -6892,6 +6900,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         TaskManager.add(fn);
         if (dev.isCamera()) {
             currentCameraVideoTaskFile = fn;
+            currentCameraVideoTaskChannel = item.channel;
         }
 
         /////
@@ -6941,6 +6950,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             public void openFailed(int errcode) {
                 DeviceExceptionManager.openFailed(); /////
                 finishTask(fn);
+                if (dev.isCamera() && fn.equals(currentCameraVideoTaskFile)) {
+                    currentCameraVideoTaskFile = null;
+                    currentCameraVideoTaskChannel = -1;
+                }
 
                 /// sunwu
                 if (deviceConfig.toCheck && item.channel == 2) {
@@ -7219,7 +7232,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
             finishTask(TaskManager.Task.Living.toString());
         }
-        if (other.isRecording()) {
+        // 拍照优先级高于跨通道短视频；录像刚启动时可能还没置 RECORDING，用当前任务通道兜底判断。
+        if (other.isRecording() || currentCameraVideoTaskChannel == other.id) {
             Log.i(Log.TAG, "拍照优先，停止通道" + other.id + "录像");
             other.videoStop();
             synchronized (videoQueue) {
@@ -7229,6 +7243,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 finishTask(currentCameraVideoTaskFile);
                 currentCameraVideoTaskFile = null;
             }
+            currentCameraVideoTaskChannel = -1;
         }
     }
 
