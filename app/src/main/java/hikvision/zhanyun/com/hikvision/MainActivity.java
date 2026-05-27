@@ -7672,8 +7672,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device dev = channels.get(String.valueOf(channel));
 
         try {
+            boolean cameraVideoTakingOver = dev != null && dev.isCamera() && currentCameraVideoTaskChannel == channel;
             // 在打开球机的过程中允许停止
-            if (dev != null && !dev.isRecording()) {
+            if (cameraVideoTakingOver) {
+                // 同通道短视频接管拉流时，平台可能随后补发 8AH 停止直播；此时只能断直播链路，不能再关 Camera。
+                Log.i(Log.TAG, "MIPI录像接管中，忽略通道" + channel + "停止直播对Camera的关闭");
+                if (dev.streamClient != null) {
+                    dev.streamClient.close();
+                    dev.streamClient = null;
+                }
+            } else if (dev != null && !dev.isRecording()) {
                 dev.liveStop();
 
                 if (dev.streamClient != null) {
