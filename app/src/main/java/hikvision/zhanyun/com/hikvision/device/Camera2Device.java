@@ -1136,6 +1136,8 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "停止预览异常：" + e);
             return false;
         } finally {
+            // 拉流停止后清掉 SSRC，避免下一次跨通道抢占误用旧的直播标识。
+            ssrcLive = 0;
             clearState(DevState.LIVING); /////
         }
         return true;
@@ -1219,10 +1221,14 @@ public class Camera2Device extends Device {
             { // 直播要打包成rtp包进行发包
                 initVideoEncoder(streamType, mResolution.x, mResolution.y,true); /////
                 rtph264 = new RTPH264(ssrc);
+                // 记录当前直播 SSRC，跨通道抢占时用它停止正在进行的拉流。
+                ssrcLive = ssrc;
             }
             // 先开始播放，然后再对焦，提高后台出流时间
             mOnShow = true;
             previewReady = true;
+            // 拉流成功后必须退出 OPENING，否则调度层会误判为不可抢占的打开中状态。
+            clearState(DevState.OPENING);
             setState(DevState.LIVING);
             lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,false,null);
             mState = STATE_VIDEO_LIVING;
