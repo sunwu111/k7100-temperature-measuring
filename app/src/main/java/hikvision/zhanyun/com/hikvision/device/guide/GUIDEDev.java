@@ -1367,6 +1367,7 @@ public class GUIDEDev extends Device {
         canvas.drawBitmap(tracker, null, rect, null);
 
     }
+
     private void drawTemperatures(@NonNull Bitmap bitmap, Vector<IRRegionTemp> showRegions, Vector<Float> showRegionDistances, int preset, byte imageStitch) {
 //        if (showRegions != null && showRegions.isEmpty() && showRegionDistances != null && showRegionDistances.isEmpty()) return;
         if (showRegions == null || showRegions.isEmpty() || showRegionDistances == null || showRegionDistances.isEmpty()) return; /////

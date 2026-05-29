@@ -58,7 +58,7 @@ public class HuanYuDevice extends MyOnvifDevice {
     //      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
     private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
     private static final int MAX_LOGIN_RETRY = 20;
-    private static final int MAX_REAL_LENGTH = 27;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
+    private static final int MAX_REAL_LENGTH = 61;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
     private static final long AUTO_FOCUS_DELAY = 5000; // 5秒延迟
     private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
     final Base64.Decoder decoder = Base64.getDecoder();
@@ -2475,8 +2475,11 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         int OSDInterval = osdSize == 1 ? 25 : 45;
 
-        int dateX = osdSize == 1 ? 21 : 20;
-        int dateY = osdSize == 1 ? 30 : 9;
+//        int dateX = osdSize == 1 ? 21 : 20;
+//        int dateY = osdSize == 1 ? 30 : 9;
+
+        int dateX = 21;
+        int dateY = 35;
 
         // 构建custom部分
         StringBuilder customBuilder = new StringBuilder();
@@ -2488,8 +2491,11 @@ public class HuanYuDevice extends MyOnvifDevice {
                 // 前6行使用diyOsd
                 if (diyOsd != null && i < diyOsd.size() && !diyOsd.get(i).isEmpty() && osd.tag == 1) {
                     String s = diyOsd.get(i);
+
+//                    Log.e(HuanyuDeviceLog,"osd:" + s );
+
                     String encodedCustomText = Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8));
-                    int rectY = 55 + i * OSDInterval; // 从55开始，每行间隔45
+                    int rectY = 85 + i * OSDInterval; // 从55开始，每行间隔45
                     customBuilder.append("                {\n")
                             .append(String.format("                    \"data\": \"%s\",\n", encodedCustomText))
                             .append(String.format("                    \"enable\": %b,\n", (osd.tag == 1)))

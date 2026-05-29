@@ -9,6 +9,8 @@ import java.util.Map;
 public class AndroidThermalMonitor {
     private static final String TAG = "ThermalMonitor";
 
+    private static final int CPU_THERMAL_ZONE_ID = 3;
+
     private static final Map<Integer, String> ZONE_DESCRIPTIONS = new HashMap<>();
 
     static {
@@ -213,6 +215,15 @@ public class AndroidThermalMonitor {
 
         Log.i(TAG, sb.toString());
     }
+
+
+
+    public static Float getCpuTemperature() {
+        Float temperature = readThermalZoneTemp(CPU_THERMAL_ZONE_ID);
+        return temperature == null ? 0.0f : temperature;
+    }
+
+
 
     /**
      * 监控温度变化趋势

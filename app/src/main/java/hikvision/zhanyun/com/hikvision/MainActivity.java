@@ -288,6 +288,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //    private static final long STORAGE_USAGE_INTERVAL_MS = 30 * 60 * 1000;  // 30分钟
 //    private static final long STORAGE_USAGE_INTERVAL_MS = 1 * 60 * 1000;
     private static final int MAX_REAL_LENGTH = 61;
+    private static final int MAX_HUANYU_REAL_LENGTH = MAX_REAL_LENGTH * 2;
+
     private static final long MAX_INTERVAL = 1000 * 60 * 30;  // 最大间隔30分钟
     public static boolean isIRPhotoing = false;
     public static boolean isVLPhotoing = false;
@@ -794,46 +796,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     };
 
-
-
-//    private  void cacheVideoFileList(){
-//
-//        try{
-////            File file = new File(VIDEO_FILES_LIST);
-////            if ((!file.exists() || !file.isFile())) {
-//
-//                Calendar cal = Calendar.getInstance();
-//                cal.set(Calendar.HOUR_OF_DAY, 0);
-//                cal.set(Calendar.MINUTE, 0);
-//                cal.set(Calendar.SECOND, 0);
-//                cal.set(Calendar.MILLISECOND, 0);
-//
-//                long todayStart = cal.getTimeInMillis();
-//                cal.add(Calendar.DAY_OF_YEAR, -15);
-//                long sevenDaysAgoStart = cal.getTimeInMillis();
-//
-//                Settings.TimeRecord stopTime = new Settings.TimeRecord(todayStart);
-//                Settings.TimeRecord startTime = new Settings.TimeRecord(sevenDaysAgoStart);
-//
-//    //            Log.e(Log.TAG,stopTime.asString);
-//    //            Log.e(Log.TAG,startTime.asString);
-//
-//                int count = fileFiles(1, -1, startTime, stopTime);
-//    //            Log.i(Log.TAG,"count"+ count);
-//
-//                String stopStr = String.format("20%02d-%02d-%02d-00-00-00",
-//                        stopTime.year, stopTime.month, stopTime.day);
-//                String startStr = String.format("20%02d-%02d-%02d-00-00-00",
-//                        startTime.year, startTime.month, startTime.day);
-//
-//                findVideoFileList(1, -1, startStr, stopStr,  0, count);
-//
-//                Log.i(Log.TAG,"进行录像文件信息缓存");
-////            }
-//        }catch (Exception e){
-//            Log.e(Log.TAG,"缓存失败"+e.getMessage());
-//        }
-//    }
 
 
     /**
@@ -1775,76 +1737,77 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static String Location2String(Location location) {
 
-//                return "位置000.000000E 000.000000EN";  // 测试用例
+                return "位置000.000000E 000.000000N";  // 测试用例
 
-        /////
-        if (settings.location == null || settings.location.isEmpty()) {
-            loadLocationFromConfig();
-        }
-        return settings.location != null ? settings.location : "";
-        /////
+//        if (settings.location == null || settings.location.isEmpty()) {
+//            loadLocationFromConfig();
+//        }
+//        return settings.location != null ? settings.location : "";
+
     }
 
 
     private static String aeroStatusText() {
-//        return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
+        return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
 
-
-        AeroInfo aeroInfo = aeroInfoAtomicReference.get();
-
-        if (aeroInfo == null) return "";
-        try {
-            switch (deviceConfig.aeroDevice) {
-                case 1:
-                case 2:
-                    if (aeroInfo.WindSpeed < 0.1) aeroInfo.WindDirection = 0;
-
-                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d˚%.1fmm\n",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.RainFall);
-                case 3:
-                case 4:
-                    return String.format("气象%.1f℃/%.1f%%/%.0fhPa/%.1fm/s",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
-                case 5:
-                    return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚/%.1fmm/%.0fhPa",
-                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
-                case 6:
-
-                    return String.format(
-                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fhPa\n",
-                            aeroInfo.Temp,
-                            aeroInfo.Humidity,
-                            aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection,
-                            aeroInfo.AtomosPress
-                    );
-
-                case 7:
-
-                    return String.format(
-                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.1fhPa\n",
-                            aeroInfo.Temp,
-                            aeroInfo.Humidity,
-                            aeroInfo.WindSpeed,
-                            aeroInfo.WindDirection,
-                            aeroInfo.RainFall,
-                            aeroInfo.AtomosPress
-                    );
-
-                default:
-                    return "";
-            }
-        } catch (Exception e) {
-            Log.e(Log.TAG, "微气象osd出错：" + e.getMessage());
-            return "";
-        }
+//        AeroInfo aeroInfo = aeroInfoAtomicReference.get();
+//
+//        if (aeroInfo == null) return "";
+//        try {
+//            switch (deviceConfig.aeroDevice) {
+//                case 1:
+//                case 2:
+//                    if (aeroInfo.WindSpeed < 0.1) aeroInfo.WindDirection = 0;
+//
+//                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d˚%.1fmm\n",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.RainFall);
+//                case 3:
+//                case 4:
+//                    return String.format("气象%.1f℃/%.1f%%/%.0fhPa/%.1fm/s",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
+//                case 5:
+//                    return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚/%.1fmm/%.0fhPa",
+//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
+//                case 6:
+//
+//                    return String.format(
+//                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fhPa\n",
+//                            aeroInfo.Temp,
+//                            aeroInfo.Humidity,
+//                            aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection,
+//                            aeroInfo.AtomosPress
+//                    );
+//
+//                case 7:
+//
+//                    return String.format(
+//                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.1fhPa\n",
+//                            aeroInfo.Temp,
+//                            aeroInfo.Humidity,
+//                            aeroInfo.WindSpeed,
+//                            aeroInfo.WindDirection,
+//                            aeroInfo.RainFall,
+//                            aeroInfo.AtomosPress
+//                    );
+//
+//                default:
+//                    return "";
+//            }
+//        } catch (Exception e) {
+//            Log.e(Log.TAG, "微气象osd出错：" + e.getMessage());
+//            return "";
+//        }
     }
 
 
     // 画面附加信息内容，如电量，流量，电压等
     public static String getStatusText() {
+
+        Float cpuTemp = AndroidThermalMonitor.getCpuTemperature();
+
         try {
             if (deviceConfig.onlyShowBat) {
                 if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) {
@@ -1880,7 +1843,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 不带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行：通信
-                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃\n" +        // 第三行：电池
+                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +        // 第三行：电池
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +       // 第四行：太阳能
                                         "%s\n" +                                   // 第六行：位置
                                         "软件V%s %s %d",                       // 第七行：版本
@@ -1895,6 +1858,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batAmper,
                                 batPrecent,
                                 temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -1912,7 +1876,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行：通信
-                                        "电池%3.2fV/%2.2fA/%d%%\n" +               // 第三行：电池（不显示温度）
+                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +               // 第三行：电池（不显示温度）
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +       // 第四行：太阳能
                                         "%s" +                                     // 第五行：微气象（内部带\n）
                                         "%s\n" +                                   // 第六行：位置
@@ -1927,6 +1891,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 batVoltage,
                                 batAmper,
                                 batPrecent,
+                                temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -1944,15 +1910,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
                     // 如果是三路板，显示一二路电流
-                } else if (deviceConfig.chargeControl == 3) { /////
-                    //                return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA/%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
-                    //                        netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
-                    //                        subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
-                    //                        solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler1, loadAmpler2, getBatPercent(), temperature, humidity, /////
-                    //                        aeroStatusText(),
-                    //                        Location2String(devLocation));
-
-
+                } else if (deviceConfig.chargeControl == 3) {
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                         return String.format("%s %s %ddB 余%s ID %s \n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.2fV/%2.2fA \n负载%2.2fA/%2.2fA %d%% 温度%.0f℃ \n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
@@ -1968,15 +1926,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 aeroStatusText(),
                                 Location2String(devLocation));
                     }
-
-                } else if (deviceConfig.chargeControl == 7) {  // getBatPercent()
-                    //                return String.format("%s %s %ddB 余%s ID %s 软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 电池%3.1fV/%2.2fA 负载%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",
-                    //                        netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false),
-                    //                        subString(iccid, 15), BuildConfig.VERSION_NAME, firmwareVersion, deviceConfig.wifi ? 1 : 0,
-                    //                        solarVoltage, solarAmpler, batVoltage, batAmper, loadAmpler, getBatPercent(), temperature, humidity,
-                    //                        aeroStatusText(),
-                    //                        Location2String(devLocation));
-
+                } else if (deviceConfig.chargeControl == 7) {
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
                         return String.format("%s %s %ddBm 余%s ID %s\n软件V%s %s  %d\n太阳能%3.1fV/%2.2fA 负载%2.2fA\n电池%3.1fV/%2.2fA  %d%% 温度%3.1f℃\n%s",
                                 netType, SIGNAL_LEVELS[signalLevel], signalDBM, humanReadableByteCount(trafficLeft, false), subString(iccid, 15),
@@ -1997,7 +1947,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 不带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃\n" +         // 第三行
+                                        "温度%3.1f℃\n" +         // 第三行
                                         "太阳能%3.1fV/%2.2fA 负载%2.2fA\n" +        // 第四行
                                         "%s\n" +                                    // 第六行
                                         "软件V%s %s %d",                        // 第七行
@@ -2007,11 +1957,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 signalDBM,
                                 humanReadableByteCount(trafficLeft, false),
                                 subString(iccid, 15),
-
-                                batVoltage,
-                                batAmper,
-                                getBatPercent(),
-                                temperature,
+//
+//                                batVoltage,
+//                                batAmper,
+//                                getBatPercent(),
+//                                temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -2029,7 +1980,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         // 带微气象
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                        "电池%3.1fV/%2.2fA/%d%%\n" +         // 第三行
+//                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +         // 第三行
+                                        "温度%3.1f℃\n" +         // 第三行
                                         "太阳能%3.1fV/%2.2fA/%2.2fA\n" +        // 第四行
                                         "%s" +                                      // 第五行：微气象（内部自带\n）
                                         "%s\n" +                                    // 第六行
@@ -2041,9 +1993,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 humanReadableByteCount(trafficLeft, false),
                                 subString(iccid, 15),
 
-                                batVoltage,
-                                batAmper,
-                                getBatPercent(),
+//                                batVoltage,
+//                                batAmper,
+//                                getBatPercent(),
+//                                temperature,
+                                cpuTemp,
 
                                 solarVoltage,
                                 solarAmpler,
@@ -2079,6 +2033,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // 程序启动的时候读取保存的本月基准流量，然后只要不重启，应该总是保存启动时的值 + 本次启动后的发送/接收总流量并保存
         return thisMonthTraffic + TrafficStats.getMobileRxBytes() + TrafficStats.getMobileTxBytes();
     }
+
 
     public static String[] extractPowerOnStrings() {
         return new String[]{"00:00:00"}; /////
@@ -5430,7 +5385,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             aeroInfo.AtomosPress = data[2];       // 气压
             aeroInfo.WindDirection = (int) data[6];  // 风向
 
-            aeroInfo.RainFall = data[9];             // 雨量间隔累计
+            aeroInfo.RainFall = data[10];             // 雨量间隔累计
+//            data[9] 是雨强
 
             if (deviceConfig.aeroDevice == 6){
                 aeroInfo.RainFall = -999;
@@ -7128,7 +7084,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
 
-
     private boolean isNetworkReachable(final String host, final int timeout) {
         boolean result = false;
         try {
@@ -7523,10 +7478,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
     private void resetWakeupTimer() {
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 15 * 60 * 1000);
     }
-
-
 
 
     @Override
@@ -7825,7 +7778,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         } else {
             // 对osd进行截断，显示通道名不能太长
             if (channel ==  1){
-                osd.text = truncateText(osd.text);       // 通道二不进行截断
+                osd.text = truncateText(osd.text, MAX_HUANYU_REAL_LENGTH );
             }
 
             settings.osds.put(String.valueOf(channel), osd);
@@ -7886,17 +7839,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     public String truncateText(String newText) {
+        return truncateText(newText, MAX_REAL_LENGTH);
+    }
+
+
+    public String truncateText(String newText, int maxRealLength) {
         if (newText == null) {
             return "";
         }
 
         int realLength = calculateRealLength(newText);
-        if (realLength > MAX_REAL_LENGTH) {
-            newText = truncateTextByRealLength(newText, MAX_REAL_LENGTH);
+        if (realLength > maxRealLength) {
+            newText = truncateTextByRealLength(newText, maxRealLength);
             Log.e(Log.TAG, "自定义的OSD太长，进行了截断，原长度：" + realLength);
         }
         return newText;
     }
+
 
     private String truncateTextByRealLength(String text, int maxLength) {
         StringBuilder sb = new StringBuilder();
@@ -7904,9 +7863,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            int charLength = (c >= '\u4e00' && c <= '\u9fa5') ? 2 : 1;
+            int charLength = isChineseChar(c) ? 2 : 1;
 
-            if (currentLength + charLength > maxLength - 3) {
+            if (currentLength + charLength > maxLength)  {
                 break;
             }
 
@@ -7916,6 +7875,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         return sb.toString();
     }
+
 
     @Override
     public OSD getOSDConfig(int channel) {
