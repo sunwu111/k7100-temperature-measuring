@@ -703,9 +703,11 @@ public class SPGProtocol {
                 break;
             case ORDER_9DH:
                 s += "录像下载";
+                doVideoDownload(data);
                 break;
             case ORDER_9EH:
                 s += "录像下载取消";
+                doVideoDownloadCancel(data);
                 break;
             case ORDER_A0H:
                 break;
@@ -2819,6 +2821,10 @@ public class SPGProtocol {
      * @param raw 原始接收数据帧
      */
     private void doPlayback(byte[] raw) {
+        doPlaybackStream(raw, ORDER_9AH, "启动回放");
+    }
+
+    private void doPlaybackStream(byte[] raw, byte responseOrder, String actionName) {
         // 根据命令长度来判断是新协议还是老协议，新协议长度为36，老协议长度≥42
         boolean newProtocol = raw.length < 38;
 
@@ -2854,9 +2860,9 @@ public class SPGProtocol {
 
         byte[] dataDomain = byteMerger(new byte[]{raw[10], ret, 0}, ssrcBytes);
 
-        sendPack(ORDER_9AH, null, dataDomain);
+        sendPack(responseOrder, null, dataDomain);
 
-        Log.i(Log.TAG, String.format("启动回放：通道=%d，UDP=%s，时间段=%s~%s，服务器=%s:%d，SSRC=%d，错误码=%d", raw[10], raw[11] == 0, startVideoTime, stopVideoTime, ip, port, ssrc, ret));
+        Log.i(Log.TAG, String.format("%s：通道=%d，UDP=%s，时间段=%s~%s，服务器=%s:%d，SSRC=%d，错误码=%d", actionName, raw[10], raw[11] == 0, startVideoTime, stopVideoTime, ip, port, ssrc, ret));
     }
 
 
@@ -2965,11 +2971,24 @@ public class SPGProtocol {
     // ？？？
     /////
     private void doVideoDownload(byte[] mReceiveData){
-        sendPack(ORDER_9DH, mReceiveData, null);
+        doPlaybackStream(mReceiveData, ORDER_9DH, "启动录像下载");
     }
 
     private void doVideoDownloadCancel(byte[] mReceiveData){
-        sendPack(ORDER_9EH, mReceiveData, null);
+        if (mReceiveData == null || mReceiveData.length < 15) {
+            Log.w(Log.TAG, "录像下载取消失败：接收数据无效或长度不足");
+            sendPack(ORDER_9EH, null, ERROR_FFFF_DOMAIN);
+            return;
+        }
+
+        int channel = mReceiveData[10];
+        byte[] ssrc = subBytes(mReceiveData, 11, mReceiveData.length < 18 ? 4 : 10);
+        int parsedSSRC = parseSSRC(ssrc);
+        short ret = listenerCallBack.stopPlayCallBack(channel, parsedSSRC);
+        byte[] dataDomain = byteMerger(new byte[]{(byte) channel, hi(ret), lo(ret)}, ssrc);
+
+        Log.i(Log.TAG, String.format("录像下载取消：通道=%d，SSRC=%d，结果码=%d", channel, parsedSSRC, ret));
+        sendPack(ORDER_9EH, null, dataDomain);
     }
     /////
 
