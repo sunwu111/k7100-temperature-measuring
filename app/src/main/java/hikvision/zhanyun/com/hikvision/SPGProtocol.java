@@ -4563,7 +4563,7 @@ public class SPGProtocol {
                     // 当前文件传输成功，结束流程
                     this.uploadEcho = false;
                     this.uploading = false;
-                    this.uploadEndEcho = false;
+                    this.uploadEndEcho = true;
                     this.uploadStart = 0;
                     this.uploadSucceed = true;
                     this.uploadSucceedTime = System.currentTimeMillis();
@@ -4613,6 +4613,7 @@ public class SPGProtocol {
                     bos.write(buf, 0, len);
                     byte[] dataDomain = bos.toByteArray();
                     bos.reset();
+                    if (!uploading) break;
                     sendPack(ORDER_D4H, null, dataDomain);
                     SystemClock.sleep(UPLOAD_INTERVAL);
                 }
@@ -4648,7 +4649,7 @@ public class SPGProtocol {
                     sendPack(ORDER_D4H, null, dataDomain);
                     Log.i(Log.TAG, String.format("发送结束确认帧（第 %d 次）", i + 1));
                     SystemClock.sleep(3000);  // 快速休眠一下，检查是否uploadEcho有相应
-                    if (uploadEndEcho) break;
+                    if (uploadEndEcho || !uploading) break;
 
                     // 无响应，规约要求等3秒后再试，继续发送结束
                     //SystemClock.sleep(3000);
