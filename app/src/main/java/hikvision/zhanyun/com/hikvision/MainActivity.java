@@ -202,6 +202,29 @@ import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
 
+import hikvision.zhanyun.com.hikvision.Settings.AeroInfo;
+import hikvision.zhanyun.com.hikvision.Settings.BatteryInfo;
+import hikvision.zhanyun.com.hikvision.Settings.Channel;
+import hikvision.zhanyun.com.hikvision.Settings.ChannelStatus;
+import hikvision.zhanyun.com.hikvision.Settings.CheckGroup;
+import hikvision.zhanyun.com.hikvision.Settings.CheckScheduleItem;
+import hikvision.zhanyun.com.hikvision.Settings.CruiseGroup;
+import hikvision.zhanyun.com.hikvision.Settings.DetectInfo;
+import hikvision.zhanyun.com.hikvision.Settings.DeviceConfig;
+import hikvision.zhanyun.com.hikvision.Settings.Features;
+import hikvision.zhanyun.com.hikvision.Settings.FileDir;
+import hikvision.zhanyun.com.hikvision.Settings.FileList;
+import hikvision.zhanyun.com.hikvision.Settings.FireAlarmInfo;
+import hikvision.zhanyun.com.hikvision.Settings.HeartBeat;
+import hikvision.zhanyun.com.hikvision.Settings.OSD;
+import hikvision.zhanyun.com.hikvision.Settings.OnlineCfg;
+import hikvision.zhanyun.com.hikvision.Settings.Parameters;
+import hikvision.zhanyun.com.hikvision.Settings.PhotoConfig;
+import hikvision.zhanyun.com.hikvision.Settings.PhotoTimeItem;
+import hikvision.zhanyun.com.hikvision.Settings.TimeRecord;
+import hikvision.zhanyun.com.hikvision.Settings.TrafficeUsage;
+import hikvision.zhanyun.com.hikvision.Settings.VideoCodec;
+import hikvision.zhanyun.com.hikvision.Settings.VideoTimeItem;
 import hikvision.zhanyun.com.hikvision.device.AipuDevice;
 import hikvision.zhanyun.com.hikvision.device.Camera2Device;
 import hikvision.zhanyun.com.hikvision.device.Device;
@@ -687,19 +710,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-                    batVoltage = 13.40f; // 全功能
-//                    batVoltage = 12.96f; // 唤醒
+                    // batVoltage = 13.40f; // 全功能
+                   batVoltage = 12.93f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
 
 
                     float verificationVoltage = batVoltage;
 
-                    if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
-                        Log.e(Log.TAG,"环境温度为：" + temperature);
-                        if (verificationVoltage < 12.99f){
-                            verificationVoltage = 12.96f;
-                        }
-                    }
+                    // if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
+                    //     Log.e(Log.TAG,"环境温度为：" + temperature);
+                    //     if (verificationVoltage < 12.99f){
+                    //         verificationVoltage = 12.96f;
+                    //     }
+                    // }
 
                     //添加一个测试变量
                     if (DEBUG){
@@ -2644,7 +2667,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (deviceConfig.chargeControl != 6){
 //            Log.i(Log.TAG, "deviceConfig.chargeControl：" + deviceConfig.chargeControl);
             currentMode = MODE_FULL;
-//            currentMode = MODE_WAKEUP;
+        //    currentMode = MODE_WAKEUP;
         }
 
         AndroidThermalMonitor.logAllThermalTemperatures();
@@ -7478,7 +7501,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
     private void resetWakeupTimer() {
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        utilsHandler.postDelayed(mResetWakeupFlagTask, 15 * 60 * 1000);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 3 * 60 * 1000);
+        // utilsHandler.postDelayed(mResetWakeupFlagTask, 15 * 60 * 1000);
     }
 
 
@@ -7682,9 +7706,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev == null) return 1;
 //        if (电量不足) return 2;
 
-        if (isStalePlaybackRequest(dev, channel, ssrc, "控制")) {
-            return 0;
-        }
 
         /////
         if (deviceConfig.toCheck) {
@@ -7705,10 +7726,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public short stopPlayCallBack(int channel, int ssrc) {
         Device dev = channels.get(String.valueOf(channel));
         if (dev != null) {
-            if (isStalePlaybackRequest(dev, channel, ssrc, "停止")) {
-                return 0;
-            }
-
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("停止回放");
             }
@@ -7735,23 +7752,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         return 0;
-    }
-
-    private boolean isStalePlaybackRequest(Device dev, int channel, int requestSsrc, String action) {
-        int currentSsrc = dev.ssrcPlayback;
-        if (requestSsrc == 0) return false;
-
-        if (currentSsrc == 0 && !dev.isPlaybacking()) {
-            Log.w(Log.TAG, String.format("忽略过期回放%s：通道=%d，请求SSRC=%d，当前无回放", action, channel, requestSsrc));
-            return true;
-        }
-
-        if (currentSsrc != 0 && currentSsrc != requestSsrc) {
-            Log.w(Log.TAG, String.format("忽略过期回放%s：通道=%d，请求SSRC=%d，当前SSRC=%d", action, channel, requestSsrc, currentSsrc));
-            return true;
-        }
-
-        return false;
     }
 
 
