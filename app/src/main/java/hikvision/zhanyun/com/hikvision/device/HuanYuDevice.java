@@ -701,18 +701,24 @@ public class HuanYuDevice extends MyOnvifDevice {
     @Override
     public boolean playbackStop() {
 
-        // 旧session失效
+        final RtspClient stoppingClient = rtspPlaybackClient;
+        rtspPlaybackClient = null;
+
+        // 旧session失效，先清状态，避免阻塞的TEARDOWN影响新回放。
         playbackSession.incrementAndGet();
+        ssrcPlayback = 0;
+        clearState(DevState.PLAYBACKING);
 
         Log.i(HuanyuDeviceLog, "停止回放 session=" + playbackSession.get());
 
-        if (rtspPlaybackClient != null) {
-            try {
-                rtspPlaybackClient.stop();
-            } catch (Exception e) {
-                Log.e(HuanyuDeviceLog, "停止回放异常:" + e.getMessage());
-            }
-            rtspPlaybackClient = null;
+        if (stoppingClient != null) {
+            new Thread(() -> {
+                try {
+                    stoppingClient.stop();
+                } catch (Exception e) {
+                    Log.e(HuanyuDeviceLog, "停止回放异常:" + e.getMessage());
+                }
+            }, "huanyu-playback-stop").start();
         }
         return true;
     }

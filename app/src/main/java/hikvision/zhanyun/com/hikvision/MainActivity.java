@@ -7682,6 +7682,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev == null) return 1;
 //        if (电量不足) return 2;
 
+        if (isStalePlaybackRequest(dev, channel, ssrc, "控制")) {
+            return 0;
+        }
 
         /////
         if (deviceConfig.toCheck) {
@@ -7702,6 +7705,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public short stopPlayCallBack(int channel, int ssrc) {
         Device dev = channels.get(String.valueOf(channel));
         if (dev != null) {
+            if (isStalePlaybackRequest(dev, channel, ssrc, "停止")) {
+                return 0;
+            }
+
             if (deviceConfig.toCheck) {
                 if (dev.isDVR()) openShare("停止回放");
             }
@@ -7728,6 +7735,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         return 0;
+    }
+
+    private boolean isStalePlaybackRequest(Device dev, int channel, int requestSsrc, String action) {
+        int currentSsrc = dev.ssrcPlayback;
+        if (requestSsrc == 0) return false;
+
+        if (currentSsrc == 0 && !dev.isPlaybacking()) {
+            Log.w(Log.TAG, String.format("忽略过期回放%s：通道=%d，请求SSRC=%d，当前无回放", action, channel, requestSsrc));
+            return true;
+        }
+
+        if (currentSsrc != 0 && currentSsrc != requestSsrc) {
+            Log.w(Log.TAG, String.format("忽略过期回放%s：通道=%d，请求SSRC=%d，当前SSRC=%d", action, channel, requestSsrc, currentSsrc));
+            return true;
+        }
+
+        return false;
     }
 
 

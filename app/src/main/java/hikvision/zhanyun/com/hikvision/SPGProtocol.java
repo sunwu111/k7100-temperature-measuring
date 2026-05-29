@@ -2898,10 +2898,11 @@ public class SPGProtocol {
             // 根据命令长度来判断是新协议还是老协议，新协议长度为25，老协议长度为31
 
             ssrc = subBytes(mReceiveData, 19, mReceiveData.length < 26 ? 4 : 10);  // 新协议
+            int parsedSSRC = parseSSRC(ssrc);
             Log.i(Log.TAG, String.format("回放控制指令：通道=%d，命令码=%d，倍速=%.2fx，偏移=%d秒，SSRC=%d",
-                    mReceiveData[10], code, scaleFloat, offset, ssrc));
+                    mReceiveData[10], code, scaleFloat, offset, parsedSSRC));
 
-            ret = listenerCallBack.playbackControl(mReceiveData[10], code, scaleFloat, offset, parseSSRC(ssrc)); /////
+            ret = listenerCallBack.playbackControl(mReceiveData[10], code, scaleFloat, offset, parsedSSRC); /////
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
@@ -2942,7 +2943,8 @@ public class SPGProtocol {
         int channel = data[10];
         byte[] dataDomain = null;
         byte[] ssrc = subBytes(data, 11, data.length < 18 ? 4 : 10);
-        short ret = listenerCallBack.stopPlayCallBack(channel, parseSSRC(ssrc));
+        int parsedSSRC = parseSSRC(ssrc);
+        short ret = listenerCallBack.stopPlayCallBack(channel, parsedSSRC);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
@@ -2953,7 +2955,7 @@ public class SPGProtocol {
             dataDomain = baos.toByteArray();
             baos.close();
             dos.close();
-            Log.i(Log.TAG, String.format("回放断开：通道=%d，SSRC=%d，结果码=%d", channel, ssrc, ret));
+            Log.i(Log.TAG, String.format("回放断开：通道=%d，SSRC=%d，结果码=%d", channel, parsedSSRC, ret));
         } catch (IOException e) {
             Log.e(Log.TAG, "回放断开响应构建失败：" + e.getMessage());
         }
