@@ -708,14 +708,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         }
                     }
 
-                    Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
+                    // Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
                     // batVoltage = 13.40f; // 全功能
                    batVoltage = 12.93f; // 唤醒
-//                    batVoltage = 12.7F; // 休眠
-
-
+//                    batVoltage = 12.7F; // 休眠 
+                    Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 
                     float verificationVoltage = batVoltage;
 
@@ -7470,11 +7469,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private final Runnable mResetWakeupFlagTask = new Runnable() {
         @Override
         public void run() {
-            // 设备在使用中就不断电
+            // 只有真正的业务态才延后保活，避免短视频结束后残留 OPENED 状态导致一直不下电
             for (String channel : channels.keySet()) {
                 Device dev = channels.get(channel);
-                if (dev != null && dev.isDVR() && dev.isBusy()) {
-                    Log.i(Log.TAG, "唤醒模式下，保活时间已到，设备正在使用中，延后进入唤醒待机");
+                if (isWakeupActiveTask(dev)) {
+                    Log.i(Log.TAG, "唤醒模式下，保活时间已到，设备正在执行任务，延后进入唤醒待机");
                     resetWakeupTimer();
                     return;
                 }
@@ -7496,6 +7495,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         isWakeupKeepAliveMode = true;
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
         utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
+    }
+
+    private boolean isWakeupActiveTask(Device dev) {
+        return dev != null
+                && dev.isDVR()
+                && (dev.isOpening()
+                || dev.isRecording()
+                || dev.isLiving()
+                || dev.isPlaybacking()
+                || dev.isPhotoing());
     }
 
     private void markWakeupActivity(Device dev, String reason) {
@@ -7564,6 +7573,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isWakeupVideoPlaybackMode = true;
 
                 // --------------------------需要根据时间返回对应的结果--------------------------
+
                 return VideoFiles.readCachedFileList(channel, videoType, startTime,stopTime,emptyList);
             }
         }
