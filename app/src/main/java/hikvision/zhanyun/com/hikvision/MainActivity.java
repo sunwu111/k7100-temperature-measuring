@@ -505,6 +505,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private int PREFIX_LEN = 6;
 
     private static boolean isWakeupVideoPlaybackMode = false;
+    private static boolean isWakeupKeepAliveMode = false;
 
 
     /// 短视频录制请求过快，会导致问题
@@ -668,7 +669,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     doWakeup("抓拍前三分钟开启云台", 2);
                     /////
                 } else if (action.equals(POWERON_IR_INTENT)) {
-                    doWakeup("抓拍前十分钟开启红外", 3);
+                    doWakeup("红外抓拍前10分钟开启云台与红外", 23);
                     irPreheatActive = true;  // 标记进入红外预热窗口 /////
                 } else if (action.equals(ACTION_SAMPLE)) {
                     doSampleAction();
@@ -713,6 +714,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     // batVoltage = 13.40f; // 全功能
                    batVoltage = 12.93f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠
+
 
 
                     float verificationVoltage = batVoltage;
@@ -971,6 +973,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         switch (mode) {
             case MODE_FULL: {
                 isWakeupVideoPlaybackMode = false;
+                isWakeupKeepAliveMode = false;
                 interfacePowerOn();
                 Log.i(TAG,
                         "切换到全工作模式：工作时间开启云台");
@@ -989,6 +992,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
             case MODE_WAKEUP: {
+                isWakeupVideoPlaybackMode = false;
+                isWakeupKeepAliveMode = false;
                 Log.i(TAG,
                         "切换到唤醒模式：立即关闭云台和红外");
                 interfacePowerOn();
@@ -998,6 +1003,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             case MODE_SLEEP: {
 
                 isWakeupVideoPlaybackMode = false;
+                isWakeupKeepAliveMode = false;
                 Log.i(TAG,
                         "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
                 interfacePowerOff();
@@ -3442,7 +3448,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void wakeupTask(String time, long msecPeriod, int i, String source, int channel) {
         /////
         Device dev = channels.get(String.valueOf(channel));
-        if (dev.isDVR()) {
+        if (dev != null && dev.isDVR()) {
             Date targetTime = dateFromString(time);
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(targetTime);
@@ -3450,20 +3456,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             long target = calendar.getTimeInMillis();
             if (now >= target) return;  // 目标已过期，不再处理
             if (dev.isUSB()) {
-                if (channel == 2) {
-                    long t10 = target - 10 * 60 * 1000;
-                    // 十分钟任务
-                    Intent viIr = new Intent(POWERON_IR_INTENT);
-                    viIr.putExtra("index", i);
-                    powerIrOnIntent = PendingIntent.getBroadcast(this, i + 2, viIr, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                    // 三分钟任务：若窗口已开始，立即触发；否则正常定时到 t10
-                    if (now < t10) {
-                        alarmInitTask(formatTime(millisToCalendar(t10)), msecPeriod, powerIrOnIntent, "红外抓拍前10分钟开启");
-                    } else {
-                        // 已进入十分钟窗口，立即执行红外预热
-                        alarmInitTask(formatTime(millisToCalendar(now + 1000)), 0, powerIrOnIntent, "云台抓拍前10分钟已进入窗口，立即执行");
-                    }
+                long t10 = target - 10 * 60 * 1000;
+                // 十分钟任务
+                Intent viIr = new Intent(POWERON_IR_INTENT);
+                viIr.putExtra("index", i);
+                powerIrOnIntent = PendingIntent.getBroadcast(this, i + 2, viIr, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                // 红外抓拍提前10分钟同时开启云台和红外
+                if (now < t10) {
+                    alarmInitTask(formatTime(millisToCalendar(t10)), msecPeriod, powerIrOnIntent, "红外抓拍前10分钟开启云台与红外");
+                } else {
+                    // 已进入十分钟窗口，立即执行红外预热
+                    alarmInitTask(formatTime(millisToCalendar(now + 1000)), 0, powerIrOnIntent, "红外抓拍前10分钟已进入窗口，立即执行");
                 }
+                return;
             }
             long t3 = target - 3 * 60 * 1000;
             // 先准备三分钟前那条的 Intent，并按策略表补充参数
@@ -6217,8 +6222,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doSleep(String reason, int load) {
 
-        if (currentMode == MODE_WAKEUP && isWakeupVideoPlaybackMode == true){
-            Log.e(Log.TAG,"唤醒模式下，进行直播或者查询录像，15分钟内不对云台下电");
+        if (currentMode == MODE_WAKEUP && isWakeupKeepAliveMode == true){
+            Log.e(Log.TAG,"唤醒模式下，存在拍照/短视频/拉流/回放保活任务，测试期间2分钟内不对云台和红外下电");
             return;
         }
 
@@ -6695,6 +6700,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             dev.liveStop();
         }
 
+        markWakeupActivity(dev, "唤醒模式下录制短视频");
+
         cpuLock();
         String fn = getFileName(channel, stream, EXT_MP4, time);
         TaskManager.add(fn);
@@ -6773,6 +6780,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.i(Log.TAG, "录制视频失败，正在录制中");
             return;
         }
+
+        markWakeupActivity(dev, "唤醒模式下录制短视频");
 
         cpuLock();
         String fn = getFileName(item.channel, item.stream, EXT_MP4, item.duration);
@@ -6950,20 +6959,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public short startLiveVideo(int channel, final int streamType, int network, final int ssrc, final String server, final int port) {
 
         final Device dev = channels.get(String.valueOf(channel));
+        if (dev == null) return 3;
 
-        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+        if (currentMode == MODE_WAKEUP) {
 
             isWakeupVideoPlaybackMode = true;
 
-            if (dev.isDVR()) {
-                if (dev.isUSB()) {
-                    doWakeup("唤醒模式下进行红外直播预览", 3);
-                } else {
-                    doWakeup("唤醒模式下进行可见光直播预览", 2);
-                }
-            }
-
-            resetWakeupTimer();
+            markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下进行红外直播预览" : "唤醒模式下进行可见光直播预览");
         }
 
 
@@ -6973,7 +6975,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
 //        if (电量不够) return 2;
-        if (dev == null) return 3;
         if (dev.isLiving()) return 1; /////
 
         cpuLock();
@@ -7155,20 +7156,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     public void startLocalPlay(int channel, int preset) {
 
         Device dev = channels.get(String.valueOf(channel));
+        if (dev == null) return;
 
-        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+        if (currentMode == MODE_WAKEUP) {
 
             isWakeupVideoPlaybackMode = true;
-
-            if (dev.isDVR()) {
-                if (dev.isUSB()) {
-                    doWakeup("唤醒模式下进行红外直播预览", 3);
-                } else {
-                    doWakeup("唤醒模式下进行可见光直播预览", 2);
-                }
-            }
-
-            resetWakeupTimer();
+            markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下进行红外直播预览" : "唤醒模式下进行可见光直播预览");
         }
 
 
@@ -7177,7 +7170,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        if (dev == null) return;
         if (dev.isLiving()) return;
 
         cpuLock();
@@ -7478,31 +7470,39 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private final Runnable mResetWakeupFlagTask = new Runnable() {
         @Override
         public void run() {
-            isWakeupVideoPlaybackMode = false;
-
             // 设备在使用中就不断电
             for (String channel : channels.keySet()) {
                 Device dev = channels.get(channel);
-                if (dev.isDVR() && dev.isBusy()) {
-                    Log.i(Log.TAG, "唤醒模式下，查询过录像文件，15分钟已到，设备正在使用中，停止使用设备进入唤醒模式");
+                if (dev != null && dev.isDVR() && dev.isBusy()) {
+                    Log.i(Log.TAG, "唤醒模式下，保活时间已到，设备正在使用中，延后进入唤醒待机");
+                    resetWakeupTimer();
                     return;
                 }
             }
 
+            isWakeupKeepAliveMode = false;
+            isWakeupVideoPlaybackMode = false;
             if(currentMode == MODE_WAKEUP){
-                doSleep("唤醒模式下，15分钟内没有再次进行录像播放操作，云台下电，关闭红外",23);
+                doSleep("唤醒模式下，测试保活2分钟内没有再次进行任务，云台下电，关闭红外",23);
             }
         }
     };
 
 
     /**
-     * 启动/重置唤醒录像的 15 分钟超时定时器
+     * 启动/重置唤醒模式保活定时器。测试期间使用2分钟，正式版本改回15分钟。
      */
     private void resetWakeupTimer() {
+        isWakeupKeepAliveMode = true;
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        utilsHandler.postDelayed(mResetWakeupFlagTask, 3 * 60 * 1000);
-        // utilsHandler.postDelayed(mResetWakeupFlagTask, 15 * 60 * 1000);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
+    }
+
+    private void markWakeupActivity(Device dev, String reason) {
+        if (currentMode != MODE_WAKEUP || dev == null || !dev.isDVR()) return;
+        int load = dev.isUSB() ? 23 : 2;
+        doWakeup(reason, load);
+        resetWakeupTimer();
     }
 
 
@@ -7511,12 +7511,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return 0;
 
-        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+        if (currentMode == MODE_WAKEUP) {
 
-            doWakeup("查询录像文件个数", 2);
+            markWakeupActivity(dev, dev.isUSB() ? "唤醒模式查询红外录像文件个数" : "唤醒模式查询可见光录像文件个数");
             // 这个地方不要修改isWakeupVideoPlaybackMode的状态，否则后续的查询文件列表直接失败
 
-            return VideoFiles.readCachedCount(channel,videoType,startTime,stopTime);   // 返回的是根据时间查询得到的结果
+            if (!isWakeupVideoPlaybackMode) {
+                return VideoFiles.readCachedCount(channel,videoType,startTime,stopTime);   // 返回的是根据时间查询得到的结果
+            }
         }
 
         FileDir results = null;
@@ -7553,18 +7555,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null) return emptyList;
 
-        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode) {
+        if (currentMode == MODE_WAKEUP) {
 
-            doWakeup("唤醒模式查询录像文件列表", 2);
-            // 设置状态变量
-            isWakeupVideoPlaybackMode = true;
+            markWakeupActivity(dev, dev.isUSB() ? "唤醒模式查询红外录像文件列表" : "唤醒模式查询可见光录像文件列表");
 
-            // 开始计时，如果这个闹钟存在就取消重新开始
-            resetWakeupTimer();
+            if (!isWakeupVideoPlaybackMode) {
+                // 设置状态变量
+                isWakeupVideoPlaybackMode = true;
 
-            // --------------------------需要根据时间返回对应的结果--------------------------
-
-            return VideoFiles.readCachedFileList(channel, videoType, startTime,stopTime,emptyList);
+                // --------------------------需要根据时间返回对应的结果--------------------------
+                return VideoFiles.readCachedFileList(channel, videoType, startTime,stopTime,emptyList);
+            }
         }
 
         FileList list = emptyList;
@@ -7599,12 +7600,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev == null) return 3;
 
         if (currentMode == MODE_WAKEUP) {
-            doWakeup("唤醒模式下播放录像文件", 2);
+            markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下播放红外录像文件" : "唤醒模式下播放可见光录像文件");
             // 设置状态变量
             isWakeupVideoPlaybackMode = true;
-
-            // 开始计时，如果这个闹钟存在就取消重新开始
-            resetWakeupTimer();
         }
 
 
@@ -7706,6 +7704,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (dev == null) return 1;
 //        if (电量不足) return 2;
 
+        markWakeupActivity(dev, "唤醒模式下录像回放控制");
 
         /////
         if (deviceConfig.toCheck) {
@@ -8488,8 +8487,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void sleepDevice(final int channel, final String reason) {
 
-        if (currentMode == MODE_WAKEUP && !isWakeupVideoPlaybackMode){
-            Log.e(Log.TAG,"设备处于基础模式，并在拉流或者录像回放操作后的15分钟内，不进行关闭操作");
+        if (currentMode == MODE_WAKEUP && isWakeupKeepAliveMode){
+            Log.e(Log.TAG,"设备处于唤醒模式，并在保活任务后的2分钟内，不进行关闭操作");
             return;
         }
 
@@ -8604,6 +8603,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.i(Log.TAG, "通道" + channel + "设备不存在");
             return;
         }
+
+        markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下红外拍照" : "唤醒模式下可见光拍照");
 
         /////
         if (dev.isDVR()) {
