@@ -5163,7 +5163,14 @@ public class SPGProtocol {
             if (buf[7] != (byte) 0x95 && buf[7] != (byte) 0x85) {
                 //String s = "debug".equals(BuildConfig.BUILD_TYPE) ? bin2hex(buf, true) ："";
                 //Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s", buf[7], buf.length, s));
-                Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s", buf[7], buf.length, bin2hex(buf, true)));
+                if (buf[7] == ORDER_D4H) {
+                    int previewLength = Math.min(buf.length, buf.length > 64 ? 12 : 32);
+                    Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s%s",
+                            buf[7], buf.length, bin2hex(subBytes(buf, 0, previewLength), true),
+                            buf.length > previewLength ? "..." : ""));
+                } else {
+                    Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s", buf[7], buf.length, bin2hex(buf, true)));
+                }
             } else {
 //                Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节", buf[7], buf.length));
             }
