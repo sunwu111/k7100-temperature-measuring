@@ -306,7 +306,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RC_PHOTO_BASE = 10000;
     // 每个 channel 给 100 个空间，index 不能超过 99；如果 index 可能更大就把 100 改大
     private static final int RC_PHOTO_STRIDE = 100;
-    private static final int RC_PHOTO_WAKEUP_BASE = 200000;
     private static final long MIN_INIT_INTERVAL = 1000;
 
 //    private static final long STORAGE_USAGE_INTERVAL_MS = 30 * 60 * 1000;  // 30分钟
@@ -469,7 +468,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private HashMap<String, Long> trafficMonth;                      // 月流量统计对象，保存到文件方便累计
     private HashMap<String, Integer> failedFileError = new HashMap<>();
     private Map<Integer, PendingIntent> photoAlarms = new HashMap<>();   // 拍照闹钟
-    private Map<Integer, PendingIntent> photoWakeupAlarms = new HashMap<>();   // 拍照前预热唤醒闹钟
     private SurfaceView surfaceView, surfaceDraw;
     //    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, spnZoomRatio, irOperator, irObjType, irObjFlag; ///////
     private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///////
@@ -508,11 +506,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static boolean isWakeupVideoPlaybackMode = false;
     private static boolean isWakeupKeepAliveMode = false;
-    // 唤醒模式下，业务结束后继续保活的时间。
-    private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
-    // 下电前需要避开的拍照预热窗口：可见光 3 分钟、红外 10 分钟。
-    private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
-    private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
 
 
     /// 短视频录制请求过快，会导致问题
@@ -962,7 +955,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             if (dev != null
                     && dev.isDVR()
-                    && isWakeupActiveTask(dev)) {
+                    && dev.isBusy()) {
 
                 Log.i(Log.TAG,
                         "设备正在使用中 channel=" + channel);
@@ -1004,8 +997,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         "切换到唤醒模式：立即关闭云台和红外");
                 interfacePowerOn();
                 doSleep("切换为唤醒模式", 23);
-                // 唤醒模式下定时拍照需要提前上电；切换模式后重建拍照闹钟，避免沿用全工作模式下的调度。
-                refreshPhotoSchedule();
                 break;
             }
             case MODE_SLEEP: {
@@ -2177,6 +2168,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             int originalStartSec = convertToSeconds(item.hour, item.min, item.sec);
 
+
             int newStartSec = Math.max(originalStartSec, prevEndSec);
 
             // 限制持续时间为最大1小时（3600秒），匹配示例逻辑
@@ -2340,19 +2332,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
     }
     /////
-
-    private static void closeDevicesForPowerOff(int load) {
-        for (Device dev : channels.values()) {
-            if (dev == null || !dev.isDVR()) continue;
-
-            if (load == 23
-                    || (load == 2 && !dev.isUSB())
-                    || (load == 3 && dev.isUSB())) {
-                // 负载下电前先清掉设备运行态，避免下次上电后复用旧的 onvifReady/session，跳过 isDeviceReady 等待。
-                dev.close();
-            }
-        }
-    }
 
     public void writeNum(String flag, String path) {
         FileWriter fw = null;
@@ -3465,12 +3444,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     // 定时唤醒设备的任务
-    // 提前 3 分钟唤醒可见光机芯、提前 10 分钟唤醒红外机芯。
+    // 提前 3 分钟唤醒可见光机芯、提前 10 分钟唤醒红外机芯
     private void wakeupTask(String time, long msecPeriod, int i, String source, int channel) {
         /////
         Device dev = channels.get(String.valueOf(channel));
         if (dev != null && dev.isDVR()) {
-            int requestCode = photoWakeupRequestCode(channel, i);
             Date targetTime = dateFromString(time);
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(targetTime);
@@ -3478,12 +3456,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             long target = calendar.getTimeInMillis();
             if (now >= target) return;  // 目标已过期，不再处理
             if (dev.isUSB()) {
-                long t10 = target - IR_PHOTO_PREHEAT_MINUTES * PERIOD_MINUTE;
+                long t10 = target - 10 * 60 * 1000;
                 // 十分钟任务
                 Intent viIr = new Intent(POWERON_IR_INTENT);
                 viIr.putExtra("index", i);
-                powerIrOnIntent = PendingIntent.getBroadcast(this, requestCode, viIr, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                photoWakeupAlarms.put(requestCode, powerIrOnIntent);
+                powerIrOnIntent = PendingIntent.getBroadcast(this, i + 2, viIr, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                 // 红外抓拍提前10分钟同时开启云台和红外
                 if (now < t10) {
                     alarmInitTask(formatTime(millisToCalendar(t10)), msecPeriod, powerIrOnIntent, "红外抓拍前10分钟开启云台与红外");
@@ -3493,7 +3470,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
                 return;
             }
-            long t3 = target - RGB_PHOTO_PREHEAT_MINUTES * PERIOD_MINUTE;
+            long t3 = target - 3 * 60 * 1000;
             // 先准备三分钟前那条的 Intent，并按策略表补充参数
             Intent vi = new Intent(POWERON_RGB_INTENT); /////
             vi.putExtra("index", i);
@@ -3512,8 +3489,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    vi.putExtra("para", item.para);
 //                }
 //            }
-            powerRgbOnIntent = PendingIntent.getBroadcast(this, requestCode, vi, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); /////
-            photoWakeupAlarms.put(requestCode, powerRgbOnIntent);
+            powerRgbOnIntent = PendingIntent.getBroadcast(this, i + 1, vi, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); /////
 
             if (now < t3) {
                 alarmInitTask(formatTime(millisToCalendar(t3)), msecPeriod, powerRgbOnIntent, "云台抓拍前3分钟开启"); /////
@@ -3523,12 +3499,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
         /////
-    }
-
-    private boolean shouldSchedulePhotoWakeup(PhotoTimeItem item) {
-        if (item == null) return false;
-        // 唤醒模式下，即使拍照时间落在工作时间段内，也必须提前上电。
-        return currentMode == MODE_WAKEUP || !isWorkHour(item.hour, item.min, item.sec);
     }
 
     public void refreshPhotoSchedule() {
@@ -3606,50 +3576,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return -1;
     }
 
-    private int photoAlarmRequestCode(int channel, int index) {
-        return channel * 10000 + index;
-    }
-
-    private int photoWakeupRequestCode(int channel, int index) {
-        return RC_PHOTO_WAKEUP_BASE + channel * RC_PHOTO_STRIDE + index;
-    }
-
-    private void cancelPhotoAlarmsForChannel(int channel) {
-        for (int i = 0; i < settings.photoTimeTable.size(); i++) {
-            PhotoTimeItem item = settings.photoTimeTable.get(i);
-            if (item == null || item.channel != channel) continue;
-            int photoRequestCode = photoAlarmRequestCode(item.channel, i);
-            int wakeupRequestCode = photoWakeupRequestCode(item.channel, i);
-
-            PendingIntent photoPi = PendingIntent.getBroadcast(this, photoRequestCode, new Intent(ACTION_PHOTO),
-                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
-            if (photoPi != null) alarmManager.cancel(photoPi);
-
-            Device dev = channels.get(String.valueOf(item.channel));
-            String wakeupAction = dev != null && dev.isUSB() ? POWERON_IR_INTENT : POWERON_RGB_INTENT;
-            PendingIntent wakeupPi = PendingIntent.getBroadcast(this, wakeupRequestCode, new Intent(wakeupAction),
-                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
-            if (wakeupPi != null) alarmManager.cancel(wakeupPi);
-        }
-    }
-
     private void setSinglePhotoAlarm(int index, PhotoTimeItem item, String alarmName) {
         Intent vi = new Intent(ACTION_PHOTO);
         vi.putExtra("index", index);
 
         // 生成唯一的 requestCode，避免 PendingIntent 覆盖
-        int requestCode = photoAlarmRequestCode(item.channel, index);
+        int requestCode = (item.channel * 10000) + index;
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, requestCode, vi,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         photoAlarms.put(requestCode, pendingIntent);
 
-        if (shouldSchedulePhotoWakeup(item)) {
+        if (!isWorkHour(item.hour, item.min, item.sec)) {
             wakeupTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
                     PERIOD_DAY, index, "定时开启云台", item.channel);
-        } else {
-            Log.i(Log.TAG, "全工作模式工作时间内拍照，跳过提前唤醒闹钟：channel=" + item.channel + ", index=" + index);
         }
 
         alarmInitTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
@@ -3660,27 +3601,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * 取消所有已注册的拍照闹钟
      */
     private void cancelAllPhotoAlarms() {
-        if (settings != null && settings.photoTimeTable != null) {
-            for (PhotoTimeItem item : settings.photoTimeTable) {
-                if (item != null) {
-                    cancelPhotoAlarmsForChannel(item.channel);
-                }
-            }
-        }
-
         for (PendingIntent pi : photoAlarms.values()) {
             if (pi != null) {
                 alarmManager.cancel(pi);
             }
         }
         photoAlarms.clear();
-
-        for (PendingIntent pi : photoWakeupAlarms.values()) {
-            if (pi != null) {
-                alarmManager.cancel(pi);
-            }
-        }
-        photoWakeupAlarms.clear();
     }
 
 
@@ -6188,7 +6114,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     public boolean setPhotoTimeTable(int channel, PhotoTimeItem[] table) {
 //        if (!deviceConfig.photoCheck) {
-        cancelPhotoAlarmsForChannel(channel);
         Iterator<PhotoTimeItem> iterator = settings.photoTimeTable.iterator();
         while (iterator.hasNext()) {
             PhotoTimeItem item = iterator.next();
@@ -6297,11 +6222,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doSleep(String reason, int load) {
 
-        // 唤醒模式下，下电必须同时满足：无业务、无保活、且不在拍照预热窗口。
-        if (shouldDelayWakeupShutdown(load, reason)) {
-            return;
-        }
-
         if (currentMode == MODE_WAKEUP && isWakeupKeepAliveMode == true){
             Log.e(Log.TAG,"唤醒模式下，存在拍照/短视频/拉流/回放保活任务，测试期间2分钟内不对云台和红外下电");
             return;
@@ -6326,7 +6246,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingDVR3) {
                 // 关闭云台
                 Log.e(Log.TAG, "关闭云台：" + reason);
-                closeDevicesForPowerOff(2);
                 powerControlNVR(false, 2);
             } else {
                 Log.e(Log.TAG, "跳过关闭云台，3分钟内存在可见光机芯拍照任务");
@@ -6336,7 +6255,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingUSB10) {
                 // 关闭红外
                 Log.e(Log.TAG, "关闭红外：" + reason);
-                closeDevicesForPowerOff(3);
                 powerControlNVR(false, 3);
             } else {
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
@@ -6346,7 +6264,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingDVR3) {
                 // 关闭云台
                 Log.e(Log.TAG, "关闭云台：" + reason);
-                closeDevicesForPowerOff(2);
                 powerControlNVR(false, 2);
             } else {
                 Log.e(Log.TAG, "跳过关闭云台，3分钟内存在可见光机芯拍照任务");
@@ -6355,7 +6272,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingUSB10) {
                 // 关闭红外
                 Log.e(Log.TAG, "关闭红外：" + reason);
-                closeDevicesForPowerOff(3);
                 powerControlNVR(false, 3);
             } else {
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
@@ -6366,52 +6282,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     /////
-    // 唤醒模式下统一拦截下电：设备忙、可见光拍照前 3 分钟、红外拍照前 10 分钟都不允许关闭负载。
-    private boolean shouldDelayWakeupShutdown(int load, String reason) {
-        if (currentMode != MODE_WAKEUP) {
-            return false;
-        }
-
-        if (isAnyDeviceBusy()) {
-            Log.e(Log.TAG, "Wakeup shutdown delayed, device is busy: " + reason);
-            // 业务还在执行时继续保活，等下一轮到期再判断。
-            resetWakeupTimer();
-            return true;
-        }
-
-        boolean incomingRgbPhoto = hasUpcomingPhotoTask(false, RGB_PHOTO_PREHEAT_MINUTES);
-        boolean incomingIrPhoto = hasUpcomingPhotoTask(true, IR_PHOTO_PREHEAT_MINUTES);
-        boolean shouldKeepLoad2 = load == 2 || load == 23;
-        boolean shouldKeepLoad3 = load == 3 || load == 23;
-
-        if ((shouldKeepLoad2 && incomingRgbPhoto) || (shouldKeepLoad3 && incomingIrPhoto)) {
-            Log.e(Log.TAG, "Wakeup shutdown delayed, upcoming photo task exists: " + reason);
-            // 即将拍照时继续保活，避免刚下电又马上预热上电。
-            resetWakeupTimer();
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean hasUpcomingPhotoTask(boolean usb, int minutesWindow) {
-        if (settings == null || settings.photoTimeTable == null || settings.photoTimeTable.isEmpty()) {
-            return false;
-        }
-
-        for (PhotoTimeItem item : settings.photoTimeTable) {
-            if (item == null) continue;
-            Device dev = channels.get(String.valueOf(item.channel));
-            if (dev == null || !dev.isDVR() || dev.isUSB() != usb) continue;
-            // 根据设备类型区分可见光/红外，只检查对应负载的拍照窗口。
-            if (hasUpcomingPhotoTaskForChannel(item.channel, minutesWindow)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
+    // 新增工具函数，用于检测未来 minutesWindow 分钟内是否有指定通道的拍照任务
     private boolean hasUpcomingPhotoTaskForChannel(int channel, int minutesWindow) {
         if (settings.photoTimeTable.isEmpty()) {
             return false;
@@ -7624,12 +7495,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void resetWakeupTimer() {
         isWakeupKeepAliveMode = true;
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        // 每次唤醒模式业务触发后重置保活倒计时。
-        utilsHandler.postDelayed(mResetWakeupFlagTask, WAKEUP_KEEP_ALIVE_MS);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
     }
 
     private boolean isWakeupActiveTask(Device dev) {
-        // OPENED 只是资源残留态，不算业务忙；只把正在执行的业务状态纳入保活判断。
         return dev != null
                 && dev.isDVR()
                 && (dev.isOpening()
@@ -8633,6 +8502,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(Log.TAG,"设备处于唤醒模式，并在保活任务后的2分钟内，不进行关闭操作");
             return;
         }
+
+
 
         /////
         ////////
