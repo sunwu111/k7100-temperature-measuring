@@ -292,6 +292,7 @@ public class SPGProtocol {
     private byte[] fileNameByteData;
     public boolean isUpgrade = false;  // 是否正在升级
     private long latestUpgradeReceived;
+    private long lastD4SendLogTime = 0;
     private String upgradeFileName = "test.apk";
     private int upgradeFileCount = 1;
     private byte upgradeType = 0;  // 扩展协议， 0 = 普通升级， 1 = 断点续传升级
@@ -5166,9 +5167,13 @@ public class SPGProtocol {
                 //Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s", buf[7], buf.length, s));
                 if (buf[7] == ORDER_D4H) {
                     int previewLength = Math.min(buf.length, buf.length > 64 ? 12 : 32);
-                    Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s%s",
-                            buf[7], buf.length, bin2hex(subBytes(buf, 0, previewLength), true),
-                            buf.length > previewLength ? "..." : ""));
+                    long now = SystemClock.elapsedRealtime();
+                    if (lastD4SendLogTime == 0 || now - lastD4SendLogTime >= 30 * 1000) {
+                        lastD4SendLogTime = now;
+                        Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s%s",
+                                buf[7], buf.length, bin2hex(subBytes(buf, 0, previewLength), true),
+                                buf.length > previewLength ? "..." : ""));
+                    }
                 } else {
                     Log.d(Log.TAG, String.format("发送指令（%02XH）%d字节：%s", buf[7], buf.length, bin2hex(buf, true)));
                 }
