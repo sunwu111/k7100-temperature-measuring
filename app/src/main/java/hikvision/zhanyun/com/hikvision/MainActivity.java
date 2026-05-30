@@ -306,6 +306,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RC_PHOTO_BASE = 10000;
     // 每个 channel 给 100 个空间，index 不能超过 99；如果 index 可能更大就把 100 改大
     private static final int RC_PHOTO_STRIDE = 100;
+    // 唤醒模式下的拍照预热闹钟使用独立 requestCode 段，避免和真正的拍照闹钟互相覆盖。
     private static final int RC_PHOTO_WAKEUP_BASE = 200000;
     private static final long MIN_INIT_INTERVAL = 1000;
 
@@ -468,6 +469,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private Timer softShutdownTimer;
     private HashMap<String, Long> trafficMonth;                      // 月流量统计对象，保存到文件方便累计
     private HashMap<String, Integer> failedFileError = new HashMap<>();
+    // photoAlarms 是真正执行拍照的闹钟；photoWakeupAlarms 只负责拍照前提前上电。
+    // 两者必须分开保存和取消，否则切换模式或刷新拍照计划时会误取消另一类任务。
     private Map<Integer, PendingIntent> photoAlarms = new HashMap<>();   // 拍照闹钟
     private Map<Integer, PendingIntent> photoWakeupAlarms = new HashMap<>();   // 拍照前预热唤醒闹钟
     private SurfaceView surfaceView, surfaceDraw;
@@ -506,11 +509,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     /////
     private int PREFIX_LEN = 6;
 
+    // 唤醒模式的关系：
+    // 1. currentMode == MODE_WAKEUP 时，云台/红外默认允许下电，只有业务或预热窗口需要临时上电。
+    // 2. 直播、回放、录像文件查询、拍照、短视频录制都会调用 markWakeupActivity()，先上电再刷新保活。
+    // 3. 保活时间结束后，mResetWakeupFlagTask 再次确认没有业务，最后调用 doSleep() 下电。
+    //
+    // 录像文件查询和回放共用一套服务器流程。该变量不是通用“保活开关”，主要用于区分：
+    // 第一次查询录像文件时可返回缓存，真正进入文件列表/回放后再保持后续查询走设备。
     private static boolean isWakeupVideoPlaybackMode = false;
+    // true 表示当前处于唤醒模式业务后的保活窗口内；doSleep() 会因为它直接跳过下电。
     private static boolean isWakeupKeepAliveMode = false;
-    // 唤醒模式下，业务结束后继续保活的时间。
+    // 唤醒模式下，业务结束后继续保活的时间。当前测试版本为 2 分钟，正式版本需要改回 15 分钟。
     private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
-    // 下电前需要避开的拍照预热窗口：可见光 3 分钟、红外 10 分钟。
+    // 下电前需要避开的拍照预热窗口：可见光拍照提前 3 分钟开云台，红外拍照提前 10 分钟开云台和红外。
     private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
 
@@ -3464,8 +3475,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return c;
     }
 
-    // 定时唤醒设备的任务
-    // 提前 3 分钟唤醒可见光机芯、提前 10 分钟唤醒红外机芯。
+    // 定时拍照的预热任务，只在拍照前“提前上电”，不负责真正拍照。
+    // 可见光通道：拍照前 RGB_PHOTO_PREHEAT_MINUTES 分钟开启云台。
+    // 红外通道：拍照前 IR_PHOTO_PREHEAT_MINUTES 分钟同时开启云台和红外。
+    // 如果创建闹钟时已经进入预热窗口，就延迟 1 秒立即触发，避免错过本次拍照。
     private void wakeupTask(String time, long msecPeriod, int i, String source, int channel) {
         /////
         Device dev = channels.get(String.valueOf(channel));
@@ -3527,7 +3540,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private boolean shouldSchedulePhotoWakeup(PhotoTimeItem item) {
         if (item == null) return false;
-        // 唤醒模式下，即使拍照时间落在工作时间段内，也必须提前上电。
+        // 全工作模式的工作时间内本来就上电，不需要额外预热闹钟；
+        // 唤醒模式默认会下电，所以即使拍照时间落在工作时间段内，也必须提前上电。
         return currentMode == MODE_WAKEUP || !isWorkHour(item.hour, item.min, item.sec);
     }
 
@@ -3611,6 +3625,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private int photoWakeupRequestCode(int channel, int index) {
+        // requestCode = 独立基准 + 通道偏移 + 策略序号，保证同一个拍照计划的预热闹钟可被精确取消。
         return RC_PHOTO_WAKEUP_BASE + channel * RC_PHOTO_STRIDE + index;
     }
 
@@ -6297,7 +6312,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doSleep(String reason, int load) {
 
-        // 唤醒模式下，下电必须同时满足：无业务、无保活、且不在拍照预热窗口。
+        // 唤醒模式下不能直接按服务器/定时器要求下电，需要先过三类保护：
+        // 1. 当前是否还有直播、回放、拍照、短视频等业务正在执行；
+        // 2. 是否还在业务结束后的保活窗口内；
+        // 3. 是否即将进入定时拍照的预热窗口。
+        // 这里先检查“业务忙”和“即将拍照”，保活窗口在下面单独判断，便于日志区分。
         if (shouldDelayWakeupShutdown(load, reason)) {
             return;
         }
@@ -6366,7 +6385,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     /////
-    // 唤醒模式下统一拦截下电：设备忙、可见光拍照前 3 分钟、红外拍照前 10 分钟都不允许关闭负载。
+    // 唤醒模式下统一拦截下电：
+    // - 设备忙：不能下电，并重置保活，等下一轮再判断。
+    // - 可见光拍照前 3 分钟：不能关闭云台负载。
+    // - 红外拍照前 10 分钟：不能关闭云台和红外负载。
+    // load=2 表示云台，load=3 表示红外，load=23 表示两者都要检查。
     private boolean shouldDelayWakeupShutdown(int load, String reason) {
         if (currentMode != MODE_WAKEUP) {
             return false;
@@ -6416,6 +6439,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (settings.photoTimeTable.isEmpty()) {
             return false;
         }
+        // 拍照计划是“每天固定时间”语义：如果今天的时间点已过，就按明天同一时间计算。
+        // 这样 23:59 附近也能正确判断第二天凌晨的预热窗口。
         long now = System.currentTimeMillis();
         java.util.Calendar cal = java.util.Calendar.getInstance();
         for (PhotoTimeItem item : settings.photoTimeTable) {
@@ -7256,6 +7281,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         /////
         if (dev.isDVR()) {
+            // 云台是所有 DVR 类业务的基础负载；红外 USB 机芯还需要额外开启红外负载。
+            // 这里只做“需要时上电”，保活计时由 markWakeupActivity() 统一负责。
             if (sleeping) {
                 // 云台上电
                 doWakeup(reason, 2);
@@ -7599,7 +7626,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private final Runnable mResetWakeupFlagTask = new Runnable() {
         @Override
         public void run() {
-            // 只有真正的业务态才延后保活，避免短视频结束后残留 OPENED 状态导致一直不下电
+            // 保活到期后不马上下电，先看设备是否仍在真正执行任务。
+            // 只有真正的业务态才延后保活，避免短视频结束后残留 OPENED 状态导致一直不下电。
             for (String channel : channels.keySet()) {
                 Device dev = channels.get(channel);
                 if (isWakeupActiveTask(dev)) {
@@ -7630,6 +7658,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private boolean isWakeupActiveTask(Device dev) {
         // OPENED 只是资源残留态，不算业务忙；只把正在执行的业务状态纳入保活判断。
+        // 否则短视频/回放结束后设备可能因为状态未及时回收而一直不能回到唤醒待机。
         return dev != null
                 && dev.isDVR()
                 && (dev.isOpening()
@@ -7641,6 +7670,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void markWakeupActivity(Device dev, String reason) {
         if (currentMode != MODE_WAKEUP || dev == null || !dev.isDVR()) return;
+        // 所有唤醒模式业务入口都应调用这里：
+        // 可见光只需要开云台(load=2)，红外需要同时开云台和红外(load=23)，然后刷新保活倒计时。
         int load = dev.isUSB() ? 23 : 2;
         doWakeup(reason, load);
         resetWakeupTimer();
