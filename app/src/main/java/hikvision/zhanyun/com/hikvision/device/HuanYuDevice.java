@@ -331,7 +331,12 @@ public class HuanYuDevice extends MyOnvifDevice {
     @Override
     public boolean close() {
         super.close();
-        return logout();
+        boolean ret = logout();
+        // 设备被下电后，旧 session 不再可信；清掉缓存，下一次上电必须重新等待并登录。
+        session = 0;
+        loginTime = 0;
+        loginRetryCount = 0;
+        return ret;
     }
 
 

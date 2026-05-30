@@ -506,6 +506,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static boolean isWakeupVideoPlaybackMode = false;
     private static boolean isWakeupKeepAliveMode = false;
+    // 唤醒模式下，业务结束后继续保活的时间。
+    private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
+    // 下电前需要避开的拍照预热窗口：可见光 3 分钟、红外 10 分钟。
+    private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
+    private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
 
 
     /// 短视频录制请求过快，会导致问题
@@ -955,7 +960,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             if (dev != null
                     && dev.isDVR()
-                    && dev.isBusy()) {
+                    && isWakeupActiveTask(dev)) {
 
                 Log.i(Log.TAG,
                         "设备正在使用中 channel=" + channel);
@@ -2331,6 +2336,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
     }
     /////
+
+    private static void closeDevicesForPowerOff(int load) {
+        for (Device dev : channels.values()) {
+            if (dev == null || !dev.isDVR()) continue;
+
+            if (load == 23
+                    || (load == 2 && !dev.isUSB())
+                    || (load == 3 && dev.isUSB())) {
+                // 负载下电前先清掉设备运行态，避免下次上电后复用旧的 onvifReady/session，跳过 isDeviceReady 等待。
+                dev.close();
+            }
+        }
+    }
 
     public void writeNum(String flag, String path) {
         FileWriter fw = null;
@@ -6221,6 +6239,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void doSleep(String reason, int load) {
 
+        // 唤醒模式下，下电必须同时满足：无业务、无保活、且不在拍照预热窗口。
+        if (shouldDelayWakeupShutdown(load, reason)) {
+            return;
+        }
+
         if (currentMode == MODE_WAKEUP && isWakeupKeepAliveMode == true){
             Log.e(Log.TAG,"唤醒模式下，存在拍照/短视频/拉流/回放保活任务，测试期间2分钟内不对云台和红外下电");
             return;
@@ -6245,6 +6268,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingDVR3) {
                 // 关闭云台
                 Log.e(Log.TAG, "关闭云台：" + reason);
+                closeDevicesForPowerOff(2);
                 powerControlNVR(false, 2);
             } else {
                 Log.e(Log.TAG, "跳过关闭云台，3分钟内存在可见光机芯拍照任务");
@@ -6254,6 +6278,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingUSB10) {
                 // 关闭红外
                 Log.e(Log.TAG, "关闭红外：" + reason);
+                closeDevicesForPowerOff(3);
                 powerControlNVR(false, 3);
             } else {
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
@@ -6263,6 +6288,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingDVR3) {
                 // 关闭云台
                 Log.e(Log.TAG, "关闭云台：" + reason);
+                closeDevicesForPowerOff(2);
                 powerControlNVR(false, 2);
             } else {
                 Log.e(Log.TAG, "跳过关闭云台，3分钟内存在可见光机芯拍照任务");
@@ -6271,6 +6297,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (!incomingUSB10) {
                 // 关闭红外
                 Log.e(Log.TAG, "关闭红外：" + reason);
+                closeDevicesForPowerOff(3);
                 powerControlNVR(false, 3);
             } else {
                 Log.e(Log.TAG, "跳过关闭红外，10分钟内存在红外拍照任务：" + reason);
@@ -6281,7 +6308,52 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     /////
-    // 新增工具函数，用于检测未来 minutesWindow 分钟内是否有指定通道的拍照任务
+    // 唤醒模式下统一拦截下电：设备忙、可见光拍照前 3 分钟、红外拍照前 10 分钟都不允许关闭负载。
+    private boolean shouldDelayWakeupShutdown(int load, String reason) {
+        if (currentMode != MODE_WAKEUP) {
+            return false;
+        }
+
+        if (isAnyDeviceBusy()) {
+            Log.e(Log.TAG, "Wakeup shutdown delayed, device is busy: " + reason);
+            // 业务还在执行时继续保活，等下一轮到期再判断。
+            resetWakeupTimer();
+            return true;
+        }
+
+        boolean incomingRgbPhoto = hasUpcomingPhotoTask(false, RGB_PHOTO_PREHEAT_MINUTES);
+        boolean incomingIrPhoto = hasUpcomingPhotoTask(true, IR_PHOTO_PREHEAT_MINUTES);
+        boolean shouldKeepLoad2 = load == 2 || load == 23;
+        boolean shouldKeepLoad3 = load == 3 || load == 23;
+
+        if ((shouldKeepLoad2 && incomingRgbPhoto) || (shouldKeepLoad3 && incomingIrPhoto)) {
+            Log.e(Log.TAG, "Wakeup shutdown delayed, upcoming photo task exists: " + reason);
+            // 即将拍照时继续保活，避免刚下电又马上预热上电。
+            resetWakeupTimer();
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean hasUpcomingPhotoTask(boolean usb, int minutesWindow) {
+        if (settings == null || settings.photoTimeTable == null || settings.photoTimeTable.isEmpty()) {
+            return false;
+        }
+
+        for (PhotoTimeItem item : settings.photoTimeTable) {
+            if (item == null) continue;
+            Device dev = channels.get(String.valueOf(item.channel));
+            if (dev == null || !dev.isDVR() || dev.isUSB() != usb) continue;
+            // 根据设备类型区分可见光/红外，只检查对应负载的拍照窗口。
+            if (hasUpcomingPhotoTaskForChannel(item.channel, minutesWindow)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private boolean hasUpcomingPhotoTaskForChannel(int channel, int minutesWindow) {
         if (settings.photoTimeTable.isEmpty()) {
             return false;
@@ -7494,10 +7566,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private void resetWakeupTimer() {
         isWakeupKeepAliveMode = true;
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
-        utilsHandler.postDelayed(mResetWakeupFlagTask, 2 * 60 * 1000);
+        // 每次唤醒模式业务触发后重置保活倒计时。
+        utilsHandler.postDelayed(mResetWakeupFlagTask, WAKEUP_KEEP_ALIVE_MS);
     }
 
     private boolean isWakeupActiveTask(Device dev) {
+        // OPENED 只是资源残留态，不算业务忙；只把正在执行的业务状态纳入保活判断。
         return dev != null
                 && dev.isDVR()
                 && (dev.isOpening()
