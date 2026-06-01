@@ -289,6 +289,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final String TRAFFIC_FILE = DATA_DIR + "traffic.dat";    // 每月流量统计保存文件
     private static final String CONFIG_FILE = DATA_DIR + "config.json";         // 设备核心设置，如服务器设置等，不可复位
     private static final String SETTING_FILE = DATA_DIR + "settings.json";  // 和各个通道相关的设置，可复位
+    private static final String RECORD_POLICY_FILE = DATA_DIR + "record_policy.json";  // 设备实际执行的录像策略，和settings.json同目录
     private static final String USB_STATE_FILE = DATA_DIR + "usb_state.json";  // 和各个通道相关的设置，可复位
     private static final String FREQUECY = DATA_DIR + "frequency.json";  // 测试文件，修改电压值的频率
     private static final String KEY_FREQUENCY = "frequency";
@@ -308,6 +309,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RC_PHOTO_STRIDE = 100;
     // 唤醒模式下的拍照预热闹钟使用独立 requestCode 段，避免和真正的拍照闹钟互相覆盖。
     private static final int RC_PHOTO_WAKEUP_BASE = 200000;
+    private static final int MAX_RECORD_ALARM_CANCEL_COUNT = 256;
     private static final long MIN_INIT_INTERVAL = 1000;
 
 //    private static final long STORAGE_USAGE_INTERVAL_MS = 30 * 60 * 1000;  // 30分钟
@@ -666,6 +668,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 } else if (action.equals(ACTION_VIDEO)) {
                     doVideoAction(intent);
                 } else if (action.equals(ACTION_RECORD)) { /////
+                    if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+                        Log.i(Log.TAG, "低功耗模式下不执行录像策略动作");
+                        return;
+                    }
                     if(isWorkHour()){    // 是工作时间才转动到预置位
                         int recordChannel = intent.getByteExtra("channel", (byte) 1);  // 默认录像通道号是1
                         int recordAction = intent.getByteExtra("action", (byte) 0);
@@ -1043,8 +1049,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             "模式切换为全工作模式且在工作时间段",
                             23);
                     utilsHandler.postDelayed(
-                            () -> setRecordingPolicy(settings.videoTimeTable),
+                            () -> restoreRecordingForFullMode("切换到全工作模式恢复录像策略"),
                             60 * 1000);
+                } else {
+                    restoreRecordingForFullMode("切换到全工作模式恢复录像策略");
                 }
 
                 break;
@@ -1057,6 +1065,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         "切换到唤醒模式：立即关闭云台和红外");
                 interfacePowerOn();
                 powerOffMipi("切换到唤醒模式");
+                disableRecordingForLowPowerMode("切换到唤醒模式清空设备录像策略");
                 doSleep("切换为唤醒模式", 23);
                 // 唤醒模式下定时拍照需要提前上电；切换模式后重建拍照闹钟，避免沿用全工作模式下的调度。
                 refreshPhotoSchedule();
@@ -1069,6 +1078,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.i(TAG,
                         "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
                 powerOffMipi("切换到休眠模式");
+                disableRecordingForLowPowerMode("切换到休眠模式清空设备录像策略");
                 interfacePowerOff();
                 doSleep("切换为休眠模式", 23);
                 break;
@@ -3116,6 +3126,110 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return null;
     }
 
+    private List<VideoTimeItem> copyVideoTimeTable(List<VideoTimeItem> source) {
+        List<VideoTimeItem> result = new ArrayList<>();
+        if (source == null) return result;
+        for (VideoTimeItem item : source) {
+            if (item == null) continue;
+            VideoTimeItem copy = new VideoTimeItem();
+            copy.channel = item.channel;
+            copy.stream = item.stream;
+            copy.action = item.action;
+            copy.para = item.para;
+            copy.duration = item.duration;
+            copy.hour = item.hour;
+            copy.min = item.min;
+            copy.sec = item.sec;
+            result.add(copy);
+        }
+        return result;
+    }
+
+    private boolean saveRecordingPolicyFile(List<VideoTimeItem> list) {
+        try {
+            stringToFile(RECORD_POLICY_FILE, JSON.toJSONString(copyVideoTimeTable(list), true));
+            return true;
+        } catch (Exception e) {
+            Log.e(Log.TAG, "保存录像执行策略失败 " + RECORD_POLICY_FILE + " => " + e.getMessage());
+            return false;
+        }
+    }
+
+    private List<VideoTimeItem> loadRecordingPolicyFile() {
+        try {
+            String s = stringFromFile(RECORD_POLICY_FILE);
+            if (s != null && !s.trim().isEmpty()) {
+                List<VideoTimeItem> list = JSON.parseArray(s, VideoTimeItem.class);
+                if (list != null) return list;
+            }
+        } catch (Exception e) {
+            Log.e(Log.TAG, "读取录像执行策略失败：" + e.getMessage());
+        }
+        return copyVideoTimeTable(settings == null ? null : settings.videoTimeTable);
+    }
+
+    private void ensureRecordingPolicyFile() {
+        File file = new File(RECORD_POLICY_FILE);
+        if (!file.exists()) {
+            saveRecordingPolicyFile(settings == null ? null : settings.videoTimeTable);
+        }
+    }
+
+    private List<VideoTimeItem> getDeviceRecordingPolicyForCurrentMode() {
+        if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+            return new ArrayList<>();
+        }
+        return adjustOverlappingItems(loadRecordingPolicyFile());
+    }
+
+    private void refreshRecordTableFromPolicyFile() {
+        RECORD_TABLE = adjustOverlappingItems(loadRecordingPolicyFile());
+        recordPreset = extractRecordPreset(RECORD_TABLE);
+    }
+
+    private void cancelRecordTaskAlarms() {
+        if (alarmManager == null) return;
+        for (int i = 0; i < MAX_RECORD_ALARM_CANCEL_COUNT; i++) {
+            PendingIntent pi = PendingIntent.getBroadcast(this, i, new Intent(ACTION_RECORD), PendingIntent.FLAG_UPDATE_CURRENT);
+            alarmManager.cancel(pi);
+            pi.cancel();
+        }
+        recordIntent = null;
+    }
+
+    private void cancelVideoTaskAlarms() {
+        if (alarmManager == null) return;
+        for (int i = 0; i < MAX_RECORD_ALARM_CANCEL_COUNT; i++) {
+            PendingIntent pi = PendingIntent.getBroadcast(this, i, new Intent(ACTION_VIDEO), PendingIntent.FLAG_UPDATE_CURRENT);
+            alarmManager.cancel(pi);
+            pi.cancel();
+        }
+        videoIntent = null;
+    }
+
+    private void applyRecordingPolicyToDvr(List<VideoTimeItem> list, String reason) {
+        List<VideoTimeItem> policy = list == null ? new ArrayList<>() : list;
+        for (Device dev : channels.values()) {
+            if (dev == null || !dev.isDVR() || dev.isUSB()) continue;
+            boolean ret = dev.setRecordTimes(policy);
+            Log.i(Log.TAG, reason + "，下发录像策略" + (ret ? "成功" : "失败") + "，数量：" + policy.size());
+        }
+    }
+
+    private void disableRecordingForLowPowerMode(String reason) {
+        cancelRecordTaskAlarms();
+        cancelVideoTaskAlarms();
+        applyRecordingPolicyToDvr(new ArrayList<>(), reason);
+    }
+
+    private void restoreRecordingForFullMode(String reason) {
+        refreshRecordTableFromPolicyFile();
+        initRecordTask();
+        List<VideoTimeItem> policy = adjustOverlappingItems(loadRecordingPolicyFile());
+        applyRecordingPolicyToDvr(policy, reason);
+        setRecordingPolicy(policy);
+    }
+
 
     public void alarmInitTask(String start, long msecPeriod, PendingIntent intent, String source) {
         Date date = dateFromString(start);
@@ -3245,6 +3359,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
         }
+        ensureRecordingPolicyFile();
+        refreshRecordTableFromPolicyFile();
 
 //        /// 读取usb上电情况
 //        try{
@@ -3502,13 +3618,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * @param index
      */
     private void initVideoTask(int index) {
-        // 一定要保证settings.videoTimeTable按时间顺序排序！
+        if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+            cancelVideoTaskAlarms();
+            Log.i(Log.TAG, "低功耗模式下不初始化定时录像任务");
+            return;
+        }
+        List<VideoTimeItem> videoPolicy = adjustOverlappingItems(loadRecordingPolicyFile());
+        // 一定要保证录像策略按时间顺序排序！
         if (videoIntent != null) alarmManager.cancel(videoIntent);
         Time now = new Time();
         now.setToNow();
 
-        for (int i = index; i < settings.videoTimeTable.size(); i++) {
-            VideoTimeItem item = settings.videoTimeTable.get(i);
+        for (int i = index; i < videoPolicy.size(); i++) {
+            VideoTimeItem item = videoPolicy.get(i);
 
             // 初始化的时候，如果index对应的条目，已过拍照时间，则要跳过该次
             if (((now.hour << 8) | now.minute) >= (item.hour << 8 | item.min)) continue;
@@ -3806,6 +3928,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private void initRecordTask() { /////
+        cancelRecordTaskAlarms();
+        if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+            Log.i(Log.TAG, "低功耗模式下不初始化可见光机芯定时录像任务");
+            return;
+        }
+        if (RECORD_TABLE == null) {
+            refreshRecordTableFromPolicyFile();
+        }
         for (int i = 0; i < RECORD_TABLE.size(); i++) { /////
             VideoTimeItem item = RECORD_TABLE.get(i); /////
             Intent vi = new Intent(ACTION_RECORD); /////
@@ -5885,11 +6015,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     // 定时录像动作
     private void doVideoAction(Intent intent) {
+        if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+            Log.i(Log.TAG, "低功耗模式下不执行定时录像任务");
+            return;
+        }
         int index = intent.getIntExtra("index", 0);
         initVideoTask(index + 1);
 
-        if (index > settings.videoTimeTable.size() || index < 0) return;
-        final VideoTimeItem item = settings.videoTimeTable.get(index);
+        List<VideoTimeItem> videoPolicy = adjustOverlappingItems(loadRecordingPolicyFile());
+        if (index >= videoPolicy.size() || index < 0) return;
+        final VideoTimeItem item = videoPolicy.get(index);
         if (item == null) return;
 
         utilsHandler.post(() -> takeVideo(item, false));
@@ -5933,7 +6068,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     ret2 = dev.updateStatusText(settings.osds.get(String.valueOf(channel)), getStatusText(), false);
                 }
                 ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel) + ":0"));
-                ret4 = dev.setRecordTimes(settings.videoTimeTable);
+                ret4 = dev.setRecordTimes(getDeviceRecordingPolicyForCurrentMode());
                 if (ret1 && ret2 && ret3 && ret4) {
                     break;
                 }
@@ -5983,7 +6118,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     ret2 = dev.updateStatusText(settings.osds.get(String.valueOf(channel)), getStatusText(), false);
                 }
                 ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel) + ":0"));
-                ret4 = dev.setRecordTimes(settings.videoTimeTable);
+                ret4 = dev.setRecordTimes(getDeviceRecordingPolicyForCurrentMode());
                 if (ret1 && ret2 && ret3 && ret4) {
                     break;
                 }
@@ -6028,7 +6163,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel) + ":0"));
 //                ret3 = dev.setCodec(settings.videoCodecs.get(String.valueOf(channel)+ ":0"));
 
-                ret4 = dev.setRecordTimes(settings.videoTimeTable);
+                ret4 = dev.setRecordTimes(getDeviceRecordingPolicyForCurrentMode());
                 if (ret1 && ret2 && ret3 && ret4) {
                     break;
                 }
@@ -8313,11 +8448,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     public void setVideoTimeTable(int channel, int stream, List<Settings.VideoTimeItem> list) {
         settings.videoTimeTable = list;  // 查询和设置的录像列表
+        saveRecordingPolicyFile(list);
+        saveSettings(settings, SETTING_FILE);
 
         // TODO 这个地方可能需要在结束的时候减1s [startTime, endTime)
         List<VideoTimeItem> splitList = adjustOverlappingItems(list);
 
         RECORD_TABLE = splitList;
+
+        if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
+            cancelRecordTaskAlarms();
+            cancelVideoTaskAlarms();
+            applyRecordingPolicyToDvr(new ArrayList<>(), "低功耗模式下保存录像策略但不执行");
+            saveSettings(settings, SETTING_FILE);
+            return;
+        }
 
         initRecordTask();
 
@@ -8325,7 +8470,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             // 先设置录像时间段
             Device dev = channels.get(String.valueOf(channel));
             if (dev == null) return;
-            boolean ret = dev.setRecordTimes(splitList);
+            boolean ret = dev.setRecordTimes(getDeviceRecordingPolicyForCurrentMode());
             if (!ret) {
                 // 如果设置失败，可以记录日志或处理错误
                 Log.e(Log.TAG, "设置录像时间段失败");
