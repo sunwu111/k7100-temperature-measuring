@@ -9,6 +9,9 @@ import static lyh.Utils.su;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Point;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -779,6 +782,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
     @Override
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
+        boolean useSmallPhotoOsd = false;
         try {
             setState(DevState.PHOTOING);
 
@@ -794,6 +798,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                 Point imageSize = Settings.PhotoConfig.getImageSize(photoConfig.size);
                 boolean is640x480 = (imageSize.x == 640 && imageSize.y == 480);
                 boolean is320x240 = (imageSize.x == 320 && imageSize.y == 240);
+                useSmallPhotoOsd = is320x240;
 
                 boolean downloadSuccess;
                 if (is640x480) {
@@ -801,7 +806,13 @@ public class HuanYuDevice extends MyOnvifDevice {
                     downloadSuccess = download(customUrl, filename, "admin", "admin888");
                 } else if (is320x240) {
                     String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=320&height=240";
-                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                    try {
+                        setSnapOsdEnabled(false);
+                        SystemClock.sleep(500);
+                        downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                    } finally {
+                        setSnapOsdEnabled(true);
+                    }
                 } else {
                     downloadSuccess = !snapURI.equals("") && download(snapURI, filename);
                 }
@@ -824,7 +835,11 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             if (bitmap != null) {
                 bitmap = processPhoto(bitmap, stamp, preset, aps, alert);
-                drawWatermark(bitmap);
+                if (useSmallPhotoOsd) {
+                    drawSmallPhotoWatermark(bitmap);
+                } else {
+                    drawWatermark(bitmap);
+                }
                 controllerCallback.onFrame(bitmap);
                 Utils.saveBitmapAsJPEG(bitmap, filename, 90);
                 bitmap.recycle();
@@ -843,6 +858,118 @@ public class HuanYuDevice extends MyOnvifDevice {
             clearState(DevState.PHOTOING);
         }
         return false;
+    }
+
+    private void drawSmallPhotoWatermark(Bitmap bitmap) {
+        if (bitmap == null) return;
+
+        Canvas canvas = new Canvas(bitmap);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(Math.max(9f, bitmap.getWidth() / 34f));
+        paint.setFakeBoldText(true);
+
+        float margin = Math.max(6f, bitmap.getWidth() / 48f);
+        float lineHeight = paint.getTextSize() * 1.25f;
+        float maxWidth = bitmap.getWidth() - margin * 2;
+        float y = margin + paint.getTextSize();
+
+        if (osd.time == 1) {
+            drawSmallPhotoText(canvas, paint,
+                    Utils.formatDateTime("yyyy-MM-dd HH:mm:ss", new Date()) + " " + getChineseWeekday(),
+                    margin, y);
+            y += lineHeight;
+        }
+
+        if (controllerCallback != null) {
+            String status = controllerCallback.onStatusInfo();
+            if (!TextUtils.isEmpty(status)) {
+                String[] lines = status.split("\n");
+                for (String line : lines) {
+                    if (TextUtils.isEmpty(line)) continue;
+                    drawSmallPhotoText(canvas, paint, line, margin, y);
+                    y += lineHeight;
+                    if (y > bitmap.getHeight() * 0.38f) break;
+                }
+            }
+        }
+
+        if (osd.tag == 1 && !TextUtils.isEmpty(osd.text)) {
+            List<String> bottomLines = wrapSmallPhotoText(paint, osd.text, maxWidth);
+            float bottomY = bitmap.getHeight() - margin - lineHeight * (bottomLines.size() - 1);
+            bottomY = Math.max(y + lineHeight, bottomY);
+            for (String line : bottomLines) {
+                drawSmallPhotoText(canvas, paint, line, margin, bottomY);
+                bottomY += lineHeight;
+                if (bottomY > bitmap.getHeight() - margin) break;
+            }
+        }
+    }
+
+    private List<String> wrapSmallPhotoText(Paint paint, String text, float maxWidth) {
+        List<String> lines = new ArrayList<>();
+        int start = 0;
+        int length = text.length();
+        while (start < length) {
+            int count = paint.breakText(text, start, length, true, maxWidth, null);
+            if (count <= 0) break;
+            lines.add(text.substring(start, start + count));
+            start += count;
+            if (lines.size() >= 3) break;
+        }
+        return lines;
+    }
+
+    private void drawSmallPhotoText(Canvas canvas, Paint paint, String text, float x, float y) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2f);
+        paint.setColor(Color.DKGRAY);
+        canvas.drawText(text, x, y, paint);
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeWidth(0f);
+        paint.setColor(Color.WHITE);
+        canvas.drawText(text, x, y, paint);
+    }
+
+    private String getChineseWeekday() {
+        switch (Calendar.getInstance().get(Calendar.DAY_OF_WEEK)) {
+            case Calendar.MONDAY:
+                return "星期一";
+            case Calendar.TUESDAY:
+                return "星期二";
+            case Calendar.WEDNESDAY:
+                return "星期三";
+            case Calendar.THURSDAY:
+                return "星期四";
+            case Calendar.FRIDAY:
+                return "星期五";
+            case Calendar.SATURDAY:
+                return "星期六";
+            default:
+                return "星期日";
+        }
+    }
+
+    private boolean setSnapOsdEnabled(boolean enabled) {
+        if (!login()) return false;
+
+        String json = String.format("{\n" +
+                "    \"session\": %d,\n" +
+                "    \"id\": %d,\n" +
+                "    \"call\": {\n" +
+                "        \"service\": \"videoEnc\",\n" +
+                "        \"method\": \"setOSDConfig\"\n" +
+                "    },\n" +
+                "    \"params\": {\n" +
+                "        \"channel\": 0,\n" +
+                "        \"table\": {\n" +
+                "            \"enableSnapOSD\": %b\n" +
+                "        }\n" +
+                "    }\n" +
+                "}", session, deviceId, enabled);
+
+        Response response = http_request(url, json);
+        return response != null && response.isSuccessful();
     }
 
 
