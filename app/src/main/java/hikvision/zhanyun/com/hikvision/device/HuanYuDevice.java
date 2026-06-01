@@ -3405,7 +3405,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 16) {
             stopCruise();
         } else if (cmd == 17) {
-            wiperOn();    // 摄像机调节: 17, 9,
+            wiperOn();    // 摄像机调节: 17, 9, 雨刷
         } else if (cmd == 18) {
             wiperOff();
         } else if (cmd == 19) {
