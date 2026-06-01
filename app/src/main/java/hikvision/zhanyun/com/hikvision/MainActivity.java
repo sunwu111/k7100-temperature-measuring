@@ -521,9 +521,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static boolean isWakeupKeepAliveMode = false;
     // 唤醒模式下，业务结束后继续保活的时间。当前测试版本为 2 分钟，正式版本需要改回 15 分钟。
     private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
+    // 唤醒模式下通道一定时拍照后的独立保活时间。正式值为10分钟，当前测试版本使用1分钟。
+    private static final long WAKEUP_CHANNEL1_SCHEDULED_PHOTO_KEEP_ALIVE_MS = PERIOD_MINUTE;
     // 下电前需要避开的拍照预热窗口：可见光拍照提前 3 分钟开云台，红外拍照提前 10 分钟开云台和红外。
     private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
+    private final ConcurrentHashMap<String, Integer> scheduledPhotoKeepAliveFiles = new ConcurrentHashMap<>();
 
 
     /// 短视频录制请求过快，会导致问题
@@ -1427,6 +1430,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     sleepDevice(channel, "可见光拍照成功");
                 }
             }
+            if (scheduledPhotoKeepAliveFiles.remove(file) != null) {
+                resetWakeupTimer(WAKEUP_CHANNEL1_SCHEDULED_PHOTO_KEEP_ALIVE_MS, "通道一定时拍照完成");
+            }
             if (dev.isCamera()) {
                 powerOffMipiIfIdle("MIPI拍照成功");
             }
@@ -1486,6 +1492,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     if (dev.isCamera()) {
                         powerOffMipiIfIdle("MIPI拍照失败");
                     }
+                    scheduledPhotoKeepAliveFiles.remove(filename);
 
                     // 拍照失败是需要恢复到正常状态 sunwu
                     if (deviceConfig.toCheck) {
@@ -6118,7 +6125,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(Log.TAG, "------定时拍照 - 时间:" + scheduledTime
                     + " 通道:" + item.channel
                     + " 预置位:" + (item.preset & 0xFF)+"------");
-            takePhoto(item.channel, item.preset & 0xFF, false, null, true);
+            takePhoto(item.channel, item.preset & 0xFF, false, null, true, item.channel == 1);
             SystemClock.sleep(5000);
         });
     }
@@ -7742,10 +7749,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      * 启动/重置唤醒模式保活定时器。测试期间使用2分钟，正式版本改回15分钟。
      */
     private void resetWakeupTimer() {
+        resetWakeupTimer(WAKEUP_KEEP_ALIVE_MS, "唤醒模式普通任务");
+    }
+
+    private void resetWakeupTimer(long keepAliveMs, String reason) {
         isWakeupKeepAliveMode = true;
         utilsHandler.removeCallbacks(mResetWakeupFlagTask);
         // 每次唤醒模式业务触发后重置保活倒计时。
-        utilsHandler.postDelayed(mResetWakeupFlagTask, WAKEUP_KEEP_ALIVE_MS);
+        utilsHandler.postDelayed(mResetWakeupFlagTask, keepAliveMs);
+        Log.i(Log.TAG, "重置唤醒模式保活：" + reason + "，" + keepAliveMs / PERIOD_SECOND + "秒");
     }
 
     private boolean isWakeupActiveTask(Device dev) {
@@ -8854,6 +8866,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
 
     private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert) {
+        takePhoto(channel, preset, show, filename, alert, false);
+    }
+
+    private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert, boolean scheduledPhotoKeepAlive) {
 
         if (isSleepMode()){
             Log.e(TAG,"设备处于休眠模式，不响应拍照");
@@ -8892,6 +8908,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         cpuLock();
         String fn = filename == null ? getFileName(channel, preset, EXT_JPG, 0) : filename;
+        if (currentMode == MODE_WAKEUP && channel == 1 && scheduledPhotoKeepAlive) {
+            scheduledPhotoKeepAliveFiles.put(fn, channel);
+        }
         TaskManager.add(fn);
 
         Device.onOpenCallback callback = dev.new onOpenCallback() {
