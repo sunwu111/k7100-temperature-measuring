@@ -1996,7 +1996,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         return String.format(
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
                                         "温度%3.1f℃\n" +         // 第三行
-                                        "太阳能%3.1fV/%2.2fA 负载%2.2fA\n" +        // 第四行
+                                        // "太阳能%3.1fV/%2.2fA 负载%2.2fA\n" +        // 第四行
                                         "%s\n" +                                    // 第六行
                                         "软件V%s %s %d",                        // 第七行
 
@@ -2012,9 +2012,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                                temperature,
                                 cpuTemp,
 
-                                solarVoltage,
-                                solarAmpler,
-                                loadAmpler,
+                                // solarVoltage,
+                                // solarAmpler,
+                                // loadAmpler,
 
                                 Location2String(devLocation),
 
@@ -2030,7 +2030,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 "通信%s %s %ddBm %s %s\n" +                 // 第二行
 //                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +         // 第三行
                                         "温度%3.1f℃\n" +         // 第三行
-                                        "太阳能%3.1fV/%2.2fA/%2.2fA\n" +        // 第四行
+                                        // "太阳能%3.1fV/%2.2fA/%2.2fA\n" +        // 第四行
                                         "%s" +                                      // 第五行：微气象（内部自带\n）
                                         "%s\n" +                                    // 第六行
                                         "软件V%s %s %d",                        // 第七行
@@ -2047,9 +2047,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                                temperature,
                                 cpuTemp,
 
-                                solarVoltage,
-                                solarAmpler,
-                                loadAmpler,
+                                // solarVoltage,
+                                // solarAmpler,
+                                // loadAmpler,
 
                                 aeroStatusText(),
 
