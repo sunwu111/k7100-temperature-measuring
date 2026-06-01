@@ -1786,6 +1786,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static String Location2String(Location location) {
 
                 return "位置000.000000E 000.000000N";  // 测试用例
+                // return "";  // 测试用例
 
 //        if (settings.location == null || settings.location.isEmpty()) {
 //            loadLocationFromConfig();
@@ -1796,7 +1797,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
     private static String aeroStatusText() {
-        return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
+        
+        // return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
+        return"";   // 测试用例
 
 //        AeroInfo aeroInfo = aeroInfoAtomicReference.get();
 //
@@ -1850,6 +1853,36 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        }
     }
 
+    private static boolean isOsdTextEmpty(String text) {
+        return text == null || text.trim().isEmpty();
+    }
+
+    private static String appendLineBreakIfNeeded(String text) {
+        if (isOsdTextEmpty(text)) return "";
+        return text.endsWith("\n") ? text : text + "\n";
+    }
+
+    private static String getAeroLocationText(String aeroText, String locationText) {
+        boolean aeroEmpty = isOsdTextEmpty(aeroText);
+        boolean locationEmpty = isOsdTextEmpty(locationText);
+
+        int osdCase = 0;
+        if (aeroEmpty) osdCase += 1;
+        if (locationEmpty) osdCase += 2;
+
+        switch (osdCase) {
+            case 1:
+                return appendLineBreakIfNeeded(locationText);
+            case 2:
+                return appendLineBreakIfNeeded(aeroText);
+            case 3:
+                return "";
+            case 0:
+            default:
+                return appendLineBreakIfNeeded(aeroText) + appendLineBreakIfNeeded(locationText);
+        }
+    }
+
 
     // 画面附加信息内容，如电量，流量，电压等
     public static String getStatusText() {
@@ -1884,6 +1917,37 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (deviceConfig.chargeControl == 6 || deviceConfig.chargeControl == 9) {
                     if (deviceConfig.chargeControl == 6) {
                         tempEnvironment = Math.max(tempEnvControl, tempEnvRegion);  // 汇能精电/硕日控制器温度与环境温度框的最高温比较，取最大值
+                        String extraText = getAeroLocationText(aeroStatusText(), Location2String(devLocation));
+
+                        return String.format(
+                                "通信%s %s %ddBm %s %s\n" +                 // 第二行：通信
+                                        "电池%3.2fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +        // 第三行：电池
+                                        "太阳能%3.1fV/%2.2fA/%2.2fA\n" +       // 第四行：太阳能
+                                        "%s" +                                   // 微气象和位置
+                                        "软件V%s %s %d",                       // 第七行：版本
+
+                                netType,
+                                SIGNAL_LEVELS[signalLevel],
+                                signalDBM,
+                                humanReadableByteCount(trafficLeft, false),
+                                subString(iccid, 15),
+
+                                batVoltage,
+                                batAmper,
+                                batPrecent,
+                                temperature,
+                                cpuTemp,
+
+                                solarVoltage,
+                                solarAmpler,
+                                loadAmpler,
+
+                                extraText,
+
+                                BuildConfig.VERSION_NAME,
+                                firmwareVersion,
+                                deviceConfig.wifi ? 1 : 0
+                        );
                     }
 
                     if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
@@ -1990,76 +2054,28 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
                 } else if (deviceConfig.chargeControl == 8) {
 
-                    if (aeroStatusText() == null || aeroStatusText().trim().isEmpty()) {
+                    String extraText = getAeroLocationText(aeroStatusText(), Location2String(devLocation));
 
-                        // 不带微气象
-                        return String.format(
-                                "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                        "温度%3.1f℃\n" +         // 第三行
-                                        // "太阳能%3.1fV/%2.2fA 负载%2.2fA\n" +        // 第四行
-                                        "%s\n" +                                    // 第六行
-                                        "软件V%s %s %d",                        // 第七行
+                    return String.format(
+                            "通信%s %s %ddBm %s %s\n" +                 // 第二行
+                                    "温度%3.1f℃\n" +         // 第三行
+                                    "%s" +                                    // 微气象和位置
+                                    "软件V%s %s %d",                        // 第七行
 
-                                netType,
-                                SIGNAL_LEVELS[signalLevel],
-                                signalDBM,
-                                humanReadableByteCount(trafficLeft, false),
-                                subString(iccid, 15),
-//
-//                                batVoltage,
-//                                batAmper,
-//                                getBatPercent(),
-//                                temperature,
-                                cpuTemp,
+                            netType,
+                            SIGNAL_LEVELS[signalLevel],
+                            signalDBM,
+                            humanReadableByteCount(trafficLeft, false),
+                            subString(iccid, 15),
 
-                                // solarVoltage,
-                                // solarAmpler,
-                                // loadAmpler,
+                            cpuTemp,
 
-                                Location2String(devLocation),
+                            extraText,
 
-                                BuildConfig.VERSION_NAME,
-                                firmwareVersion,
-                                deviceConfig.wifi ? 1 : 0
-                        );
-
-                    } else {
-
-                        // 带微气象
-                        return String.format(
-                                "通信%s %s %ddBm %s %s\n" +                 // 第二行
-//                                        "电池%3.1fV/%2.2fA/%d%%/%3.1f℃/%3.1f℃\n" +         // 第三行
-                                        "温度%3.1f℃\n" +         // 第三行
-                                        // "太阳能%3.1fV/%2.2fA/%2.2fA\n" +        // 第四行
-                                        "%s" +                                      // 第五行：微气象（内部自带\n）
-                                        "%s\n" +                                    // 第六行
-                                        "软件V%s %s %d",                        // 第七行
-
-                                netType,
-                                SIGNAL_LEVELS[signalLevel],
-                                signalDBM,
-                                humanReadableByteCount(trafficLeft, false),
-                                subString(iccid, 15),
-
-//                                batVoltage,
-//                                batAmper,
-//                                getBatPercent(),
-//                                temperature,
-                                cpuTemp,
-
-                                // solarVoltage,
-                                // solarAmpler,
-                                // loadAmpler,
-
-                                aeroStatusText(),
-
-                                Location2String(devLocation),
-
-                                BuildConfig.VERSION_NAME,
-                                firmwareVersion,
-                                deviceConfig.wifi ? 1 : 0
-                        );
-                    }
+                            BuildConfig.VERSION_NAME,
+                            firmwareVersion,
+                            deviceConfig.wifi ? 1 : 0
+                    );
                 } else {
                     // CPU电压映射为电池电压： 4.3v => 12.6v ， CPU电压低于3.9V，安卓板可能无法正常工作了
                     return String.format("%s %s %ddB 余%s ID%s 软件V%s %s  %d\n电池%3.1fV/%2.2fA 负载%2.2fA %d%% 温度%.0f℃ 湿度%.0f%%%s%s",//\n,%s", /////
