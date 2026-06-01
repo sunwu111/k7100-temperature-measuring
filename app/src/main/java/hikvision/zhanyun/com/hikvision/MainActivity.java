@@ -958,6 +958,46 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    private void powerOnMipiIfNeeded(String reason) {
+        if (camera == null) return;
+
+        for (int i = 0; i < 3; i++) {
+            boolean errcode = RS485Impl.Instance().gpioOpenMIPI();
+            Log.i(Log.TAG, String.format("MIPI上电%s：%s", errcode ? "成功" : "失败", reason));
+            if (errcode) break;
+        }
+    }
+
+    private void powerOffMipi(String reason) {
+        if (camera != null) {
+            camera.close();
+        }
+
+        for (int i = 0; i < 3; i++) {
+            boolean errcode = RS485Impl.Instance().gpioCloseMIPI();
+            Log.i(Log.TAG, String.format("MIPI下电%s：%s", errcode ? "成功" : "失败", reason));
+            if (errcode) break;
+        }
+    }
+
+    private boolean hasActiveMipiTask() {
+        for (Device dev : channels.values()) {
+            if (dev != null && dev.isCamera() && isWakeupActiveTask(dev)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void powerOffMipiIfIdle(String reason) {
+        if (currentMode != MODE_WAKEUP && currentMode != MODE_SLEEP) return;
+        if (hasActiveMipiTask()) {
+            Log.i(Log.TAG, "MIPI仍有任务执行，暂不下电：" + reason);
+            return;
+        }
+        powerOffMipi(reason);
+    }
+
     /**
      * 12.99 <  voltage             全工作
      * 12.79 < voltage <= 12.99     唤醒
@@ -971,9 +1011,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             Device dev = channels.get(channel);
 
-            if (dev != null
-                    && dev.isDVR()
-                    && isWakeupActiveTask(dev)) {
+            if (dev != null && isWakeupActiveTask(dev)) {
 
                 Log.i(Log.TAG,
                         "设备正在使用中 channel=" + channel);
@@ -992,6 +1030,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isWakeupVideoPlaybackMode = false;
                 isWakeupKeepAliveMode = false;
                 interfacePowerOn();
+                powerOnMipiIfNeeded("切换到全工作模式");
                 Log.i(TAG,
                         "切换到全工作模式：工作时间开启云台");
 
@@ -1014,6 +1053,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.i(TAG,
                         "切换到唤醒模式：立即关闭云台和红外");
                 interfacePowerOn();
+                powerOffMipi("切换到唤醒模式");
                 doSleep("切换为唤醒模式", 23);
                 // 唤醒模式下定时拍照需要提前上电；切换模式后重建拍照闹钟，避免沿用全工作模式下的调度。
                 refreshPhotoSchedule();
@@ -1025,6 +1065,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isWakeupKeepAliveMode = false;
                 Log.i(TAG,
                         "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
+                powerOffMipi("切换到休眠模式");
                 interfacePowerOff();
                 doSleep("切换为休眠模式", 23);
                 break;
@@ -1386,6 +1427,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     sleepDevice(channel, "可见光拍照成功");
                 }
             }
+            if (dev.isCamera()) {
+                powerOffMipiIfIdle("MIPI拍照成功");
+            }
             /////
 
             // 这个地方需要恢复状态 sunwu
@@ -1438,6 +1482,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         } else {
                             sleepDevice(channel, "可见光拍照失败");
                         }
+                    }
+                    if (dev.isCamera()) {
+                        powerOffMipiIfIdle("MIPI拍照失败");
                     }
 
                     // 拍照失败是需要恢复到正常状态 sunwu
@@ -1521,6 +1568,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
             if (dev.isCamera()) {
                 Log.d(Log.TAG, "MIPI摄像头录制成功：" + file);
+                powerOffMipiIfIdle("MIPI录制完成");
             }
             /////
             if (upload)
@@ -1558,6 +1606,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 } else {
                     sleepDevice(channel, "可见光录制失败");
                 }
+            }
+            if (dev.isCamera()) {
+                powerOffMipiIfIdle("MIPI录制失败");
             }
             /////
         }
@@ -3352,23 +3403,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     break;
                 }
             }
-            if (camera == null) {
-                for (int i = 0; i < 3; i++) {
-                    boolean errcode = RS485Impl.Instance().gpioCloseMIPI();
-                    Log.i(Log.TAG, String.format("MIPI下电%s", errcode ? "成功" : "失败"));
-                    if (errcode) {
-                        break;
-                    }
-                }
-            }
-            if (camera != null) {
-                for (int i = 0; i < 3; i++) {
-                    boolean errcode = RS485Impl.Instance().gpioOpenMIPI();
-                    Log.i(Log.TAG, String.format("MIPI上电%s", errcode ? "成功" : "失败"));
-                    if (errcode) {
-                        break;
-                    }
-                }
+            if (camera != null && currentMode == MODE_FULL) {
+                powerOnMipiIfNeeded("初始化全工作模式");
+            } else {
+                powerOffMipi("初始化唤醒/休眠模式或无MIPI设备");
             }
             if (speaker == null) {
                 for (int i = 0; i < 3; i++) {
@@ -6871,6 +6909,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         markWakeupActivity(dev, "唤醒模式下录制短视频");
+        if (currentMode == MODE_WAKEUP && dev.isCamera()) {
+            powerOnMipiIfNeeded("唤醒模式下MIPI录制短视频");
+        }
 
         cpuLock();
         String fn = getFileName(channel, stream, EXT_MP4, time);
@@ -6920,6 +6961,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             public void openFailed(int errcode) {
                 DeviceExceptionManager.openFailed();
                 finishTask(fn);
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI录制短视频打开失败");
+                }
 
                 if (deviceConfig.toCheck && channel == 2) {
                     applyPowerTuning();
@@ -6952,6 +6996,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         markWakeupActivity(dev, "唤醒模式下录制短视频");
+        if (currentMode == MODE_WAKEUP && dev.isCamera()) {
+            powerOnMipiIfNeeded("唤醒模式下MIPI定时录制短视频");
+        }
 
         cpuLock();
         String fn = getFileName(item.channel, item.stream, EXT_MP4, item.duration);
@@ -7004,6 +7051,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             public void openFailed(int errcode) {
                 DeviceExceptionManager.openFailed(); /////
                 finishTask(fn);
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI定时录制短视频打开失败");
+                }
 
                 /// sunwu
                 if (deviceConfig.toCheck && item.channel == 2) {
@@ -7175,12 +7225,20 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (devBusyRecording()) return 3;
             // 如果另一个摄像头在直播，停掉直播
             closeOtherPlayingCamera(dev);
+            if (currentMode == MODE_WAKEUP) {
+                powerOnMipiIfNeeded("唤醒模式下MIPI直播预览");
+            }
         }
         /////
 
         if (dev.streamClient == null) {
             dev.streamClient = new SocketClient(server, port, network == 0);
-            if (!dev.streamClient.open()) return 4;
+            if (!dev.streamClient.open()) {
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI直播推流连接失败");
+                }
+                return 4;
+            }
         }
 
         OSD osd = settings.osds.get(String.valueOf(channel));
@@ -7209,6 +7267,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 showMsg("直播预览：" + (ret ? "成功" : "失败"));
                 if (!ret) {
                     finishTask(TaskManager.Task.Living.toString());
+                    if (dev.isCamera()) {
+                        powerOffMipiIfIdle("MIPI直播预览启动失败");
+                    }
                     return;
                 }
                 //Date now = new Date();
@@ -7239,6 +7300,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
                 /////
                 finishTask(TaskManager.Task.Living.toString());
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI直播预览打开失败");
+                }
                 /////
                 if (dev.isDVR()) {
                     if (dev.isUSB()) {
@@ -7358,6 +7422,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (devBusyRecording()) return;
             // 如果另一个摄像头在直播，停掉直播
             closeOtherPlayingCamera(dev);
+            if (currentMode == MODE_WAKEUP) {
+                powerOnMipiIfNeeded("唤醒模式下MIPI本地预览");
+            }
         }
         /////
 
@@ -7399,6 +7466,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     dev.move(2, preset);  // MIPI摄像头不调用预置位
                 }
                 boolean ok = dev.liveStart(streamType, 1234);
+                if (!ok && dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI本地预览启动失败");
+                }
 
                 if (dev.isUSB() && !irLiveRegions.isEmpty()) { /////
                     irLiveRegions.clear();
@@ -7439,6 +7509,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
 
                 finishTask(TaskManager.Task.Living.toString());
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI本地预览打开失败");
+                }
                 /////
             }
         };
@@ -7467,6 +7540,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     } else {
                         sleepDevice(channel, "可见光停止直播");
                     }
+                }
+                if (dev.isCamera()) {
+                    powerOffMipiIfIdle("MIPI停止直播");
                 }
             }
             releaseDecoder();
@@ -7676,7 +7752,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // OPENED 只是资源残留态，不算业务忙；只把正在执行的业务状态纳入保活判断。
         // 否则短视频/回放结束后设备可能因为状态未及时回收而一直不能回到唤醒待机。
         return dev != null
-                && dev.isDVR()
                 && (dev.isOpening()
                 || dev.isRecording()
                 || dev.isLiving()
@@ -8811,6 +8886,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (dev.isRecording()) dev.videoStop();
         }
         /////
+        if (currentMode == MODE_WAKEUP && dev.isCamera()) {
+            powerOnMipiIfNeeded("唤醒模式下MIPI拍照");
+        }
 
         cpuLock();
         String fn = filename == null ? getFileName(channel, preset, EXT_JPG, 0) : filename;
