@@ -530,6 +530,28 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
     private final ConcurrentHashMap<String, Integer> scheduledPhotoKeepAliveFiles = new ConcurrentHashMap<>();
 
+    private static class LiveStartSession {
+        boolean starting;
+        boolean delayStop;
+        int streamType;
+        int currentSsrc;
+        int network;
+        String server;
+        int port;
+        long startSeq;
+    }
+
+    private static class LiveStartTarget {
+        int streamType;
+        int ssrc;
+        int network;
+        String server;
+        int port;
+    }
+
+    private final Map<Integer, LiveStartSession> liveStartSessions = new HashMap<>();
+    private long liveStartSeq = 0;
+
 
     /// 短视频录制请求过快，会导致问题
     class VideoTask {
@@ -7316,6 +7338,117 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    private synchronized long beginLiveStartSession(int channel, int streamType, int network, int ssrc, String server, int port) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        if (session == null) {
+            session = new LiveStartSession();
+            liveStartSessions.put(channel, session);
+        }
+        session.starting = true;
+        session.delayStop = false;
+        session.streamType = streamType;
+        session.currentSsrc = ssrc;
+        session.network = network;
+        session.server = server;
+        session.port = port;
+        session.startSeq = ++liveStartSeq;
+        Log.i(Log.TAG, "直播启动会话开始，channel=" + channel + ", ssrc=" + ssrc + ", startSeq=" + session.startSeq);
+        return session.startSeq;
+    }
+
+    private synchronized LiveStartTarget getLiveStartTarget(int channel, long startSeq) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        if (session == null || !session.starting || session.startSeq != startSeq) return null;
+
+        LiveStartTarget target = new LiveStartTarget();
+        target.streamType = session.streamType;
+        target.ssrc = session.currentSsrc;
+        target.network = session.network;
+        target.server = session.server;
+        target.port = session.port;
+        return target;
+    }
+
+    private synchronized boolean isSameLiveStartSession(int channel, long startSeq) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        return session != null && session.startSeq == startSeq;
+    }
+
+    private synchronized void clearLiveStartSession(int channel, long startSeq) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        if (session == null || session.startSeq != startSeq) return;
+
+        session.starting = false;
+        session.delayStop = false;
+        Log.i(Log.TAG, "直播启动会话清理，channel=" + channel + ", startSeq=" + startSeq);
+    }
+
+    private synchronized boolean finishLiveStartSessionAfterOpen(int channel, long startSeq) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        if (session == null || session.startSeq != startSeq) return false;
+
+        boolean delayStop = session.delayStop;
+        session.starting = false;
+        session.delayStop = false;
+        Log.i(Log.TAG, "直播启动会话收口，channel=" + channel + ", delayStop=" + delayStop + ", startSeq=" + startSeq);
+        return delayStop;
+    }
+
+    private synchronized boolean markDelayStopIfLiveStarting(int channel, int ssrc) {
+        LiveStartSession session = liveStartSessions.get(channel);
+        if (session == null || !session.starting) return false;
+
+        if (ssrc != 0 && session.currentSsrc != 0 && ssrc != session.currentSsrc) {
+            Log.i(Log.TAG, "直播启动中收到旧SSRC停止，忽略实际停止，channel=" + channel
+                    + ", stopSsrc=" + ssrc + ", currentSsrc=" + session.currentSsrc);
+            return true;
+        }
+
+        session.delayStop = true;
+        Log.i(Log.TAG, "直播启动中收到停止，记录延迟停止，channel=" + channel + ", ssrc=" + ssrc);
+        return true;
+    }
+
+    private short reuseStartingLiveSessionIfNeeded(Device dev, int channel, int streamType, int network, int ssrc, String server, int port) {
+        if (dev == null || !dev.isDVR()) return -1;
+
+        boolean endpointChanged;
+        synchronized (this) {
+            LiveStartSession session = liveStartSessions.get(channel);
+            if (session == null || !session.starting) return -1;
+
+            endpointChanged = session.network != network
+                    || session.port != port
+                    || (session.server == null ? server != null : !session.server.equals(server));
+
+            Log.i(Log.TAG, "直播启动中收到新拉流，复用当前启动流程，channel=" + channel
+                    + ", oldSsrc=" + session.currentSsrc + ", newSsrc=" + ssrc);
+
+            session.streamType = streamType;
+            session.network = network;
+            session.currentSsrc = ssrc;
+            session.server = server;
+            session.port = port;
+            session.delayStop = false;
+        }
+
+        if (endpointChanged && dev.streamClient != null) {
+            try {
+                dev.streamClient.close();
+            } catch (Exception e) {
+                Log.i(Log.TAG, "关闭旧直播推流连接异常：" + e);
+            }
+            dev.streamClient = new SocketClient(server, port, network == 0);
+            if (!dev.streamClient.open()) {
+                Log.i(Log.TAG, "直播启动中切换新推流连接失败，channel=" + channel + ", ssrc=" + ssrc);
+                dev.streamClient = null;
+                return 4;
+            }
+        }
+
+        return 0;
+    }
+
 
     @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
@@ -7337,8 +7470,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return 2;
         }
 
+        short reuseResult = reuseStartingLiveSessionIfNeeded(dev, channel, streamType, network, ssrc, server, port);
+        if (reuseResult >= 0) return reuseResult;
+
 //        if (电量不够) return 2;
         if (dev.isLiving()) return 1; /////
+
+        final long liveStartSessionSeq = dev.isDVR()
+                ? beginLiveStartSession(channel, streamType, network, ssrc, server, port)
+                : 0;
 
         cpuLock();
 
@@ -7374,9 +7514,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         /////
 
+        LiveStartTarget liveStartTarget = dev.isDVR() ? getLiveStartTarget(channel, liveStartSessionSeq) : null;
+        String liveServer = liveStartTarget != null ? liveStartTarget.server : server;
+        int livePort = liveStartTarget != null ? liveStartTarget.port : port;
+        int liveNetwork = liveStartTarget != null ? liveStartTarget.network : network;
+
         if (dev.streamClient == null) {
-            dev.streamClient = new SocketClient(server, port, network == 0);
+            dev.streamClient = new SocketClient(liveServer, livePort, liveNetwork == 0);
             if (!dev.streamClient.open()) {
+                if (dev.isDVR()) {
+                    clearLiveStartSession(channel, liveStartSessionSeq);
+                }
                 if (dev.isCamera()) {
                     powerOffMipiIfIdle("MIPI直播推流连接失败");
                 }
@@ -7391,6 +7539,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device.onOpenCallback callback = dev.new onOpenCallback() {
             @Override
             public void openSucceed() {
+                LiveStartTarget target = dev.isDVR() ? getLiveStartTarget(channel, liveStartSessionSeq) : null;
+                if (dev.isDVR() && target == null) {
+                    Log.i(Log.TAG, "忽略旧直播启动成功回调，channel=" + channel + ", startSeq=" + liveStartSessionSeq);
+                    return;
+                }
+                final int liveStreamType = target != null ? target.streamType : streamType;
+                final int liveSsrc = target != null ? target.ssrc : ssrc;
 
                 // sunwu
                 if (deviceConfig.toCheck && channel == 2) {
@@ -7405,16 +7560,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     dev.timeSync();
                 }
                 ////////
-                boolean ret = dev.liveStart(streamType, ssrc);
+                boolean ret = dev.liveStart(liveStreamType, liveSsrc);
 
                 showMsg("直播预览：" + (ret ? "成功" : "失败"));
                 if (!ret) {
+                    if (dev.isDVR()) {
+                        clearLiveStartSession(channel, liveStartSessionSeq);
+                    }
                     finishTask(TaskManager.Task.Living.toString());
                     if (dev.isCamera()) {
                         powerOffMipiIfIdle("MIPI直播预览启动失败");
                     }
                     return;
                 }
+                boolean needStopAfterOpen = dev.isDVR()
+                        && finishLiveStartSessionAfterOpen(channel, liveStartSessionSeq);
                 //Date now = new Date();
                 //dev.setTime(now.getYear() + 1900, now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
                 ////////
@@ -7426,11 +7586,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
                 }
                 ////////
+                if (needStopAfterOpen) {
+                    Log.i(Log.TAG, "直播启动成功后执行延迟停止，channel=" + channel + ", ssrc=" + liveSsrc);
+                    stopLiveVideo(channel, liveStreamType, liveSsrc);
+                    return;
+                }
                 updateOnline("直播预览");
             }
 
             @Override
             public void openFailed(int errcode) {
+                if (dev.isDVR() && !isSameLiveStartSession(channel, liveStartSessionSeq)) {
+                    Log.i(Log.TAG, "忽略旧直播启动失败回调，channel=" + channel + ", startSeq=" + liveStartSessionSeq);
+                    return;
+                }
+                if (dev.isDVR()) {
+                    clearLiveStartSession(channel, liveStartSessionSeq);
+                }
                 showMsg("直播预览：失败");
                 /////
                 Device dev = channels.get(String.valueOf(channel));
@@ -7665,6 +7837,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     public boolean stopLiveVideo(int channel, int streamType, int ssrc) {
         Device dev = channels.get(String.valueOf(channel));
+
+        if (dev != null && dev.isDVR() && markDelayStopIfLiveStarting(channel, ssrc)) {
+            Log.i(Log.TAG, "直播启动中收到停止，命令已响应，等待启动流程收口后执行停止，channel="
+                    + channel + ", ssrc=" + ssrc);
+            return true;
+        }
 
         try {
             // 在打开球机的过程中允许停止
