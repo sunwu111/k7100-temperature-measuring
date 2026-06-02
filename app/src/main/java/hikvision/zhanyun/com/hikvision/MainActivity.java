@@ -2126,7 +2126,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                     return String.format(
                             "通信%s %s %ddBm %s %s\n" +                 // 第二行
-                                    "温度%3.1f℃\n" +         // 第三行
+                                    "负载%2.2fA/%3.1f℃\n" +         // 第三行
                                     "%s" +                                    // 微气象和位置
                                     "软件V%s %s %d",                        // 第七行
 
@@ -2135,6 +2135,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                             signalDBM,
                             humanReadableByteCount(trafficLeft, false),
                             subString(iccid, 15),
+                            loadAmpler,
 
                             cpuTemp,
 
