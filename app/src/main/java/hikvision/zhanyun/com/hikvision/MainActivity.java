@@ -1954,13 +1954,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private static String Location2String(Location location) {
 
-                return "位置000.000000E 000.000000N";  // 测试用例
+                // return "位置000.000000E 000.000000N";  // 测试用例
                 // return "";  // 测试用例
 
-//        if (settings.location == null || settings.location.isEmpty()) {
-//            loadLocationFromConfig();
-//        }
-//        return settings.location != null ? settings.location : "";
+       if (settings.location == null || settings.location.isEmpty()) {
+           loadLocationFromConfig();
+       }
+       return settings.location != null ? settings.location : "";
 
     }
 
@@ -1968,58 +1968,58 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static String aeroStatusText() {
         
         // return"气象28.3℃ 36.1%RH 20.1m/s 50°22.0mm 1001.1hPa\n";   // 测试用例
-        return"";   // 测试用例
+        // return"";   // 测试用例
 
-//        AeroInfo aeroInfo = aeroInfoAtomicReference.get();
-//
-//        if (aeroInfo == null) return "";
-//        try {
-//            switch (deviceConfig.aeroDevice) {
-//                case 1:
-//                case 2:
-//                    if (aeroInfo.WindSpeed < 0.1) aeroInfo.WindDirection = 0;
-//
-//                    return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d˚%.1fmm\n",
-//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
-//                            aeroInfo.WindDirection, aeroInfo.RainFall);
-//                case 3:
-//                case 4:
-//                    return String.format("气象%.1f℃/%.1f%%/%.0fhPa/%.1fm/s",
-//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
-//                case 5:
-//                    return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚/%.1fmm/%.0fhPa",
-//                            aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
-//                            aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
-//                case 6:
-//
-//                    return String.format(
-//                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fhPa\n",
-//                            aeroInfo.Temp,
-//                            aeroInfo.Humidity,
-//                            aeroInfo.WindSpeed,
-//                            aeroInfo.WindDirection,
-//                            aeroInfo.AtomosPress
-//                    );
-//
-//                case 7:
-//
-//                    return String.format(
-//                            "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.1fhPa\n",
-//                            aeroInfo.Temp,
-//                            aeroInfo.Humidity,
-//                            aeroInfo.WindSpeed,
-//                            aeroInfo.WindDirection,
-//                            aeroInfo.RainFall,
-//                            aeroInfo.AtomosPress
-//                    );
-//
-//                default:
-//                    return "";
-//            }
-//        } catch (Exception e) {
-//            Log.e(Log.TAG, "微气象osd出错：" + e.getMessage());
-//            return "";
-//        }
+       AeroInfo aeroInfo = aeroInfoAtomicReference.get();
+
+       if (aeroInfo == null) return "";
+       try {
+           switch (deviceConfig.aeroDevice) {
+               case 1:
+               case 2:
+                   if (aeroInfo.WindSpeed < 0.1) aeroInfo.WindDirection = 0;
+
+                   return String.format("微气象%.1f℃%.1fRh%.0fhPa%.1fm/s%d˚%.1fmm\n",
+                           aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed,
+                           aeroInfo.WindDirection, aeroInfo.RainFall);
+               case 3:
+               case 4:
+                   return String.format("气象%.1f℃/%.1f%%/%.0fhPa/%.1fm/s",
+                           aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.AtomosPress, aeroInfo.WindSpeed);
+               case 5:
+                   return String.format("气象%.1f℃/%.1f%%/%.1fm/s/%d˚/%.1fmm/%.0fhPa",
+                           aeroInfo.Temp, aeroInfo.Humidity, aeroInfo.WindSpeed,
+                           aeroInfo.WindDirection, aeroInfo.RainFall, aeroInfo.AtomosPress);
+               case 6:
+
+                   return String.format(
+                           "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fhPa\n",
+                           aeroInfo.Temp,
+                           aeroInfo.Humidity,
+                           aeroInfo.WindSpeed,
+                           aeroInfo.WindDirection,
+                           aeroInfo.AtomosPress
+                   );
+
+               case 7:
+
+                   return String.format(
+                           "气象%.1f℃ %.1f%%RH %.1fm/s %d° %.1fmm %.1fhPa\n",
+                           aeroInfo.Temp,
+                           aeroInfo.Humidity,
+                           aeroInfo.WindSpeed,
+                           aeroInfo.WindDirection,
+                           aeroInfo.RainFall,
+                           aeroInfo.AtomosPress
+                   );
+
+               default:
+                   return "";
+           }
+       } catch (Exception e) {
+           Log.e(Log.TAG, "微气象osd出错：" + e.getMessage());
+           return "";
+       }
     }
 
     private static boolean isOsdTextEmpty(String text) {
@@ -5790,13 +5790,18 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         AeroInfo aeroInfo = new AeroInfo();
         if (deviceConfig.aeroDevice == 6 || deviceConfig.aeroDevice == 7){
             float[] data = intent.getFloatArrayExtra("aeroinfo");
+            if (data == null || data.length < 7) {
+                Log.i(Log.TAG, "微气象数据长度不足，无法解析：" + (data == null ? 0 : data.length));
+                return;
+            }
             aeroInfo.Temp = data[0];              // 温度
             aeroInfo.Humidity = data[1];          // 湿度
             aeroInfo.AtomosPress = data[2];       // 气压
             aeroInfo.WindDirection = (int) data[6];  // 风向
 
-            aeroInfo.RainFall = data[10];             // 雨量间隔累计
+            // aeroInfo.RainFall = data.length > 10 ? data[10] : -999;             // 雨量间隔累计
 //            data[9] 是雨强
+            aeroInfo.RainFall = 0;
 
             if (deviceConfig.aeroDevice == 6){
                 aeroInfo.RainFall = -999;

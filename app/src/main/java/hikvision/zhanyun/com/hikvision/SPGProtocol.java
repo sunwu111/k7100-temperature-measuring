@@ -422,6 +422,7 @@ public class SPGProtocol {
                 echoBack(ORDER_22H);
                 break;
             case ORDER_25H:
+                s += "微气象数据处理完成";
                 if (dataLen == 0) echoBack(ORDER_25H);
                 break;
             case ORDER_26H:
