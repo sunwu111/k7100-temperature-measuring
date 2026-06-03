@@ -529,6 +529,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
     private final ConcurrentHashMap<String, Integer> scheduledPhotoKeepAliveFiles = new ConcurrentHashMap<>();
+    // 山火告警可能在短时间内连续触发，这里合并 1 分钟内的重复告警，避免瞬间上报大量 2DH 指令。
+    private static final long FIRE_ALARM_REPORT_MERGE_MS = PERIOD_MINUTE;
+    private final Object fireAlarmReportLock = new Object();
+    private long lastFireAlarmReportElapsed = 0;
+    private FireAlarmInfo pendingFireAlarmInfo;
+    private boolean fireAlarmReportScheduled = false;
 
     private static class LiveStartSession {
         boolean starting;
@@ -1431,6 +1437,81 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private RTPH264 rtph264 = null;
     private MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+
+    // 告警对象会被设备侧继续更新，进入延迟队列前复制一份，避免后续数值变化影响已排队的上报内容。
+    private FireAlarmInfo copyFireAlarmInfo(FireAlarmInfo info) {
+        FireAlarmInfo copy = new FireAlarmInfo();
+        copy.alarmNum = info.alarmNum;
+        copy.alarmTime = info.alarmTime;
+        return copy;
+    }
+
+    private void postFireAlarmReport(FireAlarmInfo info, String reason) {
+        Log.i(Log.TAG, String.format("山火告警合并上报：%s，报警次数：%d", reason, info.alarmNum));
+        uploadHandler.post(() -> spgProtocol.doAlertFireAlarm(info));
+    }
+
+    // 第一次告警立即上报；1 分钟内重复告警只保留最新一次，到窗口结束后再合并上报一次。
+    private void handleFireAlarmReport(FireAlarmInfo info) {
+        if (info == null) return;
+
+        FireAlarmInfo reportNow = null;
+        long delay = 0;
+        synchronized (fireAlarmReportLock) {
+            long now = SystemClock.elapsedRealtime();
+            if (lastFireAlarmReportElapsed == 0 || now - lastFireAlarmReportElapsed >= FIRE_ALARM_REPORT_MERGE_MS) {
+                lastFireAlarmReportElapsed = now;
+                pendingFireAlarmInfo = null;
+                fireAlarmReportScheduled = false;
+                reportNow = copyFireAlarmInfo(info);
+            } else {
+                // 合并窗口内重复触发时，不立即发送 2DH，只刷新待上报的最新告警信息。
+                pendingFireAlarmInfo = copyFireAlarmInfo(info);
+                if (!fireAlarmReportScheduled) {
+                    fireAlarmReportScheduled = true;
+                    delay = FIRE_ALARM_REPORT_MERGE_MS - (now - lastFireAlarmReportElapsed);
+                }
+            }
+        }
+
+        if (reportNow != null) {
+            postFireAlarmReport(reportNow, "立即上报");
+        } else if (delay > 0) {
+            Log.i(Log.TAG, "山火告警合并上报：1分钟内重复告警，延迟合并上报");
+            uploadHandler.postDelayed(this::flushPendingFireAlarmReport, delay);
+        }
+    }
+
+    // 延迟任务到点后发送合并结果；如果时间窗口被系统调度提前唤醒，则继续补齐剩余等待时间。
+    private void flushPendingFireAlarmReport() {
+        FireAlarmInfo reportInfo = null;
+        long delay = 0;
+        synchronized (fireAlarmReportLock) {
+            if (pendingFireAlarmInfo == null) {
+                fireAlarmReportScheduled = false;
+                return;
+            }
+
+            long now = SystemClock.elapsedRealtime();
+            long elapsed = now - lastFireAlarmReportElapsed;
+            if (elapsed < FIRE_ALARM_REPORT_MERGE_MS) {
+                delay = FIRE_ALARM_REPORT_MERGE_MS - elapsed;
+            } else {
+                reportInfo = pendingFireAlarmInfo;
+                pendingFireAlarmInfo = null;
+                fireAlarmReportScheduled = false;
+                lastFireAlarmReportElapsed = now;
+            }
+        }
+
+        if (reportInfo != null) {
+            Log.i(Log.TAG, String.format("山火告警合并上报：延迟上报，报警次数：%d", reportInfo.alarmNum));
+            spgProtocol.doAlertFireAlarm(reportInfo);
+        } else if (delay > 0) {
+            uploadHandler.postDelayed(this::flushPendingFireAlarmReport, delay);
+        }
+    }
+
     ControllerCallback controllerCallback = new ControllerCallback() {
         private final int PHOTO_MAX_RETRY = 3;
         private ConcurrentHashMap<String, Integer> photoFailerMap = new ConcurrentHashMap<>();
@@ -1777,9 +1858,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         @Override
         public void onFireAlarm(FireAlarmInfo info) {
-            uploadHandler.post(() -> {
-                spgProtocol.doAlertFireAlarm(info); /////
-            });
+            handleFireAlarmReport(info);
         }
 
         @Override
