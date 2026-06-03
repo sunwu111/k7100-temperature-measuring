@@ -396,29 +396,59 @@ public class Settings {
 
         public static Point getImageSize(int pixel) {
             Point[] points = new Point[]{
+//                    new Point(1920, 1080),
+//                    new Point(320, 240),
+//                    new Point(640, 480),
+//                    new Point(704, 576),
+//                    new Point(800, 600),
+//                    new Point(1024, 768),
+//                    new Point(1280, 1024),
+//                    new Point(1280, 720),
+//                    new Point(1920, 1080), // 8
+//                    new Point(960, 576),
+//                    new Point(1280, 960),
+//                    new Point(1600, 1200), // 11
+//                    new Point(2048, 1536), // 12
+//                    new Point(2592, 1520), // 13
+//                    new Point(2592, 1944), // 14
+//                    new Point(3072, 2048), // 15
+//                    new Point(3840, 2160), // 16
+//                    new Point(4000, 3000), // 17
+//                    new Point(4608, 3456), // 18
+//                    new Point(3200, 2400), // 19
+//                    new Point(4224, 3136), // 20
+//                    new Point(384, 288), // 英睿红外分辨率
+//                    new Point(640, 512) // 高德红外分辨率
+
+
                     new Point(1920, 1080),
-                    new Point(320, 240),
-                    new Point(640, 480),
-                    new Point(704, 576),
-                    new Point(800, 600),
-                    new Point(1024, 768),
-                    new Point(1280, 1024),
-                    new Point(1280, 720),
-                    new Point(1920, 1080), // 8
-                    new Point(960, 576),
-                    new Point(1280, 960),
-                    new Point(1600, 1200), // 11
-                    new Point(2048, 1536), // 12
-                    new Point(2592, 1520), // 13
-                    new Point(2592, 1944), // 14
-                    new Point(3072, 2048), // 15
-                    new Point(3840, 2160), // 16
-                    new Point(4000, 3000), // 17
-                    new Point(4608, 3456), // 18
-                    new Point(3200, 2400), // 19
-                    new Point(4224, 3136), // 20
+                    new Point(176, 144),    // 0
+                    new Point(352, 288),    // 1
+                    new Point(704, 288),    // 2
+                    new Point(704, 576),    // 3
+                    new Point(320, 240),    // 4
+                    new Point(640, 480),    // 5
+                    new Point(1280, 720),   // 6
+                    new Point(1280, 960),   // 7
+                    new Point(1600, 1200),  // 8
+                    new Point(1024, 768),   // 9
+                    new Point(800, 600),    // 10
+                    new Point(1280, 1024),  // 11
+                    new Point(2048, 1536),  // 12
+                    new Point(1920, 1080),  // 13
+                    new Point(2592, 1944),  // 14
+                    new Point(960, 576),    // 15
+                    new Point(2592, 1520),  // 16
+                    new Point(3840, 2160),  // 17
+                    new Point(4608, 3456),  // 18
+                    new Point(4000, 3000),  // 19
+                    new Point(3072, 2048),  // 20
+                    new Point(3200, 2400),  // 21
+                    new Point(4224, 3136),  // 22
                     new Point(384, 288), // 英睿红外分辨率
                     new Point(640, 512) // 高德红外分辨率
+
+
             };
             if (pixel < 0 || pixel > points.length - 1) pixel = 0;
             return points[pixel];
@@ -446,30 +476,56 @@ public class Settings {
 
         public static Point getResolution(int index) {
             Point[] points = new Point[]{
+//                    new Point(1280, 720),
+//                    new Point(320, 240),
+//                    new Point(640, 480),
+//                    new Point(704, 576),
+//                    new Point(800, 600),
+//                    new Point(1024, 768),
+//                    new Point(1280, 1024),
+//                    new Point(1280, 720),
+//                    new Point(1920, 1080),
+//                    new Point(960, 576),
+//                    new Point(1280, 960),
+//                    new Point(1600, 1200), // 11
+//                    new Point(2048, 1536), // 12
+//                    new Point(2592, 1520), // 13
+//                    new Point(2592, 1944), // 14
+//                    new Point(3072, 2048), // 15
+//                    new Point(3840, 2160), // 16
+//                    new Point(4000, 3000), // 17
+//                    new Point(4608, 3456), // 18
+//                    new Point(3200, 2400), // 19
+//                    new Point(4224, 3136), // 20
+//                    new Point(720, 576),
+//                    new Point(384, 288),
+//                    new Point(640, 512)
                     new Point(1280, 720),
-                    new Point(320, 240),
-                    new Point(640, 480),
-                    new Point(704, 576),
-                    new Point(800, 600),
-                    new Point(1024, 768),
-                    new Point(1280, 1024),
-                    new Point(1280, 720),
-                    new Point(1920, 1080),
-                    new Point(960, 576),
-                    new Point(1280, 960),
-                    new Point(1600, 1200), // 11
-                    new Point(2048, 1536), // 12
-                    new Point(2592, 1520), // 13
-                    new Point(2592, 1944), // 14
-                    new Point(3072, 2048), // 15
-                    new Point(3840, 2160), // 16
-                    new Point(4000, 3000), // 17
-                    new Point(4608, 3456), // 18
-                    new Point(3200, 2400), // 19
-                    new Point(4224, 3136), // 20
-                    new Point(720, 576),
-                    new Point(384, 288),
+                    new Point(176, 144),    // 0
+                    new Point(352, 288),    // 1
+                    new Point(704, 288),    // 2
+                    new Point(704, 576),    // 3
+                    new Point(320, 240),    // 4
+                    new Point(640, 480),    // 5
+                    new Point(1280, 720),   // 6
+                    new Point(1280, 960),   // 7
+                    new Point(1600, 1200),  // 8
+                    new Point(1024, 768),   // 9
+                    new Point(800, 600),    // 10
+                    new Point(1280, 1024),  // 11
+                    new Point(2048, 1536),  // 12
+                    new Point(1920, 1080),  // 13
+                    new Point(2592, 1944),  // 14
+                    new Point(960, 576),    // 15
+                    new Point(2592, 1520),  // 16
+                    new Point(3840, 2160),  // 17
+                    new Point(4608, 3456),  // 18
+                    new Point(4000, 3000),  // 19
+                    new Point(3072, 2048),  // 20
+                    new Point(3200, 2400),  // 21
+                    new Point(4224, 3136),  // 22
                     new Point(640, 512)
+
             };
             if (index < 0 || index > points.length - 1) index = 0;
             return points[index];
@@ -477,27 +533,55 @@ public class Settings {
 
         public static byte getServerResolutionByXY(int w, int h) {
             Point[] points = new Point[]{
+//                    new Point(0, 0),
+//                    new Point(320, 240),
+//                    new Point(640, 480),
+//                    new Point(704, 576),
+//                    new Point(800, 600),
+//                    new Point(1024, 768),
+//                    new Point(1280, 1024),
+//                    new Point(1280, 720),
+//                    new Point(1920, 1080),
+//                    new Point(960, 576),
+//                    new Point(1280, 960),
+//                    new Point(1600, 1200), // 11
+//                    new Point(2048, 1536), // 12
+//                    new Point(2592, 1520), // 13
+//                    new Point(2592, 1944), // 14
+//                    new Point(3072, 2048), // 15
+//                    new Point(3840, 2160), // 16
+//                    new Point(4000, 3000), // 17
+//                    new Point(4608, 3456), // 18
+//                    new Point(3200, 2400), // 19
+//                    new Point(4224, 3136), // 20
+//                    new Point(720, 576),
+//                    new Point(384, 288), // 22 英睿红外分辨率
+//                    new Point(640, 512) // 23 高德红外分辨率
+
                     new Point(0, 0),
-                    new Point(320, 240),
-                    new Point(640, 480),
-                    new Point(704, 576),
-                    new Point(800, 600),
-                    new Point(1024, 768),
-                    new Point(1280, 1024),
-                    new Point(1280, 720),
-                    new Point(1920, 1080),
-                    new Point(960, 576),
-                    new Point(1280, 960),
-                    new Point(1600, 1200), // 11
-                    new Point(2048, 1536), // 12
-                    new Point(2592, 1520), // 13
-                    new Point(2592, 1944), // 14
-                    new Point(3072, 2048), // 15
-                    new Point(3840, 2160), // 16
-                    new Point(4000, 3000), // 17
-                    new Point(4608, 3456), // 18
-                    new Point(3200, 2400), // 19
-                    new Point(4224, 3136), // 20
+                    new Point(176, 144),    // 0
+                    new Point(352, 288),    // 1
+                    new Point(704, 288),    // 2
+                    new Point(704, 576),    // 3
+                    new Point(320, 240),    // 4
+                    new Point(640, 480),    // 5
+                    new Point(1280, 720),   // 6
+                    new Point(1280, 960),   // 7
+                    new Point(1600, 1200),  // 8
+                    new Point(1024, 768),   // 9
+                    new Point(800, 600),    // 10
+                    new Point(1280, 1024),  // 11
+                    new Point(2048, 1536),  // 12
+                    new Point(1920, 1080),  // 13
+                    new Point(2592, 1944),  // 14
+                    new Point(960, 576),    // 15
+                    new Point(2592, 1520),  // 16
+                    new Point(3840, 2160),  // 17
+                    new Point(4608, 3456),  // 18
+                    new Point(4000, 3000),  // 19
+                    new Point(3072, 2048),  // 20
+                    new Point(3200, 2400),  // 21
+                    new Point(4224, 3136),  // 22
                     new Point(720, 576),
                     new Point(384, 288), // 22 英睿红外分辨率
                     new Point(640, 512) // 23 高德红外分辨率

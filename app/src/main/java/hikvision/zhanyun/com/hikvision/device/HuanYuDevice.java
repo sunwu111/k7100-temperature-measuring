@@ -797,15 +797,25 @@ public class HuanYuDevice extends MyOnvifDevice {
                 // 获取当前配置的分辨率
                 Point imageSize = Settings.PhotoConfig.getImageSize(photoConfig.size);
                 boolean is640x480 = (imageSize.x == 640 && imageSize.y == 480);
-                boolean is320x240 = (imageSize.x == 320 && imageSize.y == 240);
-                useSmallPhotoOsd = is320x240;
+                boolean is704x288 = (imageSize.x == 704 && imageSize.y == 288);
+                boolean is704x576 = (imageSize.x == 704 && imageSize.y == 576);
+                boolean isSmallPhotoOsdSize = (imageSize.x == 176 && imageSize.y == 144)
+                        || (imageSize.x == 352 && imageSize.y == 288)
+                        || (imageSize.x == 320 && imageSize.y == 240);
+                useSmallPhotoOsd = isSmallPhotoOsdSize;
 
                 boolean downloadSuccess;
                 if (is640x480) {
                     String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=640&height=480";
                     downloadSuccess = download(customUrl, filename, "admin", "admin888");
-                } else if (is320x240) {
-                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=320&height=240";
+                } else if (is704x288) {
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=704&height=288";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                } else if (is704x576) {
+                    String customUrl = "http://192.168.200.11/cgi-bin/snapshot.cgi?width=704&height=576";
+                    downloadSuccess = download(customUrl, filename, "admin", "admin888");
+                } else if (isSmallPhotoOsdSize) {
+                    String customUrl = String.format("http://192.168.200.11/cgi-bin/snapshot.cgi?width=%d&height=%d", imageSize.x, imageSize.y);
                     try {
                         setSnapOsdEnabled(false);
                         SystemClock.sleep(500);
