@@ -449,8 +449,19 @@ public class SPGProtocol {
                 echoBack(ORDER_2CH);
                 break;
             case ORDER_2DH:
-                // 上传山火报警数据（控制字：2DH），参考规约第7.24节，目前无数据，预留扩展接口
-                echoBack(ORDER_2DH);
+                if (dataLen == 0) {
+                    s += "主站请求山火报警数据";
+                    echoBack(ORDER_2DH);
+                } else if (dataLen == 3 && data.length >= 13
+                        && (data[11] & 0xFF) == 0xAA
+                        && (data[12] & 0xFF) == 0x55) {
+                    int frameId = data[10] & 0xFF;
+                    s += "主站确认山火报警数据";
+                    Log.i(Log.TAG, "收到主站2DH山火报警确认，帧标识：" + frameId + "，不再回发2DH");
+                } else {
+                    s += "山火报警数据格式不支持";
+                    Log.i(Log.TAG, "收到不支持的2DH数据域，长度：" + dataLen);
+                }
                 break;
             case ORDER_2EH:
                 // 上传大风舞动报警数据（控制字：2EH），参考规约第7.25节，目前无数据，预留扩展接口
