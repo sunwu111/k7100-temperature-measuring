@@ -1,5 +1,6 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -13,6 +14,7 @@ import android.os.IBinder;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 
 import hikvision.zhanyun.com.hikvision.utils.Log;
 import lyh.Utils;
@@ -121,13 +123,22 @@ public class WatchDog extends Service {
         try {
             ApplicationInfo info = getApplication().getApplicationInfo();
             boolean appAlive = Utils.isAppActivity(this, info.packageName);
-            int result = su(String.format("busybox ps -A | grep -w '%s$'", info.packageName));
-            Log.i(Log.TAG, "应用程序状态：" + appAlive + ", 进程状态：" + (result == 0 ? "运行" : "退出"));
-            if (!appAlive || result != 0) {
+            // shell 查询进程偶发查不到主进程，容易把正常运行误判成退出。
+            // 这里使用 ActivityManager 和多种 shell 命令共同确认，只要任一路确认存在就认为主进程正常。
+            boolean activityManagerAlive = isMainProcessAliveByActivityManager(info.packageName);
+            boolean shellAlive = isMainProcessAliveByShell(info.packageName);
+            boolean mainProcessAlive = appAlive || activityManagerAlive || shellAlive;
+            Log.i(Log.TAG, "应用程序状态：" + appAlive
+                    + ", ActivityManager进程状态：" + (activityManagerAlive ? "运行" : "退出")
+                    + ", shell进程状态：" + (shellAlive ? "运行" : "退出")
+                    + ", 主进程状态：" + (mainProcessAlive ? "运行" : "退出"));
+            if (!mainProcessAlive) {
                 rebootTimes++;
                 launchApk(this, info.packageName);
 
                 Log.e(Log.TAG, "主进程退出，重启应用");
+            } else {
+                rebootTimes = 0;
             }
             if (rebootTimes > 3) { // 有时进程内部jni程序挂掉会变成僵尸进程，apk重新启动失败，这时要重启系统了
                 su("ps -A|grep hikvision >> " + LOG_FILE);
@@ -137,6 +148,40 @@ public class WatchDog extends Service {
             }
         } catch (Exception e) {
             Log.e(Log.TAG, "看门狗处理应用异常：" + e.getMessage());
+        }
+    }
+
+    // 通过 Android 系统进程列表确认主进程，避免单纯依赖 ps 命令导致误判。
+    private boolean isMainProcessAliveByActivityManager(String packageName) {
+        try {
+            ActivityManager activityManager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (activityManager == null) return false;
+            List<ActivityManager.RunningAppProcessInfo> processes = activityManager.getRunningAppProcesses();
+            if (processes == null) return false;
+            for (ActivityManager.RunningAppProcessInfo process : processes) {
+                if (packageName.equals(process.processName)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "ActivityManager检查主进程异常：" + e.getMessage());
+        }
+        return false;
+    }
+
+    // 使用多种 shell 命令兜底确认主进程，兼容不同系统 busybox/ps/pidof 行为差异。
+    private boolean isMainProcessAliveByShell(String packageName) {
+        try {
+            if (su(String.format("pidof %s", packageName)) == 0) {
+                return true;
+            }
+            if (su(String.format("ps -A | grep -w '%s$'", packageName)) == 0) {
+                return true;
+            }
+            return su(String.format("busybox ps -A | grep -w '%s$'", packageName)) == 0;
+        } catch (Exception e) {
+            Log.i(Log.TAG, "shell检查主进程异常：" + e.getMessage());
+            return false;
         }
     }
 }
