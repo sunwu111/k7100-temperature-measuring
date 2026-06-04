@@ -337,6 +337,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static String[] POWER_ON = {"00:00:00"};  // 2025-03-22改，配置文件中可随意配置，之前是05:50:00
     private static String[] POWER_OFF = {"23:59:59"};  // 2025-03-22改，配置文件中可随意配置，之前是19:10:00
     private static DeviceConfig deviceConfig = new DeviceConfig();          // 通道JSON配置
+
+    public static int getChargeControl() {
+        return deviceConfig.chargeControl;
+    }
+
     private static SPGProtocol spgProtocol;                                  // 南网协议指令处理器
     private static InetSocketAddress cmdAddress;                       // 与南网服务器通信的地址
     private static DatagramSocket socket;                              // 与南网通信的UDP Socket

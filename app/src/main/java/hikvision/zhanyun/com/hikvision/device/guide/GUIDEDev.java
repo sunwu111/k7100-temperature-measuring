@@ -125,8 +125,6 @@ public class GUIDEDev extends Device {
     private MTUserParam mCoinMTParam = new MTUserParam();
     private float[] temperature;
     private int mFrameCount = 0;
-    private static Settings.DeviceConfig deviceConfig = new Settings.DeviceConfig();  // 通道JSON配置
-
     private int regionGreenId;  // 存储拼接图像左侧的区域索引
     private float regionY;  // 存储拼接图像左侧区域索引的纵坐标
     private int regionBlueId;  // 存储拼接图像区域的区域索引
@@ -1123,7 +1121,7 @@ public class GUIDEDev extends Device {
             if (!isOpen) {
                 Log.i(Log.TAG, "开启高德红外机芯失败，无法识别设备");
                 closeCamera();
-                if (deviceConfig.chargeControl == 6) {
+                if (MainActivity.getChargeControl() == 6) {
                     // 如果是汇能精电控制器并且使用GPIO分别控制云台与红外，就重启红外
                     final Device device = this;
                     controllerCallback.onCameraBlocked(device);
@@ -1177,6 +1175,10 @@ public class GUIDEDev extends Device {
         return time;// + " " + temp;
     }
 
+    private boolean shouldShowEnvironmentTemperature() {
+        return MainActivity.getChargeControl() == 6;
+    }
+
     /**
      * 绘制图片左上角水印
      */
@@ -1208,12 +1210,12 @@ public class GUIDEDev extends Device {
 //                    }
 //                }
 
-                if(deviceConfig.chargeControl == 6){
+                if (shouldShowEnvironmentTemperature()) {
                     String unit = (sensorConfig.measureUnit == 0) ? "°C" : "°F";
 //                    String temp = String.format("环境温度%3.1f%s", MainActivity.tempEnvironment, unit);
 //                    Log.e(Log.TAG,"tempEnvRegion"+MainActivity.tempEnvironment);
 //                    Log.e(Log.TAG,"temp:"+temp);
-                    String temp = null;
+                    String temp;
                     if (Float.isInfinite(MainActivity.tempEnvironment) || MainActivity.tempEnvironment == -200.0f) {
                         // 未接入汇能精电
                         temp = " ";
@@ -1375,7 +1377,7 @@ public class GUIDEDev extends Device {
         Canvas canvas = new Canvas(bitmap);
         if (imageStitch == 0) {
             float x = 10 * (float) bitmap.getWidth() / 640, y = 300 * (float) bitmap.getHeight() / 512;
-            if (regionEnvTemp != null && MainActivity.tempEnvRegion != Float.NEGATIVE_INFINITY) {
+            if (shouldShowEnvironmentTemperature() && regionEnvTemp != null && MainActivity.tempEnvRegion != Float.NEGATIVE_INFINITY) {
 
                 String unit = (sensorConfig.measureUnit == 0) ? "°C" : "°F";
                 canvas.drawText(String.format("[环境温度区域] %03.1f%s", MainActivity.tempEnvRegion,unit), x, y, tempPaint);
@@ -1399,7 +1401,7 @@ public class GUIDEDev extends Device {
                 regionY = 225 * (float) bitmap.getHeight() / 512;
                 regionGreenId = 1;
             }
-            if (regionEnvTemp != null && MainActivity.tempEnvRegion != Float.NEGATIVE_INFINITY && preset == 1) {
+            if (shouldShowEnvironmentTemperature() && regionEnvTemp != null && MainActivity.tempEnvRegion != Float.NEGATIVE_INFINITY && preset == 1) {
                 String unit = (sensorConfig.measureUnit == 0) ? "°C" : "°F";
 
                 canvas.drawText(String.format("[环境温度区域] %03.1f%s", MainActivity.tempEnvRegion,unit), x, regionY, tempPaint);
@@ -1443,7 +1445,7 @@ public class GUIDEDev extends Device {
                         }
                     }
                     drawTemperatures(bitmap, liveRegionsTemp, liveRegionsDistance, preset, iRSetting.imageStitch);
-                    if (regionEnvTemp != null) {
+                    if (shouldShowEnvironmentTemperature() && regionEnvTemp != null) {
                         // 只绘制设置了环境温度区域的预置位
                         if (preset == presetEnvTemp) {
                             regionEnvTemp.drawRegionTemp(bitmap, preset, iRSetting.imageStitch, regionBlueId);  // 绘制环境温度区域
@@ -1471,7 +1473,7 @@ public class GUIDEDev extends Device {
                         //Log.i(Log.TAG, "高德红外静态测温区域为空");
                     }
                     drawTemperatures(bitmap, staticRegions, staticRegionsDistance, preset, iRSetting.imageStitch);
-                    if (regionEnvTemp != null) {
+                    if (shouldShowEnvironmentTemperature() && regionEnvTemp != null) {
                         // 只绘制设置了环境温度区域的预置位
                         if (preset == presetEnvTemp) {
                             regionEnvTemp.drawRegionTemp(bitmap, preset, iRSetting.imageStitch, regionBlueId);  // 绘制环境温度区域
