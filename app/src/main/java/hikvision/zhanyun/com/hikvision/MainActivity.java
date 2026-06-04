@@ -528,12 +528,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static boolean isWakeupKeepAliveMode = false;
     // 唤醒模式下，业务结束后继续保活的时间。当前测试版本为 2 分钟，正式版本需要改回 15 分钟。
     private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
-    // 唤醒模式下通道一定时拍照后的独立保活时间。正式值为10分钟，当前测试版本使用1分钟。
-    private static final long WAKEUP_CHANNEL1_SCHEDULED_PHOTO_KEEP_ALIVE_MS = PERIOD_MINUTE;
+
+    // 唤醒模式下拍照完成后，按通道类型检查后续定时拍照任务：可见光看 10 分钟，红外看 15 分钟。
+    private static final int WAKEUP_RGB_PHOTO_FOLLOWUP_MINUTES = 10;
+    private static final int WAKEUP_IR_PHOTO_FOLLOWUP_MINUTES = 15;
+    
     // 下电前需要避开的拍照预热窗口：可见光拍照提前 3 分钟开云台，红外拍照提前 10 分钟开云台和红外。
     private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
-    private final ConcurrentHashMap<String, Integer> scheduledPhotoKeepAliveFiles = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, Integer> wakeupPhotoFollowupFiles = new ConcurrentHashMap<>();
     // 山火告警可能在短时间内连续触发，这里合并 1 分钟内的重复告警，避免瞬间上报大量 2DH 指令。
     private static final long FIRE_ALARM_REPORT_MERGE_MS = PERIOD_MINUTE;
     private final Object fireAlarmReportLock = new Object();
@@ -1541,17 +1545,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //            uploadHandler.post(() -> spgProtocol.doUploadFile(timestamp, file, channel, preset, SPGProtocol.FILE_TYPE.PHOTO, captureType)); ///////
             /////
             Device dev = channels.get(String.valueOf(channel));
-            if (dev.isDVR()) {
+            boolean wakeupPhotoHandled = handleWakeupPhotoFinished(dev, channel, file, "拍照成功");
+            if (!wakeupPhotoHandled && dev != null && dev.isDVR()) {
                 if (dev.isUSB()) {
                     sleepDevice(channel, "红外拍照成功");
                 } else {
                     sleepDevice(channel, "可见光拍照成功");
                 }
             }
-            if (scheduledPhotoKeepAliveFiles.remove(file) != null) {
-                resetWakeupTimer(WAKEUP_CHANNEL1_SCHEDULED_PHOTO_KEEP_ALIVE_MS, "通道一定时拍照完成");
-            }
-            if (dev.isCamera()) {
+            if (dev != null && dev.isCamera()) {
                 powerOffMipiIfIdle("MIPI拍照成功");
             }
             /////
@@ -1600,17 +1602,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     finishTask(filename);
                     /////
                     Device dev = channels.get(String.valueOf(channel));
-                    if (dev.isDVR()) {
+                    boolean wakeupPhotoHandled = handleWakeupPhotoFinished(dev, channel, filename, "拍照失败");
+                    if (!wakeupPhotoHandled && dev != null && dev.isDVR()) {
                         if (dev.isUSB()) {
                             sleepDevice(channel, "红外拍照失败");
                         } else {
                             sleepDevice(channel, "可见光拍照失败");
                         }
                     }
-                    if (dev.isCamera()) {
+                    if (dev != null && dev.isCamera()) {
                         powerOffMipiIfIdle("MIPI拍照失败");
                     }
-                    scheduledPhotoKeepAliveFiles.remove(filename);
 
                     // 拍照失败是需要恢复到正常状态 sunwu
                     if (deviceConfig.toCheck) {
@@ -6372,7 +6374,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(Log.TAG, "------定时拍照 - 时间:" + scheduledTime
                     + " 通道:" + item.channel
                     + " 预置位:" + (item.preset & 0xFF)+"------");
-            takePhoto(item.channel, item.preset & 0xFF, false, null, true, item.channel == 1);
+            takePhoto(item.channel, item.preset & 0xFF, false, null, true, item.channel == 1 || item.channel == 2);
             SystemClock.sleep(5000);
         });
     }
@@ -6744,7 +6746,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private boolean hasUpcomingPhotoTaskForChannel(int channel, int minutesWindow) {
-        if (settings.photoTimeTable.isEmpty()) {
+        if (settings == null || settings.photoTimeTable == null || settings.photoTimeTable.isEmpty()) {
             return false;
         }
         // 拍照计划是“每天固定时间”语义：如果今天的时间点已过，就按明天同一时间计算。
@@ -6767,12 +6769,42 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (diff >= 0 && diff <= java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
                 return true;
             }
-            // 由于时间表有序且我们只需要窗口内的任务，超过窗口即可提前结束
-            if (diff > java.util.concurrent.TimeUnit.MINUTES.toMillis(minutesWindow)) {
-                break;
-            }
         }
         return false;
+    }
+
+    private boolean hasUpcomingChannel1Or2PhotoTask(int minutesWindow) {
+        return hasUpcomingPhotoTaskForChannel(1, minutesWindow)
+                || hasUpcomingPhotoTaskForChannel(2, minutesWindow);
+    }
+
+    private boolean shouldUseWakeupPhotoFollowup(int channel) {
+        return currentMode == MODE_WAKEUP && (channel == 1 || channel == 2);
+    }
+
+    private boolean handleWakeupPhotoFinished(Device dev, int channel, String file, String reason) {
+        Integer trackedChannel = file == null ? null : wakeupPhotoFollowupFiles.remove(file);
+        if (currentMode != MODE_WAKEUP || trackedChannel == null) {
+            return false;
+        }
+
+        utilsHandler.removeCallbacks(mResetWakeupFlagTask);
+        isWakeupKeepAliveMode = false;
+
+        boolean isIrPhoto = dev != null && dev.isUSB();
+        int load = isIrPhoto ? 23 : 2;
+        int followupMinutes = isIrPhoto ? WAKEUP_IR_PHOTO_FOLLOWUP_MINUTES : WAKEUP_RGB_PHOTO_FOLLOWUP_MINUTES;
+        boolean hasUpcomingPhoto = hasUpcomingChannel1Or2PhotoTask(followupMinutes);
+        if (hasUpcomingPhoto) {
+            Log.i(Log.TAG, "唤醒模式拍照完成，后续" + followupMinutes + "分钟内存在通道一或通道二定时拍照任务，保持负载上电：" + reason + ", channel=" + channel);
+            doWakeup("拍照后等待后续定时拍照：" + reason, load);
+            resetWakeupTimer(followupMinutes * PERIOD_MINUTE, "拍照后等待后续定时拍照任务");
+        } else {
+            Log.i(Log.TAG, "唤醒模式拍照完成，后续" + followupMinutes + "分钟内没有通道一或通道二定时拍照任务，立即下电：" + reason + ", channel=" + channel);
+            isWakeupVideoPlaybackMode = false;
+            doSleep("拍照后无后续定时拍照：" + reason, load);
+        }
+        return true;
     }
 
 
@@ -8175,12 +8207,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private void markWakeupActivity(Device dev, String reason) {
+        markWakeupActivity(dev, reason, "唤醒模式普通任务");
+    }
+
+    private void markWakeupActivity(Device dev, String reason, String keepAliveReason) {
         if (currentMode != MODE_WAKEUP || dev == null || !dev.isDVR()) return;
         // 所有唤醒模式业务入口都应调用这里：
         // 可见光只需要开云台(load=2)，红外需要同时开云台和红外(load=23)，然后刷新保活倒计时。
         int load = dev.isUSB() ? 23 : 2;
         doWakeup(reason, load);
-        resetWakeupTimer();
+        resetWakeupTimer(WAKEUP_KEEP_ALIVE_MS, keepAliveReason);
     }
 
 
@@ -9282,7 +9318,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         takePhoto(channel, preset, show, filename, alert, false);
     }
 
-    private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert, boolean scheduledPhotoKeepAlive) {
+    private void takePhoto(int channel, int preset, boolean show, String filename, boolean alert, boolean scheduledPhotoTask) {
 
         if (isSleepMode()){
             Log.e(TAG,"设备处于休眠模式，不响应拍照");
@@ -9297,7 +9333,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下红外拍照" : "唤醒模式下可见光拍照");
+        markWakeupActivity(dev, dev.isUSB() ? "唤醒模式下红外拍照" : "唤醒模式下可见光拍照", "拍照启动阶段临时保活");
 
         /////
         if (dev.isDVR()) {
@@ -9321,8 +9357,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         cpuLock();
         String fn = filename == null ? getFileName(channel, preset, EXT_JPG, 0) : filename;
-        if (currentMode == MODE_WAKEUP && channel == 1 && scheduledPhotoKeepAlive) {
-            scheduledPhotoKeepAliveFiles.put(fn, channel);
+        if (shouldUseWakeupPhotoFollowup(channel)) {
+            wakeupPhotoFollowupFiles.put(fn, channel);
         }
         TaskManager.add(fn);
 
