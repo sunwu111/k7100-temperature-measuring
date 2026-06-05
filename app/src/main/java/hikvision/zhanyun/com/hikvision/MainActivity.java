@@ -532,7 +532,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 唤醒模式下拍照完成后，按通道类型检查后续定时拍照任务：可见光看 10 分钟，红外看 15 分钟。
     private static final int WAKEUP_RGB_PHOTO_FOLLOWUP_MINUTES = 10;
     private static final int WAKEUP_IR_PHOTO_FOLLOWUP_MINUTES = 15;
-    
+
     // 下电前需要避开的拍照预热窗口：可见光拍照提前 3 分钟开云台，红外拍照提前 10 分钟开云台和红外。
     private static final int RGB_PHOTO_PREHEAT_MINUTES = 3;
     private static final int IR_PHOTO_PREHEAT_MINUTES = 10;
