@@ -1683,7 +1683,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        public void onVideoFinished(long timestamp, int channel, int streamType, String file, boolean upload, int captureType) { ///////
             /////
             Device dev = channels.get(String.valueOf(channel));
-            if (dev.isDVR()) {
+            if (dev != null && dev.isDVR()) {
                 if (dev.isUSB()) {
                     Log.d(Log.TAG, "红外机芯录制成功：" + file);
                 } else {
@@ -1693,7 +1693,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     Log.d(Log.TAG, adbCommand);
                 }
             }
-            if (dev.isCamera()) {
+            if (dev != null && dev.isCamera()) {
                 Log.d(Log.TAG, "MIPI摄像头录制成功：" + file);
                 powerOffMipiIfIdle("MIPI录制完成");
             }
@@ -1705,7 +1705,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 TaskManager.remove(file);
 
             /////
-            if (dev.isDVR()) {
+            boolean wakeupVideoHandled = handleWakeupVideoFinished(dev, channel, "录制成功");
+            if (!wakeupVideoHandled && dev != null && dev.isDVR()) {
                 if (dev.isUSB()) {
                     sleepDevice(channel, "红外机芯录制成功");
                 } else {
@@ -1727,14 +1728,15 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
             /////
             Device dev = channels.get(String.valueOf(channel));
-            if (dev.isDVR()) {
+            boolean wakeupVideoHandled = handleWakeupVideoFinished(dev, channel, "录制失败");
+            if (!wakeupVideoHandled && dev != null && dev.isDVR()) {
                 if (dev.isUSB()) {
                     sleepDevice(channel, "红外录制失败");
                 } else {
                     sleepDevice(channel, "可见光录制失败");
                 }
             }
-            if (dev.isCamera()) {
+            if (dev != null && dev.isCamera()) {
                 powerOffMipiIfIdle("MIPI录制失败");
             }
             /////
@@ -6803,6 +6805,32 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.i(Log.TAG, "唤醒模式拍照完成，后续" + followupMinutes + "分钟内没有通道一或通道二定时拍照任务，立即下电：" + reason + ", channel=" + channel);
             isWakeupVideoPlaybackMode = false;
             doSleep("拍照后无后续定时拍照：" + reason, load);
+        }
+        return true;
+    }
+
+    private boolean handleWakeupVideoFinished(Device dev, int channel, String reason) {
+        if (currentMode != MODE_WAKEUP || dev == null || !dev.isDVR() || (channel != 1 && channel != 2)) {
+            return false;
+        }
+
+        // 唤醒模式下可见光/红外短视频结束后不再走普通 15 分钟保活，
+        // 而是复用拍照后的衔接规则：可见光看后续 10 分钟，红外看后续 15 分钟。
+        utilsHandler.removeCallbacks(mResetWakeupFlagTask);
+        isWakeupKeepAliveMode = false;
+
+        boolean isIrVideo = dev.isUSB();
+        int load = isIrVideo ? 23 : 2;
+        int followupMinutes = isIrVideo ? WAKEUP_IR_PHOTO_FOLLOWUP_MINUTES : WAKEUP_RGB_PHOTO_FOLLOWUP_MINUTES;
+        boolean hasUpcomingPhoto = hasUpcomingChannel1Or2PhotoTask(followupMinutes);
+        if (hasUpcomingPhoto) {
+            Log.i(Log.TAG, "唤醒模式短视频完成，后续" + followupMinutes + "分钟内存在通道一或通道二定时拍照任务，保持负载上电：" + reason + ", channel=" + channel);
+            doWakeup("短视频后等待后续定时拍照：" + reason, load);
+            resetWakeupTimer(followupMinutes * PERIOD_MINUTE, "短视频后等待后续定时拍照任务");
+        } else {
+            Log.i(Log.TAG, "唤醒模式短视频完成，后续" + followupMinutes + "分钟内没有通道一或通道二定时拍照任务，立即下电：" + reason + ", channel=" + channel);
+            isWakeupVideoPlaybackMode = false;
+            doSleep("短视频后无后续定时拍照：" + reason, load);
         }
         return true;
     }
