@@ -309,6 +309,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int RC_PHOTO_STRIDE = 100;
     // 唤醒模式下的拍照预热闹钟使用独立 requestCode 段，避免和真正的拍照闹钟互相覆盖。
     private static final int RC_PHOTO_WAKEUP_BASE = 200000;
+    // 定时巡检按通道独立注册闹钟，避免通道一、通道二使用同一个 PendingIntent 互相覆盖。
+    private static final int RC_CHECK_LINE_BASE = 300000;
+    private static final int RC_CHECK_LINE_STRIDE = 100;
     private static final int MAX_RECORD_ALARM_CANCEL_COUNT = 256;
     private static final long MIN_INIT_INTERVAL = 1000;
 
@@ -460,7 +463,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private PendingIntent videoIntent;                                // 定时录像的闹钟回调
     private PendingIntent recordIntent;                               // 可见光机芯定时录像的闹钟回调 /////
     private PendingIntent photoIntent;                                // 定时拍照的闹钟回调
-    private PendingIntent checkLineIntent;                           // 巡检的闹钟回调
     private PendingIntent heartBeatIntent;                           // 心跳闹钟回调
     private PendingIntent powerOnIntent;                        // 开启云台Intent
     private PendingIntent powerRgbOnIntent;                     // 开启可见光Intent
@@ -480,6 +482,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 两者必须分开保存和取消，否则切换模式或刷新拍照计划时会误取消另一类任务。
     private Map<Integer, PendingIntent> photoAlarms = new HashMap<>();   // 拍照闹钟
     private Map<Integer, PendingIntent> photoWakeupAlarms = new HashMap<>();   // 拍照前预热唤醒闹钟
+    private Map<Integer, PendingIntent> checkLineAlarms = new HashMap<>();   // 定时巡检闹钟
     private SurfaceView surfaceView, surfaceDraw;
     //    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, spnZoomRatio, irOperator, irObjType, irObjFlag; ///////
     private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///////
@@ -3994,32 +3997,87 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
 
+    private int checkLineRequestCode(int channel, int index) {
+        // requestCode = 独立基准 + 通道偏移 + 策略序号，保证通道一、通道二巡检闹钟互不覆盖。
+        return RC_CHECK_LINE_BASE + channel * RC_CHECK_LINE_STRIDE + index;
+    }
+
+    private void cancelCheckLineAlarmsForChannel(int channel) {
+        int start = RC_CHECK_LINE_BASE + channel * RC_CHECK_LINE_STRIDE;
+        int end = start + RC_CHECK_LINE_STRIDE;
+        Iterator<Map.Entry<Integer, PendingIntent>> iterator = checkLineAlarms.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Integer, PendingIntent> entry = iterator.next();
+            int requestCode = entry.getKey();
+            if (requestCode >= start && requestCode < end) {
+                alarmManager.cancel(entry.getValue());
+                iterator.remove();
+            }
+        }
+    }
+
+    private void cancelAllCheckLineAlarms() {
+        for (PendingIntent pi : checkLineAlarms.values()) {
+            if (pi != null) {
+                alarmManager.cancel(pi);
+            }
+        }
+        checkLineAlarms.clear();
+        cancelLegacyCheckLineAlarms();
+    }
+
+    private void cancelLegacyCheckLineAlarms() {
+        // 旧版本巡检闹钟直接使用 index 作为 requestCode，升级后顺手清理，避免新旧闹钟重复触发。
+        for (int i = 0; i < RC_CHECK_LINE_STRIDE; i++) {
+            PendingIntent legacyPi = PendingIntent.getBroadcast(this, i, new Intent(ACTION_CHECK_LINE),
+                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+            if (legacyPi != null) {
+                alarmManager.cancel(legacyPi);
+            }
+        }
+    }
+
     /**
-     * 初始化巡检策略定时器， index 为索引位置
-     *
-     * @param index
+     * 初始化巡检策略定时器，index 为索引位置。
+     * 不指定通道时，同时刷新通道一和通道二，兼容初始化时的统一调用。
      */
     private void initCheckLineTask(int index) {
-        if (checkLineIntent != null) alarmManager.cancel(checkLineIntent);
+        cancelAllCheckLineAlarms();
+        initCheckLineTask(1, index);
+        initCheckLineTask(2, index);
+    }
+
+    /**
+     * 初始化指定通道的下一条巡检闹钟。
+     */
+    private void initCheckLineTask(int channel, int index) {
+        if (channel == 1) {
+            cancelLegacyCheckLineAlarms();
+        }
+        cancelCheckLineAlarmsForChannel(channel);
 
         Time now = new Time();
         now.setToNow();
 
-        // 一定要保证按时间顺序排序，目前只支持1路通道巡检定时调用
-        List<CheckScheduleItem> items = settings.checkSchedule.get("1");
+        List<CheckScheduleItem> items = settings.checkSchedule.get(String.valueOf(channel));
         if (items == null) return;
 
         for (int i = index; i < items.size(); i++) {
             CheckScheduleItem item = items.get(i);
             if (!item.enable) continue;
-            // 初始化的时候，如果index对应的条目，已过间，则要跳过该次
+            // 初始化的时候，如果 index 对应的条目已过闹，则跳过该次，等待后续时刻。
             if (((now.hour << 8) | now.minute) >= (item.hour << 8 | item.minute)) continue;
 
             Intent vi = new Intent(ACTION_CHECK_LINE);
+            vi.putExtra("channel", channel);
             vi.putExtra("index", i);
-            checkLineIntent = PendingIntent.getBroadcast(this, i, vi, PendingIntent.FLAG_UPDATE_CURRENT);
-            alarmInitTask(String.format("%02d:%02d:%02d", item.hour, item.minute, item.second), PERIOD_DAY, checkLineIntent, "定时巡检");
-            break;          // 找到第一条后初始化之后就退出，因为后面的会在闹钟触发后继续下一个时刻设定
+            int requestCode = checkLineRequestCode(channel, i);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(this, requestCode, vi,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            checkLineAlarms.put(requestCode, pendingIntent);
+            alarmInitTask(String.format("%02d:%02d:%02d", item.hour, item.minute, item.second),
+                    PERIOD_DAY, pendingIntent, "定时巡检_" + channel + "_" + (i + 1));
+            break;          // 找到第一条后退出，后面的任务在闹钟触发后继续设置。
         }
     }
 
@@ -5721,7 +5779,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        if (photoIntent != null) alarmManager.cancel(photoIntent);
         if (photoIntent != null) cancelAllPhotoAlarms();
         if (videoIntent != null) alarmManager.cancel(videoIntent);
-        if (checkLineIntent != null) alarmManager.cancel(checkLineIntent);
+        cancelAllCheckLineAlarms();
         if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
         if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent); /////
         if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
@@ -6168,11 +6226,44 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         List<CheckGroup> cgs = settings.checkGroups.get(String.valueOf(channel));
         Device dev = channels.get(String.valueOf(channel));
         if (dev == null || cgs == null || group < 0 || group >= cgs.size()) return;
-        /////
+
+        if (isSleepMode()) {
+            Log.i(Log.TAG, "休眠模式下不执行定时巡检，通道：" + channel);
+            return;
+        }
+
+        final String taskName = "定时巡检_" + channel;
+        final String wakeupReason = dev.isUSB() ? "红外定时巡检" : "可见光定时巡检";
+
+        if (currentMode == MODE_WAKEUP) {
+            // 巡检和拉流一样属于会使用机芯/云台的任务，唤醒模式下先刷新保活，再执行上电和打开设备。
+            markWakeupActivity(dev, "唤醒模式下" + wakeupReason);
+        }
+        if (dev.isDVR()) {
+            wakeupDevice(dev, wakeupReason);
+        }
+
+        doTimeConsumingTask(taskName, dev.isDVR());
+        dev.open(0, dev.new onOpenCallback() {
+            @Override
+            public void openSucceed() {
+                runCheckLineAfterDeviceReady(channel, group, count, cgs, dev, taskName, wakeupReason);
+            }
+
+            @Override
+            public void openFailed(int errorCode) {
+                Log.i(Log.TAG, wakeupReason + "打开失败，取消本次定时巡检，通道：" + channel);
+                finishTimeConsumeTask(taskName, dev.isDVR());
+                sleepDevice(channel, wakeupReason + "打开失败");
+            }
+        }, DVR_BOOT_TIME, false);
+    }
+
+    private void runCheckLineAfterDeviceReady(int channel, int group, int count, List<CheckGroup> cgs,
+                                              Device dev, String taskName, String wakeupReason) {
         boolean ret1, ret2 = false, ret3, ret4;
         if (dev.isDVR() && !dev.isUSB()) {
             for (int i = 0; i < 3; i++) {
-                doTimeConsumingTask("设置图片参数、OSD、视频参数、录像策略", dev.isDVR());
                 ret1 = dev.setPhotoParam(settings.photoConfig.get(String.valueOf(channel)));
                 if (dev.type == DEVICE_DVR_AIPU) {
                     if (dev.isOldCamera) {
@@ -6190,12 +6281,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }
         }
-        /////
 
         if (deviceConfig.toCheck) {
             if (dev.isDVR()) openShare("开始巡检");  // 会被其他任务关掉网口
         }
-        doTimeConsumingTask("开始巡检", dev.isDVR());
         SystemClock.sleep(3000);  // 等待3秒，确保网口开启完毕
 
         CheckGroup item = cgs.get(group);
@@ -6206,12 +6295,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         dev.stopCheckLine();
         if (isWorkHour()) {
             dev.startMove(2, recordPreset, () -> {  // 调用录像预置位
-                if (deviceConfig.toCheck) {
-                    if (dev.isDVR()) closeShare("结束巡检");
-                }
-                finishTimeConsumeTask("设置录像时间列表与结束巡检", dev.isDVR());
+                finishCheckLineTask(channel, dev, taskName, wakeupReason);
             });
+        } else {
+            finishCheckLineTask(channel, dev, taskName, wakeupReason);
         }
+    }
+
+    private void finishCheckLineTask(int channel, Device dev, String taskName, String wakeupReason) {
+        if (deviceConfig.toCheck) {
+            if (dev.isDVR()) closeShare("结束巡检");
+        }
+        finishTimeConsumeTask(taskName, dev.isDVR());
+        sleepDevice(channel, wakeupReason + "完成");
     }
 
     // 录像策略调用预置位动作
@@ -6320,14 +6416,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     // 定时巡检动作
     private void doCheckLineAction(Intent intent) {
+        int channel = intent.getIntExtra("channel", 1);
         int index = intent.getIntExtra("index", 0);
-        List<CheckScheduleItem> items = settings.checkSchedule.get("1");
+        List<CheckScheduleItem> items = settings.checkSchedule.get(String.valueOf(channel));
+        if (items == null) return;
 
         if (index >= items.size() || index < 0) return;
 
         // 当前index对应任务
         final CheckScheduleItem item = items.get(index);
-        utilsHandler.post(() -> runCheckLine(1, item.group - 1, item.count));
+        utilsHandler.post(() -> runCheckLine(channel, item.group - 1, item.count));
         index++;
 
         // 闹钟回调后，为了防止闹钟延迟回调，需要把从index到当前时间的任务都运行掉！
@@ -6337,10 +6435,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             final CheckScheduleItem next = items.get(index);
             if (next == null || next.hour > now.hour || next.minute > now.minute) break;
 
-            utilsHandler.post(() -> runCheckLine(1, next.group - 1, next.count));
+            utilsHandler.post(() -> runCheckLine(channel, next.group - 1, next.count));
             index++;
         }
-        initCheckLineTask(index);
+        initCheckLineTask(channel, index);
     }
 
     // 定时拍照动作
@@ -9725,10 +9823,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     items.set(j, item1);
                     items.set(i, item2);
                 }
-            }
+        }
         settings.checkSchedule.put(String.valueOf(Channel), items);
         boolean b = saveSettings(settings, SETTING_FILE);
-        if (b) initCheckLineTask(0);
+        if (b) initCheckLineTask(Channel, 0);
         return b;
     }
 
@@ -10348,7 +10446,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //            if (photoIntent != null) alarmManager.cancel(photoIntent);
             if (photoIntent != null) cancelAllPhotoAlarms();
             if (videoIntent != null) alarmManager.cancel(videoIntent);
-            if (checkLineIntent != null) alarmManager.cancel(checkLineIntent);
+            cancelAllCheckLineAlarms();
             if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
             if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent);
             if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
