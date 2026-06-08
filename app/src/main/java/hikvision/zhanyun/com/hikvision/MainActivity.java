@@ -179,7 +179,6 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -3694,7 +3693,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             socketThread.start();
         }
 
-        initAlarmTasks();  // 初始化所有的闹钟，当时间到的时候就执行，广播消息接收器中对应的函数
+        initAlarmTasksAsync("init core");  // 初始化所有的闹钟，当时间到的时候就执行，广播消息接收器中对应的函数
         new Thread(() -> {
             cpuLock();
 
@@ -3849,7 +3848,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     private void forceRescheduleAllPhotoTasks() {
         cancelAllPhotoAlarms();
-        doInitPhotoTask(0);
+        doInitPhotoTaskAsync(0);
     }
 
 
@@ -3860,16 +3859,24 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
         lastInitTime = currentTime;
         cancelAllPhotoAlarms();
-        doInitPhotoTask(startIndex);
+        doInitPhotoTaskAsync(startIndex);
+    }
+
+    private void doInitPhotoTaskAsync(int startIndex) {
+        Runnable task = () -> doInitPhotoTask(startIndex);
+        if (utilsHandler == null) {
+            new Thread(task).start();
+        } else if (Looper.myLooper() != utilsHandler.getLooper()) {
+            utilsHandler.post(task);
+        } else {
+            task.run();
+        }
     }
 
 
     private void doInitPhotoTask(int startIndex) {
         Time now = new Time();
         now.setToNow();
-
-        // 按精确时间 "HH:MM:SS" 分组，保留所有同时刻任务
-        Map<String, List<PhotoTimeItem>> tasksByTime = new LinkedHashMap<>();
 
         for (int i = startIndex; i < settings.photoTimeTable.size(); i++) {
             PhotoTimeItem item = settings.photoTimeTable.get(i);
@@ -3880,41 +3887,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 continue;
             }
 
-            String timeKey = String.format("%02d:%02d:%02d", item.hour, item.min, item.sec);
-            List<PhotoTimeItem> list = tasksByTime.get(timeKey);
+            setSinglePhotoAlarm(i, item, "定时拍照_" + item.channel + "_" + item.preset);
 
-            if (list == null) {
-                list = new ArrayList<>();
-                tasksByTime.put(timeKey, list);
-            }
-            list.add(item);     // 同一时间的多个拍照任务会被聚合
         }
 
 
-        for (Map.Entry<String, List<PhotoTimeItem>> entry : tasksByTime.entrySet()) {
-            List<PhotoTimeItem> items = entry.getValue();
-            for (PhotoTimeItem item : items) {
-                int realIndex = findItemIndex(item);
-                if (realIndex != -1) {
-                    setSinglePhotoAlarm(realIndex, item, "定时拍照_" + item.channel + "_" + item.preset);
-                }
-            }
-        }
-    }
-
-    private int findItemIndex(PhotoTimeItem target) {
-        for (int i = 0; i < settings.photoTimeTable.size(); i++) {
-            PhotoTimeItem item = settings.photoTimeTable.get(i);
-            if (item != null &&
-                    item.channel == target.channel &&
-                    item.hour == target.hour &&
-                    item.min == target.min &&
-                    item.sec == target.sec &&
-                    item.preset == target.preset) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private int photoAlarmRequestCode(int channel, int index) {
@@ -3930,19 +3907,25 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         for (int i = 0; i < settings.photoTimeTable.size(); i++) {
             PhotoTimeItem item = settings.photoTimeTable.get(i);
             if (item == null || item.channel != channel) continue;
-            int photoRequestCode = photoAlarmRequestCode(item.channel, i);
-            int wakeupRequestCode = photoWakeupRequestCode(item.channel, i);
-
-            PendingIntent photoPi = PendingIntent.getBroadcast(this, photoRequestCode, new Intent(ACTION_PHOTO),
-                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
-            if (photoPi != null) alarmManager.cancel(photoPi);
-
-            Device dev = channels.get(String.valueOf(item.channel));
-            String wakeupAction = dev != null && dev.isUSB() ? POWERON_IR_INTENT : POWERON_RGB_INTENT;
-            PendingIntent wakeupPi = PendingIntent.getBroadcast(this, wakeupRequestCode, new Intent(wakeupAction),
-                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
-            if (wakeupPi != null) alarmManager.cancel(wakeupPi);
+            cancelPhotoAlarmForItem(i, item);
         }
+    }
+
+    private void cancelPhotoAlarmForItem(int index, PhotoTimeItem item) {
+        int photoRequestCode = photoAlarmRequestCode(item.channel, index);
+        int wakeupRequestCode = photoWakeupRequestCode(item.channel, index);
+
+        PendingIntent photoPi = PendingIntent.getBroadcast(this, photoRequestCode, new Intent(ACTION_PHOTO),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (photoPi != null) alarmManager.cancel(photoPi);
+
+        PendingIntent rgbWakeupPi = PendingIntent.getBroadcast(this, wakeupRequestCode, new Intent(POWERON_RGB_INTENT),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (rgbWakeupPi != null) alarmManager.cancel(rgbWakeupPi);
+
+        PendingIntent irWakeupPi = PendingIntent.getBroadcast(this, wakeupRequestCode, new Intent(POWERON_IR_INTENT),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (irWakeupPi != null) alarmManager.cancel(irWakeupPi);
     }
 
     private void setSinglePhotoAlarm(int index, PhotoTimeItem item, String alarmName) {
@@ -3973,9 +3956,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
      */
     private void cancelAllPhotoAlarms() {
         if (settings != null && settings.photoTimeTable != null) {
-            for (PhotoTimeItem item : settings.photoTimeTable) {
+            for (int i = 0; i < settings.photoTimeTable.size(); i++) {
+                PhotoTimeItem item = settings.photoTimeTable.get(i);
                 if (item != null) {
-                    cancelPhotoAlarmsForChannel(item.channel);
+                    cancelPhotoAlarmForItem(i, item);
                 }
             }
         }
@@ -7244,7 +7228,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             /////
             cancelAllAlarms();
             alarmManager.setTime(c.getTimeInMillis());
-            initAlarmTasks();
+            initAlarmTasksAsync("set clock");
             powerClockSynced.set(false);  // 供电板要更新时间
             /////
         } else {
