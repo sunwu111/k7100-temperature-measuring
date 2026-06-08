@@ -407,8 +407,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
-    private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 2分钟
+   private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+    // private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 2分钟
 //    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
@@ -530,7 +530,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // true 表示当前处于唤醒模式业务后的保活窗口内；doSleep() 会因为它直接跳过下电。
     private static boolean isWakeupKeepAliveMode = false;
     // 唤醒模式下，业务结束后继续保活的时间。当前测试版本为 2 分钟，正式版本需要改回 15 分钟。
-    private static final long WAKEUP_KEEP_ALIVE_MS = 2 * PERIOD_MINUTE;
+    private static final long WAKEUP_KEEP_ALIVE_MS = 15 * PERIOD_MINUTE;
 
     // 唤醒模式下拍照完成后，按通道类型检查后续定时拍照任务：可见光看 10 分钟，红外看 15 分钟。
     private static final int WAKEUP_RGB_PHOTO_FOLLOWUP_MINUTES = 10;

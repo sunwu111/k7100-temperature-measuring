@@ -1383,12 +1383,12 @@ public class AipuDevice extends Device {
             if (brightness < 100) {
                 brightness += 10;
             }
-//            if (contrast > 0) {
-//                contrast -= 10;
-//            }
-//            if (saturation > 0) {
-//                saturation -= 10;
-//            }
+            if (contrast > 0) {
+                contrast -= 10;
+            }
+            if (saturation > 0) {
+                saturation -= 10;
+            }
             String body = String.format("{\"EFFECT\":{\"contrast\":%d,\"luminance\":%d,\"saturation\":%d}}",
                     contrast, brightness, saturation);
             request(url + "/merlin/Image_SetEffectCfg.cgi?sect=0", body);
@@ -1399,12 +1399,12 @@ public class AipuDevice extends Device {
             if (brightness > 0) {
                 brightness -= 10;
             }
-//            if (contrast < 100) {
-//                contrast += 10;
-//            }
-//            if (saturation < 100) {
-//                saturation += 10;
-//            }
+            if (contrast < 100) {
+                contrast += 10;
+            }
+            if (saturation < 100) {
+                saturation += 10;
+            }
             String body = String.format("{\"EFFECT\":{\"contrast\":%d,\"luminance\":%d,\"saturation\":%d}}",
                     photoConfig.contrast, photoConfig.brightness, photoConfig.saturation);
             request(url + "/merlin/Image_SetEffectCfg.cgi?sect=0", body);
@@ -1501,12 +1501,12 @@ public class AipuDevice extends Device {
             if (brightness > 0) {
                 brightness -= ((float) para / 200) * 10.0f;
             }
-//            if (contrast < 100) {
-//                contrast += ((float) para / 200) * 10.0f;
-//            }
-//            if (saturation < 100) {
-//                saturation += ((float) para / 200) * 10.0f;
-//            }
+            if (contrast < 100) {
+                contrast += ((float) para / 200) * 10.0f;
+            }
+            if (saturation < 100) {
+                saturation += ((float) para / 200) * 10.0f;
+            }
             request(url + "/merlin/PtzCtrl.cgi?operation=11&channelno=0&value=0&speed=" + getPTZSpeed(para), true); /////
             stopPTZ();
         } else if (cmd == 60) {  // 光圈 －
@@ -1516,12 +1516,12 @@ public class AipuDevice extends Device {
             if (brightness > 0) {
                 brightness -= ((float) para / 200) * 10.0f;
             }
-//            if (contrast < 100) {
-//                contrast += ((float) para / 200) * 10.0f;
-//            }
-//            if (saturation < 100) {
-//                saturation += ((float) para / 200) * 10.0f;
-//            }
+            if (contrast < 100) {
+                contrast += ((float) para / 200) * 10.0f;
+            }
+            if (saturation < 100) {
+                saturation += ((float) para / 200) * 10.0f;
+            }
             request(url + "/merlin/PtzCtrl.cgi?operation=12&channelno=0&value=0&speed=" + getPTZSpeed(para), true); /////
             stopPTZ();
         } else if (cmd == 61) {  // 聚焦 ＋

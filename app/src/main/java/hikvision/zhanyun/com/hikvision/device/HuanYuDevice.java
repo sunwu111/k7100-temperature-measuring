@@ -81,6 +81,11 @@ public class HuanYuDevice extends MyOnvifDevice {
     // TODO 如果发现返回为false，并且session为0，大概念为没有登录机芯，出现前面的问题，建议在具体函数使用的时候加上login()
     private RecordRespParam.RecordItems recordList = new RecordRespParam.RecordItems();
     private byte brightness = 50;  // 记录模拟调节光圈的亮度
+    private byte contrast = 50;
+    private byte hue = 50;
+    private byte saturation = 50;
+    private byte sharpness = 50;
+
     private boolean toCheck = false; ///////
     private boolean useAudio; /////
     private volatile int loginRetryCount = 0;
@@ -3221,7 +3226,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
     }
 
-    private void irisAdjust(int brigh) {
+    private void irisAdjust(int brigh, int contrast_, int saturation_) {
         if (login()) {
             String json = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -3237,15 +3242,15 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "      \"auto\": {\n" +
                     "        \"videoColor\": {\n" +
                     "          \"brightness\": %d,\n" +
-                    "          \"contrast\": 50,\n" +
+                    "          \"contrast\": %d,\n" +
                     "          \"hue\": 50,\n" +
-                    "          \"saturation\": 50,\n" +
+                    "          \"saturation\": %d,\n" +
                     "          \"sharpness\": 50\n" +
                     "        }\n" +
                     "      }\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", session, id, brigh);
+                    "}", session, id, brigh,contrast_,saturation_);
 
             //            Log.e(HuanyuDeviceLog,"json"+json);
             Response response = http_request(url, json);
@@ -3518,23 +3523,54 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 10) {
             // 关闭电源
         } else if (cmd == 11) {
+
+
             if (brightness < 100) {
-                brightness += 15;
-                if (brightness > 100) {
+                brightness += 10;
+                if (brightness >=100){
                     brightness = 100;
                 }
             }
-            irisAdjust(brightness);
+            if (contrast > 0) {
+                contrast -= 10;
+                if (contrast <= 0){
+                    contrast = 0;
+                }
+            }
+            if (saturation > 0) {
+                saturation -= 10;
+                if (saturation <= 0){
+                    saturation = 0;
+                }
+            }
+
+
+            irisAdjust(brightness,contrast,saturation);
             SystemClock.sleep(1000);
             stop();
         } else if (cmd == 12) {
+
             if (brightness > 0) {
-                brightness -= 15;
-                if (brightness < 0) {
+                brightness -= 10;
+                if (brightness <= 0) {
                     brightness = 0;
                 }
             }
-            irisAdjust(brightness);
+            if (contrast < 100) {
+                contrast += 10;
+                if (contrast >= 100 ){
+                    contrast = 100;
+                }
+            }
+            if (saturation < 100) {
+                saturation += 10;
+                if (saturation >= 100){
+                    saturation = 100;
+                }
+            }
+
+
+            irisAdjust(brightness,contrast,saturation);
             SystemClock.sleep(1000);
             stop();
         } else if (cmd == 15) {
@@ -3669,7 +3705,22 @@ public class HuanYuDevice extends MyOnvifDevice {
                     brightness = 100;
                 }
             }
-            irisAdjust(brightness);
+
+            if (contrast < 100) {
+                contrast -= ((float) para / 200) * 10.0f;
+                if (contrast <= 0){
+                    contrast = 0;
+                }
+            }
+            if (saturation < 100) {
+                saturation -= ((float) para / 200) * 10.0f;
+                if (saturation <= 0){
+                    saturation = 0;
+                }
+            }
+
+
+            irisAdjust(brightness,contrast,saturation);
         } else if (cmd == 60) {
             if (brightness > 0) {
                 brightness -= ((float) para / 200) * 10.0f;
@@ -3677,7 +3728,21 @@ public class HuanYuDevice extends MyOnvifDevice {
                     brightness = 0;
                 }
             }
-            irisAdjust(brightness);
+
+            if (contrast > 0) {
+                contrast += ((float) para / 200) * 10.0f;
+                if (contrast >= 100){
+                    contrast = 100;
+                }
+            }
+            if (saturation > 0) {
+                saturation += ((float) para / 200) * 10.0f;
+                if (saturation >= 100){
+                    saturation = 100;
+                }
+            }
+
+            irisAdjust(brightness,contrast,saturation);
         } else if (cmd == 900) {
             // 以比较慢的速度移动云台，内部使用，用于巡检
             new Thread(() -> {
@@ -3693,6 +3758,14 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         Log.d(HuanyuDeviceLog, String.format("摄像机调节: %d, %d", cmd, para));
     }
+
+
+    /*
+    * {"session":1342517504,"id":2,"call":{"service":"videoIn","method":"setConfig"},"params":{"channel":0,"table":{"scene":"auto","auto":{"videoColor":{"brightness":100,"contrast":50,"hue":50,"saturation":31,"sharpness":45}}}}}
+    * */
+
+
+
 
     private void topLeft(int para) {
         if (login()) {
