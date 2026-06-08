@@ -4285,6 +4285,23 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         //initWifiAlarm();
     }
 
+    private void initAlarmTasksAsync(String reason) {
+        Runnable task = () -> {
+            try {
+                Log.i(Log.TAG, "async init alarm tasks: " + reason);
+                initAlarmTasks();
+            } catch (Exception e) {
+                Log.e(Log.TAG, "async init alarm tasks failed: " + e);
+            }
+        };
+
+        if (utilsHandler != null) {
+            utilsHandler.post(task);
+        } else {
+            new Thread(task).start();
+        }
+    }
+
     public void doOnlineTimeout(String reason) {
         Log.e(Log.TAG, reason);
         for (Device dev : channels.values()) {
@@ -5157,7 +5174,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             if (chanIdx >= 0 && chanIdx < deviceConfig.channels.length) {
                 EditChannel(deviceConfig.channels[chanIdx]);
             }
-            initAlarmTasks();
             saveDeviceConfig();
 
             // 更新aiParameters中的所有alertThreshold为confidence的值
@@ -5242,6 +5258,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     iRSetting.sensorConfig.shutterInterval = shutterInterval;
                 }
                 saveSettings(iRSetting, IR_SETTING_FILE);
+                initAlarmTasksAsync("manual save");
 
                 showMsg("手动保存成功");
             } catch (Exception e) {
