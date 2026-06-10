@@ -344,6 +344,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         return deviceConfig.chargeControl;
     }
 
+    public static float getLowLightGammaLimit() {
+        return deviceConfig.lowLightGammaLimit > 0 ? deviceConfig.lowLightGammaLimit : 1.75f;
+    }
+
     private static SPGProtocol spgProtocol;                                  // 南网协议指令处理器
     private static InetSocketAddress cmdAddress;                       // 与南网服务器通信的地址
     private static DatagramSocket socket;                              // 与南网通信的UDP Socket
@@ -490,7 +494,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private TextView tvState;
     private TextView textVersion;
     private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio; // cbBatOnly,     ///////
-    private EditText tbRotate, tvDVRUser, tvDVRPwd, tvDVRIP, tvDVRPort, tvID, tvServer, tvPort, tvCamID, etTraffic, etConfidence, etWidgetsConfidence, etFrame, etCruiseDuration, etCruiseSpeed, etPtzSpeed; //, etConfidence; /////
+    private EditText tbRotate, tvDVRUser, tvDVRPwd, tvDVRIP, tvDVRPort, tvID, tvServer, tvPort, tvCamID, etTraffic, etConfidence, etWidgetsConfidence, etFrame, etCruiseDuration, etCruiseSpeed, etPtzSpeed, etLowLightGammaLimit; //, etConfidence; /////
     private EditText irTempAdj, irObjEmi, irObjDistance, irTempReflect, irTempEnv, irHumiEnv, irRegionDistance, irRegionEmi, irAngle, irHorDisplacement, irVerDisplacement, irShutterInt; /////
     ////////
     private Spinner irVideoMode, irFocalLen, irResolution;
@@ -4494,6 +4498,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnMainBoarder.setSelection(deviceConfig.mainBoard);
         cbPhotoCheck.setChecked(deviceConfig.photoCheck); /////
         cbAIAccTest.setChecked(deviceConfig.aiAccTest); /////
+        etLowLightGammaLimit.setText(String.valueOf(getLowLightGammaLimit())); /////
 //        spnZoomRatio.setSelection(deviceConfig.zoomRatio); /////
 
         irTempAdj.setText(String.valueOf(iRSetting.sensorConfig.tempCompensate));
@@ -4679,6 +4684,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnMainBoarder = findViewById(R.id.spnMainBoarder);
         cbPhotoCheck = findViewById(R.id.cbPhotoCheck); /////
         cbAIAccTest = findViewById(R.id.cbAIAccTest); /////
+        etLowLightGammaLimit = findViewById(R.id.etLowLightGammaLimit); /////
 
         /////
         spnBitRateType = findViewById(R.id.spnBitRateType);
@@ -5148,6 +5154,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //            deviceConfig.onlyShowBat = cbBatOnly.isChecked();
             deviceConfig.photoCheck = cbPhotoCheck.isChecked(); /////
             deviceConfig.aiAccTest = cbAIAccTest.isChecked(); /////
+            String lowLightGammaLimit = etLowLightGammaLimit.getText().toString().trim();
+            if (!lowLightGammaLimit.isEmpty()) {
+                deviceConfig.lowLightGammaLimit = Float.valueOf(lowLightGammaLimit);
+            }
             deviceConfig.toCheck = cbToCheck.isChecked(); ///////
             deviceConfig.audio = switchAudio.isChecked(); ///////
             deviceConfig.chargeControl = spnChargeController.getSelectedItemPosition();

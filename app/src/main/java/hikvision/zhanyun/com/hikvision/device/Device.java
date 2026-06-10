@@ -1794,8 +1794,8 @@ public abstract class Device {
 //        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 2.5);
 
 
-
-        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 1.75);
+        Log.e(Log.TAG,"MainActivity.getLowLightGammaLimit():" + MainActivity.getLowLightGammaLimit());
+        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, MainActivity.getLowLightGammaLimit());
         if (gamma == 1.0) {
             // 释放OpenCV资源
             previewMat.release();

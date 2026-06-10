@@ -190,6 +190,7 @@ public class Settings {
         public boolean wifi  = true;  // WIFI开关：false = 关， true = 开
         public boolean photoCheck = true;  // 拍照策略自检测开关：false = 关，true = 开 /////
         public boolean aiAccTest = false;  // 图像智能识别算法性能检测开关：false = 关，true = 开 /////
+        public float lowLightGammaLimit = 1.75f;  // 低照度亮度增强Gamma上限 /////
 //        public int zoomRatio = 0;  // 变焦倍数：0 = 1，1 = 10，2 = 20，3 = 40 /////
         public boolean audio = false; /////
     }

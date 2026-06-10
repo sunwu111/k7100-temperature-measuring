@@ -1566,6 +1566,26 @@
             app:layout_constraintTop_toBottomOf="@+id/tvResolution" />
 
         <TextView
+            android:id="@+id/tvLowLightGammaLimit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="低照度参数"
+            app:layout_constraintStart_toStartOf="@+id/cbAIAccTest"
+            app:layout_constraintTop_toBottomOf="@+id/cbAIAccTest" />
+
+        <EditText
+            android:id="@+id/etLowLightGammaLimit"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal"
+            android:singleLine="true"
+            android:text="1.75"
+            app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
+            app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
+            app:layout_constraintTop_toBottomOf="@+id/cbAIAccTest" />
+
+        <TextView
             android:id="@+id/tvZoomRatio"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -1583,7 +1603,7 @@
             android:dropDownHeight="200dp"
             app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
             app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"
-            app:layout_constraintTop_toBottomOf="@+id/btnAITest" />
+            app:layout_constraintTop_toBottomOf="@+id/etLowLightGammaLimit" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>
