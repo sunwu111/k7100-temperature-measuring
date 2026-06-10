@@ -1787,61 +1787,19 @@ public abstract class Device {
     }
 
     // 亮度增强算法
-//    private Bitmap addBrightness(Bitmap previewBitmap, float avgBrightness) {
-//        Mat previewMat = new Mat();
-//        org.opencv.android.Utils.bitmapToMat(previewBitmap, previewMat);
-//        // 计算自适应Gamma值
-////        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 2.5);
-//        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 1.75);
-//        if (gamma == 1.0) {
-//            // 释放OpenCV资源
-//            previewMat.release();
-//            return previewBitmap;  // 无需处理
-//        }
-//        double invGamma = 1.0 / gamma;
-//        // 创建LUT查找表
-//        Mat lut = new Mat(1, 256, CvType.CV_8UC1);
-//        byte[] gammaLUT = new byte[256];
-//        for (int i = 0; i < 256; i++) {
-//            gammaLUT[i] = (byte) Math.min(255, Math.pow(i / 255.0, invGamma) * 255.0);
-//        }
-//        lut.put(0, 0, gammaLUT);
-//        // 应用LUT增强
-//        Mat result = new Mat();
-//        Core.LUT(previewMat, lut, result);
-//        org.opencv.android.Utils.matToBitmap(result, previewBitmap);
-//        // 释放OpenCV资源
-//        previewMat.release();
-//        lut.release();
-//        result.release();
-//        return previewBitmap;
-//    }
-    /////
-
-    // 亮度调整算法
     private Bitmap addBrightness(Bitmap previewBitmap, float avgBrightness) {
         Mat previewMat = new Mat();
         org.opencv.android.Utils.bitmapToMat(previewBitmap, previewMat);
         // 计算自适应Gamma值
 //        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 2.5);
-        double gamma;
 
-        Log.e(Log.TAG,"avgBrightness:" + avgBrightness);
 
-        if (avgBrightness >= 150) {
-//            gamma = 100.0 / avgBrightness;
-            gamma = 50.0 / avgBrightness;
-        } else if (avgBrightness < 100) {
-            gamma = 200.0 / avgBrightness;
-        } else {
-            gamma = 1.0;
-        }
-        gamma = Math.min(gamma, 1.75);
-        gamma = Math.max(gamma, 0.5);
+
+        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 1.75);
         if (gamma == 1.0) {
             // 释放OpenCV资源
             previewMat.release();
-            return previewBitmap;
+            return previewBitmap;  // 无需处理
         }
         double invGamma = 1.0 / gamma;
         // 创建LUT查找表
@@ -1861,6 +1819,51 @@ public abstract class Device {
         result.release();
         return previewBitmap;
     }
+    /////
+
+    // 亮度调整算法
+//    private Bitmap addBrightness(Bitmap previewBitmap, float avgBrightness) {
+//        Mat previewMat = new Mat();
+//        org.opencv.android.Utils.bitmapToMat(previewBitmap, previewMat);
+//        // 计算自适应Gamma值
+////        double gamma = (avgBrightness >= 100) ? 1.0 : Math.min(200 / avgBrightness, 2.5);
+//        double gamma;
+//
+//        Log.e(Log.TAG,"avgBrightness:" + avgBrightness);
+//
+//        if (avgBrightness >= 150) {
+////            gamma = 100.0 / avgBrightness;
+//            gamma = 50.0 / avgBrightness;
+//        } else if (avgBrightness < 100) {
+//            gamma = 200.0 / avgBrightness;
+//        } else {
+//            gamma = 1.0;
+//        }
+//        gamma = Math.min(gamma, 1.75);
+//        gamma = Math.max(gamma, 0.5);
+//        if (gamma == 1.0) {
+//            // 释放OpenCV资源
+//            previewMat.release();
+//            return previewBitmap;
+//        }
+//        double invGamma = 1.0 / gamma;
+//        // 创建LUT查找表
+//        Mat lut = new Mat(1, 256, CvType.CV_8UC1);
+//        byte[] gammaLUT = new byte[256];
+//        for (int i = 0; i < 256; i++) {
+//            gammaLUT[i] = (byte) Math.min(255, Math.pow(i / 255.0, invGamma) * 255.0);
+//        }
+//        lut.put(0, 0, gammaLUT);
+//        // 应用LUT增强
+//        Mat result = new Mat();
+//        Core.LUT(previewMat, lut, result);
+//        org.opencv.android.Utils.matToBitmap(result, previewBitmap);
+//        // 释放OpenCV资源
+//        previewMat.release();
+//        lut.release();
+//        result.release();
+//        return previewBitmap;
+//    }
     /////
 
 
