@@ -4429,6 +4429,8 @@ public class SPGProtocol {
             uploadLogFilename = logFilename;  // 确定上传文件的路径
             uploadLogChannel = channel;
             uploadStart = System.currentTimeMillis();
+            uploadEcho = false;
+            uploadEndEcho = false;
             // 计算总包数
             int filePacks = (int) (file.length() / MAX_UPLOAD_FILE_SIZE);
             if (file.length() % MAX_UPLOAD_FILE_SIZE != 0) filePacks++;  // 根据文件大小，求出包数，末尾可能不够一个包，有余数

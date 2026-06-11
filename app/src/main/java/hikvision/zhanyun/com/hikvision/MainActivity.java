@@ -1,4 +1,4 @@
-﻿package hikvision.zhanyun.com.hikvision;
+package hikvision.zhanyun.com.hikvision;
 
 import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.BUTTON_PRIMARY;
