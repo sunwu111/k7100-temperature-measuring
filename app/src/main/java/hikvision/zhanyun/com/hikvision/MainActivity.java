@@ -1,4 +1,4 @@
-package hikvision.zhanyun.com.hikvision;
+﻿package hikvision.zhanyun.com.hikvision;
 
 import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.BUTTON_PRIMARY;
@@ -778,7 +778,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
                     // batVoltage = 13.40f; // 全功能
-                   batVoltage = 12.93f; // 唤醒
+                //    batVoltage = 12.93f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 
