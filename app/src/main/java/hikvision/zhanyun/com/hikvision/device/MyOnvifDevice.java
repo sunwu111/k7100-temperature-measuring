@@ -607,6 +607,13 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
         RtspClient.SDPInfo sdpInfo = rtspLiveClient.sdpInfo;
         Settings.VideoCodec vCodec = getVideoCodec(streamType);
+        byte[] muxerSps = withStartCode((sps != null && sps.length > 0) ? sps : (sdpInfo != null ? sdpInfo.sps : null));
+        byte[] muxerPps = withStartCode((pps != null && pps.length > 0) ? pps : (sdpInfo != null ? sdpInfo.pps : null));
+
+        if (muxerSps == null || muxerSps.length == 0 || muxerPps == null || muxerPps.length == 0) {
+            Log.e(Log.TAG, "ONVIF录像初始化Muxer失败：缺少H264 SPS/PPS");
+            return;
+        }
 
         MediaFormat videoFormat =
                 MediaFormat.createVideoFormat(
@@ -618,14 +625,44 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
 
         videoFormat.setByteBuffer("csd-0",
-                ByteBuffer.wrap(sdpInfo.sps));
+                ByteBuffer.wrap(muxerSps));
         videoFormat.setByteBuffer("csd-1",
-                ByteBuffer.wrap(sdpInfo.pps));
+                ByteBuffer.wrap(muxerPps));
 
         videoTrackIndex = mediaMuxer.addTrack(videoFormat);
 
         tryStartMuxerOnvif();
         isMuxerInited = true;
+    }
+
+    private byte[] withStartCode(byte[] nalu) {
+        if (nalu == null) return null;
+
+        if (nalu.length >= 4
+                && nalu[0] == 0
+                && nalu[1] == 0
+                && nalu[2] == 0
+                && nalu[3] == 1) {
+            return nalu;
+        }
+
+        if (nalu.length >= 3
+                && nalu[0] == 0
+                && nalu[1] == 0
+                && nalu[2] == 1) {
+            byte[] ret = new byte[nalu.length + 1];
+            ret[0] = 0;
+            System.arraycopy(nalu, 0, ret, 1, nalu.length);
+            return ret;
+        }
+
+        byte[] ret = new byte[nalu.length + 4];
+        ret[0] = 0;
+        ret[1] = 0;
+        ret[2] = 0;
+        ret[3] = 1;
+        System.arraycopy(nalu, 0, ret, 4, nalu.length);
+        return ret;
     }
 
 

@@ -307,6 +307,9 @@ public abstract class Device {
 
                                     if (!muxerStarted) return;
 
+                                    int type = rtph264.frameType(frame);
+                                    if (type == 6 || type == 7 || type == 8) return;
+
                                     bufferInfo.size = frame.length;
                                     bufferInfo.offset = 0;
                                     bufferInfo.flags = 0;
@@ -315,11 +318,7 @@ public abstract class Device {
                                     long elapsed = currentTime - recordingStartTime;
                                     bufferInfo.presentationTimeUs = elapsed * 1000L;
 
-                                    int type = rtph264.frameType(frame);
-
-                                    if (type == 7 || type == 8) {
-                                        bufferInfo.flags = MediaCodec.BUFFER_FLAG_CODEC_CONFIG;
-                                    } else if (type == 5) {
+                                    if (type == 5) {
                                         bufferInfo.flags = MediaCodec.BUFFER_FLAG_KEY_FRAME;
                                     }
 
