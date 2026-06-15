@@ -777,7 +777,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     // Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 //                    Log.e(Log.TAG,"=========测试需要batVoltage修改为12.7:=========");
                     //////// 测试使用的电压
-                    // batVoltage = 13.40f; // 全功能
+                    batVoltage = 13.40f; // 全功能
                 //    batVoltage = 12.93f; // 唤醒
 //                    batVoltage = 12.7F; // 休眠 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
@@ -792,12 +792,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     // }
 
                     //添加一个测试变量
-                    if (DEBUG){
-                        testBatAmperCount++;
-                        boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
-                        verificationVoltage = useHigh ? 13.4f : 12.96f;
-                        Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
-                    }
+                    // if (DEBUG){
+                    //     testBatAmperCount++;
+                    //     boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
+                    //     verificationVoltage = useHigh ? 13.4f : 12.96f;
+                    //     Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
+                    // }
 
 
                     int oldMode = currentMode;
