@@ -9618,7 +9618,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         /////
         if (dev.isDVR()) {
-            dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour());  // 这个地方打开成功调用前面的回调函数
+            if (dev.isUSB()){
+                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && !sleeping && !sleepingIr);  // 这个地方打开成功调用前面的回调函数
+            }else {
+                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && !sleeping);  // 这个地方打开成功调用前面的回调函数
+            }
         }
 
         if (dev.isCamera()) {
