@@ -406,9 +406,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private volatile int pendingApplyMode = -1;
     private int pendingMode = -1;
     private long pendingStartTime = 0;
-   private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
+//    private static final long MODE_CONFIRM_TIME = 30 * 60 * 1000L;     // 模式切换时间
     // private static final long MODE_CONFIRM_TIME = 2 * 60 * 1000L;          // 2分钟
-//    private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
+   private static final long MODE_CONFIRM_TIME = 1 * 60 * 1000L;          // 1分钟
     private static final String STATE_FILE = DATA_DIR + "power_mode_state.json";
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -1103,11 +1103,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 Log.i(TAG,
                         "切换到唤醒模式：立即关闭云台和红外");
                 interfacePowerOn();
-                powerOffMipi("切换到唤醒模式");
-                disableRecordingForLowPowerMode("切换到唤醒模式清空设备录像策略");
-                doSleep("切换为唤醒模式", 23);
-                // 唤醒模式下定时拍照需要提前上电；切换模式后重建拍照闹钟，避免沿用全工作模式下的调度。
-                refreshPhotoSchedule();
+                // 先给设备下发空录像策略，再关闭 MIPI/云台；否则设备先下电会导致 setRecordTimes HTTP 请求失败。
+                disableRecordingForLowPowerMode("切换到唤醒模式清空设备录像策略", () -> {
+                    powerOffMipi("切换到唤醒模式");
+                    doSleep("切换为唤醒模式", 23);
+                    // 唤醒模式下定时拍照需要提前上电；切换模式后重建拍照闹钟，避免沿用全工作模式下的调度。
+                    refreshPhotoSchedule();
+                });
                 break;
             }
             case MODE_SLEEP: {
@@ -1116,10 +1118,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 isWakeupKeepAliveMode = false;
                 Log.i(TAG,
                         "切换到休眠模式：立即关闭云台和红外，RJ45和USB下电");
-                powerOffMipi("切换到休眠模式");
-                disableRecordingForLowPowerMode("切换到休眠模式清空设备录像策略");
-                interfacePowerOff();
-                doSleep("切换为休眠模式", 23);
+                // 休眠模式还会关闭 RJ45/USB，因此必须等空录像策略下发结束后再关闭接口电源。
+                disableRecordingForLowPowerMode("切换到休眠模式清空设备录像策略", () -> {
+                    powerOffMipi("切换到休眠模式");
+                    interfacePowerOff();
+                    doSleep("切换为休眠模式", 23);
+                });
                 break;
             }
         }
@@ -3329,18 +3333,38 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    private void postApplyRecordingPolicyToDvr(List<VideoTimeItem> list, String reason, Runnable afterApply) {
+        Runnable task = () -> {
+            // setRecordTimes 内部会通过 HTTP 访问设备，不能在主线程执行，否则会触发 NetworkOnMainThreadException。
+            applyRecordingPolicyToDvr(list, reason);
+            if (afterApply != null) {
+                afterApply.run();
+            }
+        };
+
+        if (utilsHandler == null || Looper.myLooper() == utilsHandler.getLooper()) {
+            task.run();
+        } else {
+            utilsHandler.post(task);
+        }
+    }
+
     private void disableRecordingForLowPowerMode(String reason) {
+        disableRecordingForLowPowerMode(reason, null);
+    }
+
+    private void disableRecordingForLowPowerMode(String reason, Runnable afterDisabled) {
         cancelRecordTaskAlarms();
         cancelVideoTaskAlarms();
-        applyRecordingPolicyToDvr(new ArrayList<>(), reason);
+        // 低功耗模式不执行设备录像计划，先下发空策略；afterDisabled 用来保证下电动作排在下发完成之后。
+        postApplyRecordingPolicyToDvr(new ArrayList<>(), reason, afterDisabled);
     }
 
     private void restoreRecordingForFullMode(String reason) {
         refreshRecordTableFromPolicyFile();
         initRecordTask();
         List<VideoTimeItem> policy = adjustOverlappingItems(loadRecordingPolicyFile());
-        applyRecordingPolicyToDvr(policy, reason);
-        setRecordingPolicy(policy);
+        postApplyRecordingPolicyToDvr(policy, reason, () -> setRecordingPolicy(policy));
     }
 
 
@@ -8890,7 +8914,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (currentMode == MODE_WAKEUP || currentMode == MODE_SLEEP) {
             cancelRecordTaskAlarms();
             cancelVideoTaskAlarms();
-            applyRecordingPolicyToDvr(new ArrayList<>(), "低功耗模式下保存录像策略但不执行");
+            // 低功耗模式只保存主站策略，本地和设备端都不执行录像；设备端清空策略同样走后台线程。
+            postApplyRecordingPolicyToDvr(new ArrayList<>(), "低功耗模式下保存录像策略但不执行", null);
             saveSettings(settings, SETTING_FILE);
             return;
         }
