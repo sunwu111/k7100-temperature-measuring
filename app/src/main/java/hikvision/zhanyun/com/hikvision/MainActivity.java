@@ -908,14 +908,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     /**
-     * 读取频率值，如果文件不存在则自动创建并写入默认值 10，返回该值
+     * 读取频率值，如果文件不存在则自动创建并写入默认值 3，返回该值
      */
     public static int readFrequency() {
         File file = new File(FREQUECY);
         if (!file.exists()) {
             // 文件不存在，创建并写入默认值 10
-            writeFrequency(10);
-            return 10;
+            writeFrequency(3);
+            return 3;
         }
         try (FileInputStream fis = new FileInputStream(file)) {
             byte[] data = new byte[(int) file.length()];
