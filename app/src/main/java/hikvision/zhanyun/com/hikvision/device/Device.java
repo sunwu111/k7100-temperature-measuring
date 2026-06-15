@@ -1058,7 +1058,7 @@ public abstract class Device {
         if (this.osd.time == 1) {
             String time = lyh.Utils.formatDateTime("yyyy-MM-dd HH:mm:ss EEEE", new Date());
             float x = leftMargin;
-            float y = 70; // 第一行
+            float y = 80; // 第一行
             drawOutlineText(canvas, time, x, y, textSize);
         }
 
@@ -1067,7 +1067,7 @@ public abstract class Device {
             String status = controllerCallback.onStatusInfo();
             if (status != null) {
                 String[] ss = status.split("\n");
-                float startY = 70 + lineSpacing; // 从时间下方开始
+                float startY = 80 + lineSpacing; // 从时间下方开始
 
                 for (int i = 0; i < ss.length; i++) {
                     float x = leftMargin;
