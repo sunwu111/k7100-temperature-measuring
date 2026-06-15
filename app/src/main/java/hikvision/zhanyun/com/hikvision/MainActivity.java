@@ -7341,7 +7341,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        if (dev.isLiving()) {
+        if (dev.isCamera() && dev.isLiving()) {
             dev.liveStop();
         }
 
@@ -8118,7 +8118,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         try {
             // 在打开球机的过程中允许停止
-            if (dev != null && !dev.isRecording()) {
+            if (dev != null && (dev.isDVR() || !dev.isRecording())) {
                 dev.liveStop();
 
                 if (dev.streamClient != null) {
