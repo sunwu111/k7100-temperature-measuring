@@ -1024,12 +1024,18 @@ public class Camera2Device extends Device {
     public boolean videoStop() {
         try {
             //Log.i(Log.TAG, "停止录制");
-            unlockFocus();
-            close();
+            if (!isLiving()) {
+                unlockFocus();
+                close();
+            }
             super.videoStop();
             /////
             releaseMuxer();
-            uninitVideoEncoder();
+            if (!isLiving()) {
+                uninitVideoEncoder();
+            } else {
+                Log.i(Log.TAG, "MIPI录制停止，直播仍在进行，保留视频编码器");
+            }
             if (useAudio) {
                 uninitAudioEncoder();
             }
@@ -1045,7 +1051,9 @@ public class Camera2Device extends Device {
     public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try {
 
-            Settings.VideoCodec vc = getVideoCodec(stream); /////
+            boolean reuseLiveEncoder = isLiving() && mediaCodec != null && mPreviewSession != null;
+            int encoderStream = reuseLiveEncoder ? streamType : stream;
+            Settings.VideoCodec vc = getVideoCodec(encoderStream); /////
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
 
             Log.e(Log.TAG,"录制视频"+ vc.frame + ":" + vc.iFrame);
@@ -1054,15 +1062,19 @@ public class Camera2Device extends Device {
                 mResolution = new Point(1280, 720);
             }
 
-            createPreviewSession(mResolution.x, mResolution.y, true);
+            if (!reuseLiveEncoder) {
+                createPreviewSession(mResolution.x, mResolution.y, true);
 
-            {
-                // 对焦最大超时10秒
-                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
-                // 状态设置为录像
-                mState = STATE_VIDEO_RECORDING;
+                {
+                    // 对焦最大超时10秒
+                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
+                    // 状态设置为录像
+                    mState = STATE_VIDEO_RECORDING;
+                }
+            } else {
+                Log.i(Log.TAG, "MIPI直播中启动录制，复用当前预览会话和视频编码器");
             }
-            super.videoStart(stream, filename, duration, upload); /////
+            super.videoStart(encoderStream, filename, duration, upload); /////
             String tmpfile = MainActivity.DATA_DIR + "record_" + id + ".mp4"; /////
 
             /////
@@ -1080,7 +1092,9 @@ public class Camera2Device extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, mResolution.x, mResolution.y, false);   // 录制短视频使用配置文件中的分辨率和I帧间隔
+            if (!reuseLiveEncoder) {
+                initVideoEncoder(encoderStream, mResolution.x, mResolution.y, false);   // 录制短视频使用配置文件中的分辨率和I帧间隔
+            }
             /////
 
             new Timer("recordStop").schedule(new TimerTask() { /////
@@ -1129,7 +1143,11 @@ public class Camera2Device extends Device {
                 unlockFocus();
                 close();
             }
-            uninitVideoEncoder(); /////
+            if (!isRecording()) {
+                uninitVideoEncoder(); /////
+            } else {
+                Log.i(Log.TAG, "MIPI直播停止，录制仍在进行，保留视频编码器");
+            }
             rtph264 = null;
         } catch (Exception e) {
             Log.i(Log.TAG, "停止预览异常：" + e);
@@ -1154,6 +1172,11 @@ public class Camera2Device extends Device {
 
     /////
     public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+        if ((isLiving() || isRecording()) && mCameraDevice != null && mPreviewSession != null) {
+            Log.i(Log.TAG, "MIPI摄像头业务运行中，复用当前相机会话");
+            if (cb != null) cb.openSucceed();
+            return true;
+        }
         if (isOpening()) {
             Log.i(Log.TAG, "摄像头已经打开");
             if (cb != null) cb.openSucceed();
@@ -1179,16 +1202,26 @@ public class Camera2Device extends Device {
 
 
     public boolean liveStart(int stream, int ssrc) {
-        if (isRecording()) {
-            Log.i(Log.TAG, "拉流失败，正在录制视频");
-            return false;
-        }
         if (isLiving()) {
             Log.i(Log.TAG, "拉流失败，正在播放视频");
             return false;
         }
 
         scheduledHandler.post(() -> {
+            if (isRecording()) {
+                if (mediaCodec == null || mPreviewSession == null) {
+                    Log.i(Log.TAG, "MIPI录制中启动拉流失败，预览会话或视频编码器未准备好");
+                    return;
+                }
+                rtph264 = new RTPH264(ssrc);
+                resetLiveRtpState();
+                mOnShow = true;
+                previewReady = true;
+                setState(DevState.LIVING);
+                Log.i(Log.TAG, "MIPI录制中启动拉流成功，共用当前预览会话和视频编码器，SSRC:" + ssrc);
+                return;
+            }
+
             Settings.VideoCodec vc = getVideoCodec(streamType);
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
 
@@ -1218,6 +1251,7 @@ public class Camera2Device extends Device {
             { // 直播要打包成rtp包进行发包
                 initVideoEncoder(streamType, mResolution.x, mResolution.y,true); /////
                 rtph264 = new RTPH264(ssrc);
+                resetLiveRtpState();
             }
             // 先开始播放，然后再对焦，提高后台出流时间
             mOnShow = true;
@@ -1367,8 +1401,6 @@ public class Camera2Device extends Device {
     @Override
     public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
         if (isRecording()) return false;
-        // 录像优先级高于直播拉流
-        if (isLiving()) liveStop();
 
         scheduledHandler.post(() -> {
             videoStart(stream, filename, duration, upload);

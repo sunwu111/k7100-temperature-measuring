@@ -7342,7 +7342,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
         if (dev.isCamera() && dev.isLiving()) {
-            dev.liveStop();
+            Log.i(Log.TAG, "MIPI录制短视频时保留当前直播");
         }
 
         markWakeupActivity(dev, "唤醒模式下录制短视频");

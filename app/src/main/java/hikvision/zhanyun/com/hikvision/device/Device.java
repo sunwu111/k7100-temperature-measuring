@@ -1174,7 +1174,13 @@ public abstract class Device {
 
     protected void releaseMuxer() {
         if (mediaMuxer != null) {
-            mediaMuxer.stop();
+            try {
+                if (muxerStarted) {
+                    mediaMuxer.stop();
+                }
+            } catch (Exception e) {
+                Log.i(Log.TAG, "停止Muxer异常：" + e.getMessage());
+            }
             mediaMuxer.release();
             mediaMuxer = null;
             /////
@@ -1451,23 +1457,51 @@ public abstract class Device {
                 /////
                 if (mediaMuxer != null && mediaCodec != null) {
                     MediaFormat mediaFormat = mediaCodec.getOutputFormat();
-                    videoTrackIndex = mediaMuxer.addTrack(mediaFormat); /////
-                    tryStartMuxer(); /////
+                    if (videoTrackIndex < 0) {
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat); /////
+                        tryStartMuxer(); /////
+                    }
                 }
                 /////
                 Log.w(Log.TAG, "视频帧编码新格式：" + mediaCodec.getOutputFormat());
             } else if (outputBufferIndex >= 0) {
                 ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
+                if (outputBuffer == null) {
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                    return;
+                }
+
+                byte[] outData = null;
+                if (bufferInfo.size > 0) {
+                    ByteBuffer liveBuffer = outputBuffer.duplicate();
+                    liveBuffer.position(bufferInfo.offset);
+                    liveBuffer.limit(bufferInfo.offset + bufferInfo.size);
+                    outData = new byte[bufferInfo.size];
+                    liveBuffer.get(outData);
+                }
+
                 if (isRecording()) {
-                    doSampleData(outputBuffer, bufferInfo, outputBufferIndex); /////
-                } else if (controllerCallback != null && rtph264 != null) {
-                    byte[] outData = new byte[bufferInfo.size];
-                    outputBuffer.get(outData);
+                    try {
+                        if (mediaMuxer != null && videoTrackIndex < 0 && mediaCodec != null) {
+                            MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                            videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                            tryStartMuxer();
+                        }
+                        MediaCodec.BufferInfo recordInfo = new MediaCodec.BufferInfo();
+                        recordInfo.set(bufferInfo.offset, bufferInfo.size, bufferInfo.presentationTimeUs, bufferInfo.flags);
+                        doSampleData(outputBuffer, recordInfo, outputBufferIndex); /////
+                    } catch (Exception e) {
+                        Log.i(Log.TAG, "MIPI录制写入异常，继续保持直播发送：" + e.getMessage());
+                    }
+                }
+
+                // MIPI直播和短视频录制共用同一个编码器；录制写MP4的同时，也要继续把同一帧发给直播RTP。
+                if (controllerCallback != null && rtph264 != null && outData != null && outData.length > 4) {
                     // 解码器输出的数据，关键帧前面没有pps和sps数据，需要手动拼接后给rtph264编码器
                     // 记录pps和sps
                     if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1 && outData[4] == 0x67) {
                         mPpsSps = outData;
-                    } else if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1 && outData[4] == 0x65) {
+                    } else if (mPpsSps != null && outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1 && outData[4] == 0x65) {
                         // 在关键帧前面加上pps和sps数据
                         byte[] iframeData = new byte[mPpsSps.length + outData.length];
                         System.arraycopy(mPpsSps, 0, iframeData, 0, mPpsSps.length);
@@ -2148,6 +2182,11 @@ public abstract class Device {
         } catch (Exception e) {
             Log.d(Log.TAG, "清理视频编码器异常：" + e); /////
         }
+    }
+
+    protected void resetLiveRtpState() {
+        firstFrameTimestamp = 0;
+        mPpsSps = null;
     }
 
     /////
