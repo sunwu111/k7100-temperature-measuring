@@ -1096,6 +1096,12 @@ public class GUIDEDev extends Device {
     @Override
     public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
         Log.i(Log.TAG, "开启高德红外机芯");
+        // 直播或录像已经占用高德红外时，不能重新打开USB机芯，否则会打断正在进行的拉流。
+        if (isLiving() || isRecording()) {
+            Log.i(Log.TAG, "高德红外业务运行中，复用当前机芯连接");
+            if (cb != null) cb.openSucceed();
+            return true;
+        }
         try {
             enter(timeoutSeconds + 60);  // 打开设备超时认为卡死，重启apk
             setState(DevState.OPENING);
@@ -1946,10 +1952,13 @@ public class GUIDEDev extends Device {
     public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try {
             /////
-            Settings.VideoCodec vCodec = getVideoCodec(streamType);
+            // 直播中启动短视频录制时，复用当前预览线程和编码器，只额外打开Muxer写录像文件。
+            boolean reuseLiveEncoder = isLiving() && mediaCodec != null;
+            int encoderStream = reuseLiveEncoder ? streamType : stream;
+            Settings.VideoCodec vCodec = getVideoCodec(encoderStream);
             //initEncoder(stream, CAMERA_RESOLUTION_W * RESIZE, CAMERA_RESOLUTION_H * RESIZE);
             Point size = Settings.VideoCodec.getResolution(vCodec.resolution);
-            if (codec.get(String.valueOf(stream)).resolution > 11) {
+            if (codec.get(String.valueOf(encoderStream)).resolution > 11) {
                 sizeX = 1600;
                 sizeY = 1200;
             } else {
@@ -1957,7 +1966,7 @@ public class GUIDEDev extends Device {
                 sizeY = size.y;
             }
             /////
-            super.videoStart(stream, filename, duration, upload);
+            super.videoStart(encoderStream, filename, duration, upload);
             mediaMuxer = new MediaMuxer(tmpRecordFile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             muxerStarted = false;
             videoTrackIndex = -1;
@@ -1972,46 +1981,56 @@ public class GUIDEDev extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
+            if (!reuseLiveEncoder) {
+                initVideoEncoder(encoderStream, (int) sizeX, (int) sizeY,false); /////
+            } else {
+                Log.i(Log.TAG, "高德红外直播中启动录制，复用当前预览和视频编码器");
+            }
             /////
-            startPreview(stream, 0);
-            //startTemp(0);
+            if (!reuseLiveEncoder) {
+                startPreview(encoderStream, 0);
+                //startTemp(0);
 
-            new Thread(() -> {
-                while (isRecording()) {
-                    try {
-                        synchronized (videoFrame.data) {  // 线程同步，消费者
-                            videoFrame.data.wait(10);
-                            if (!videoFrame.isReady) {
-                                continue;
-                            } else {
-                                sourceBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(videoFrame.data));
-                                previewBitmap = Bitmap.createScaledBitmap(sourceBitmap,
-                                        (int) sizeX, /////
-                                        (int) sizeY, /////
-                                        true);
-                                videoFrame.isReady = false;
+                new Thread(() -> {
+                    // 同一条预览线程同时服务直播和录像，任一业务还在运行都不能退出取帧循环。
+                    while (isRecording() || isLiving()) {
+                        try {
+                            synchronized (videoFrame.data) {  // 线程同步，消费者
+                                videoFrame.data.wait(10);
+                                if (!videoFrame.isReady) {
+                                    continue;
+                                } else {
+                                    sourceBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(videoFrame.data));
+                                    previewBitmap = Bitmap.createScaledBitmap(sourceBitmap,
+                                            (int) sizeX, /////
+                                            (int) sizeY, /////
+                                            true);
+                                    videoFrame.isReady = false;
+                                }
                             }
+                            drawWatermark(previewBitmap);
+                            if (isLiving()) {
+                                drawTempRegion(0, previewBitmap, IRRegionTemp.RegionType.REGION_LIVE);
+                            }
+                            // 区域温度校正后再绘制调色板
+                            Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
+                            Vector<Float> staticRegionsDistance = staticRegionsDistanceMaps.get(0);
+                            if (sensorConfig.onPalette == 1) {
+                                drawPalette(previewBitmap, staticRegions, staticRegionsDistance);
+                            }
+                            if (sensorConfig.hotTracker == 1) {
+                                drawHotTracker(previewBitmap);
+                            }
+                            if (irOverProtect.getMode() == Protection) {
+                                drawProtection(previewBitmap);
+                            }
+                            encode(previewBitmap);
+                        } catch (Exception e) {
+                            Log.i(Log.TAG, "高德红外录像预览异常：" + e);
                         }
-                        drawWatermark(previewBitmap);
-                        // 区域温度校正后再绘制调色板
-                        Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
-                        Vector<Float> staticRegionsDistance = staticRegionsDistanceMaps.get(0);
-                        if (sensorConfig.onPalette == 1) {
-                            drawPalette(previewBitmap, staticRegions, staticRegionsDistance);
-                        }
-                        if (sensorConfig.hotTracker == 1) {
-                            drawHotTracker(previewBitmap);
-                        }
-                        if (irOverProtect.getMode() == Protection) {
-                            drawProtection(previewBitmap);
-                        }
-                        encode(previewBitmap);
-                    } catch (Exception e) {
-                        Log.i(Log.TAG, "高德红外直播预览异常：" + e);
                     }
-                }
-            }).start();
+                }).start();
+            }
 
             new Timer("recordStop").schedule(new TimerTask() {
                 @Override
@@ -2043,14 +2062,21 @@ public class GUIDEDev extends Device {
     @Override
     public boolean videoStop() {
         try {
-            stopTemp();
-            stopPreview();
-            close();
+            if (!isLiving()) {
+                stopTemp();
+                stopPreview();
+                close();
+            }
             super.videoStop();
 
             releaseMuxer();
             /////
-            uninitVideoEncoder();
+            if (!isLiving()) {
+                uninitVideoEncoder();
+            } else {
+                // 录制结束但直播仍在运行时，编码器继续给直播RTP使用，不能释放。
+                Log.i(Log.TAG, "高德红外录制停止，直播仍在进行，保留视频编码器");
+            }
             if (useAudio) {
                 uninitAudioEncoder();
             }
@@ -2067,6 +2093,19 @@ public class GUIDEDev extends Device {
     public boolean liveStart(int stream, int ssrc) {
         if (isLiving()) return true;
 
+        if (isRecording()) {
+            // 录制中启动直播时，复用录制线程输出的编码帧，只创建直播侧RTP封包器。
+            rtph264 = new RTPH264(ssrc);
+            resetLiveRtpState();
+            setState(DevState.LIVING);
+            this.ssrcLive = ssrc;
+            this.streamType = stream;
+            liveRegionsTemp.clear();
+            liveRegionsDistance.clear();
+            Log.i(Log.TAG, "高德红外录制中启动直播，复用当前预览和视频编码器");
+            return true;
+        }
+
         setState(DevState.LIVING);
         getVideoCodec(streamType);
         //initEncoder(stream, CAMERA_RESOLUTION_W * RESIZE, CAMERA_RESOLUTION_H * RESIZE);
@@ -2082,6 +2121,7 @@ public class GUIDEDev extends Device {
         initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
         /////
         rtph264 = new RTPH264(ssrc);            // 创建RTP H264编码器
+        resetLiveRtpState();
         startPreview(stream, 0);
         //startTemp(0);
 
@@ -2093,7 +2133,8 @@ public class GUIDEDev extends Device {
         new Thread(() -> {
             long curTime = 0;
             //int frameCnt = 0;
-            while (isLiving()) {
+            // 同一条预览线程同时服务直播和录像，任一业务还在运行都不能退出取帧循环。
+            while (isLiving() || isRecording()) {
                 try {
                     synchronized (videoFrame.data) {   // 线程同步，消费者
                         videoFrame.data.wait(10);
@@ -2111,7 +2152,9 @@ public class GUIDEDev extends Device {
 
                     drawWatermark(previewBitmap);
 
-                    drawTempRegion(0, previewBitmap, IRRegionTemp.RegionType.REGION_LIVE);
+                    if (isLiving()) {
+                        drawTempRegion(0, previewBitmap, IRRegionTemp.RegionType.REGION_LIVE);
+                    }
 
                     // 区域温度校正后再绘制调色板
                     Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
@@ -2137,7 +2180,7 @@ public class GUIDEDev extends Device {
                         curTime = System.currentTimeMillis();
                         frameCnt = 0;
                     }*/
-                    if (liveRegionsTemp.size() > 0 && liveRegionsDistance.size() > 0 && (System.currentTimeMillis() - curTime >= PERIOD_MINUTE)) {
+                    if (isLiving() && liveRegionsTemp.size() > 0 && liveRegionsDistance.size() > 0 && (System.currentTimeMillis() - curTime >= PERIOD_MINUTE)) {
                         // 1分钟上报一次温度数据
                         doTempReport(0, System.currentTimeMillis(), liveRegionsTemp, liveRegionsDistance);
                         curTime = System.currentTimeMillis();
@@ -2154,10 +2197,13 @@ public class GUIDEDev extends Device {
     @Override
     public boolean liveStop() {
         try {
-            stopTemp();
-            stopPreview();
-            close();
+            if (!isRecording()) {
+                stopTemp();
+                stopPreview();
+                close();
+            }
 
+            // 只停止直播侧RTP封包；如果录像仍在运行，预览和编码器继续保留给录像使用。
             rtph264 = null;
         } catch (Exception e) {
             Log.i(Log.TAG, "停止高德红外直播异常：" + e);
