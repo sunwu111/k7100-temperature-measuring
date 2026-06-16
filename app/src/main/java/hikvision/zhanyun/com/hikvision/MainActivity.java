@@ -7378,7 +7378,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     dev.setOSD(dev.osd, false);
                 } else {
                     dev.updateStatusText(dev.osd, getStatusText(), false);
-                    dev.timeSync();
+                    // 测试录像文件碎片时临时关闭设备校时，避免校时影响录像文件切片。
+                    // dev.timeSync();
                 }
                 ////////
 
@@ -7467,7 +7468,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     dev.updateStatusText(getStatusText(), false);
                 } else {
                     dev.updateStatusText(dev.osd, getStatusText(), false);
-                    dev.timeSync();
+                    // 测试录像文件碎片时临时关闭设备校时，避免校时影响录像文件切片。
+                    // dev.timeSync();
                 }
                 ////////
                 if (!dev.isCamera()) {
@@ -7829,7 +7831,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     dev.setOSD(dev.osd, false);
                 } else {
                     dev.updateStatusText(dev.osd, getStatusText(), false);
-                    dev.timeSync();
+                    // 测试录像文件碎片时临时关闭设备校时，避免校时影响录像文件切片。
+                    // dev.timeSync();
                 }
                 ////////
                 boolean ret = dev.liveStart(liveStreamType, liveSsrc);
@@ -8030,7 +8033,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     ////////
                     if (dev.type == DEVICE_DVR_HUANYU) {
                         dev.updateStatusText(dev.osd, getStatusText(), false);
-                        dev.timeSync();
+                        // 测试录像文件碎片时临时关闭设备校时，避免校时影响录像文件切片。
+                        // dev.timeSync();
                     }
                     ////////
                     Settings.VideoCodec vc = dev.codec.get(String.valueOf(streamType));
@@ -9525,7 +9529,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
                 if (dev.type == DEVICE_DVR_HUANYU) {
                     dev.updateStatusText(dev.osd, getStatusText(), true);
-                    dev.timeSync();
+                    // 测试录像文件碎片时临时关闭设备校时，避免校时影响录像文件切片。
+                    // dev.timeSync();
                 }
 
                 Bitmap pop = null;
