@@ -526,6 +526,23 @@ public abstract class Device {
         return objectDetect;
     }
 
+    // 运行时打开音频时，可能构造阶段没有创建音频线程，这里按需补齐。
+    private void ensureAudioThread() {
+        if (procAudioThread == null) {
+            procAudioThread = new HandlerThread("音频处理线程");
+            procAudioThread.start();
+            procAudioHandler = new Handler(procAudioThread.getLooper());
+        }
+    }
+
+    // 供主界面辅助开关8动态同步音频状态。
+    public void setUseAudio(boolean useAudio) {
+        this.useAudio = useAudio;
+        if (useAudio) {
+            ensureAudioThread();
+        }
+    }
+
     public Device(int ID, Context context, boolean useAudio) { /////
         this.id = ID;
         this.context = context;
@@ -547,10 +564,8 @@ public abstract class Device {
             procVideoHandler = new Handler(procVideoThread.getLooper());
         }
 
-        if (procAudioThread == null && useAudio) {
-            procAudioThread = new HandlerThread("音频处理线程");
-            procAudioThread.start();
-            procAudioHandler = new Handler(procAudioThread.getLooper());
+        if (useAudio) {
+            ensureAudioThread();
         }
         /////
 

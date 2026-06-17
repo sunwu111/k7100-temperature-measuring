@@ -6602,6 +6602,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
 
+    // 辅助开关8用于控制音频开关，配置保存到 config.json，并同步当前已创建设备的 useAudio 状态。
+    private void setAudioConfigByAuxSwitch(final boolean enabled) {
+        // audio 表示用户期望状态；实际录音还需要 RECORD_AUDIO 权限。
+        deviceConfig.audio = enabled;
+        saveDeviceConfig();
+        boolean useAudio = enabled && hasAudioPermission(this);
+        for (Device dev : channels.values()) {
+            if (dev != null) dev.setUseAudio(useAudio);
+        }
+        if (switchAudio != null) {
+            runOnUiThread(() -> switchAudio.setChecked(enabled));
+        }
+        Log.i(Log.TAG, "Aux switch 8 set audio=" + enabled + ", useAudio=" + useAudio);
+    }
+
     @Override
     public boolean setOnlineConfig(OnlineCfg cfg, String newPasscode) {
         settings.onlineCfg = cfg;
@@ -7206,6 +7221,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             saveSettings(iRSetting, IR_SETTING_FILE);
             dev.move(order, para);
             Log.i(Log.TAG, "辅助开关6关闭，关闭双光融合");
+        } else if (order == 17 && para == 8) {
+            // 打开辅助开关8：开启音频并持久化到 config.json。
+            setAudioConfigByAuxSwitch(true);
+        } else if (order == 18 && para == 8) {
+            // 关闭辅助开关8：关闭音频并持久化到 config.json。
+            setAudioConfigByAuxSwitch(false);
 //        } else if (order == 17 && para == 7) {
 //            // 开启拍照策略自检测
 //            deviceConfig.photoCheck = true;

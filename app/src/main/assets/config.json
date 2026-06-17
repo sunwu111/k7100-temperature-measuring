@@ -29,5 +29,6 @@
     }
   ],
   "main_board": 1,
-  "wifi": true
+  "wifi": true,
+  "audio": false
 }

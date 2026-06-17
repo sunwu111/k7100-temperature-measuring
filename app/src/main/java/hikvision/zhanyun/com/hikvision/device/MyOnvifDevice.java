@@ -165,6 +165,13 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     public MediaCodec mediaEncoder; /////
     private boolean useAudio; /////
 
+    // 子类内部也缓存了 useAudio，运行时切换时需要和父类状态保持一致。
+    @Override
+    public void setUseAudio(boolean useAudio) {
+        super.setUseAudio(useAudio);
+        this.useAudio = useAudio;
+    }
+
     private final RtspClientCallback rtspLiveOnlyCallback = new RtspClientCallback() {
         @Override
         public void onPacket(int channel, byte[] packet, int len) {

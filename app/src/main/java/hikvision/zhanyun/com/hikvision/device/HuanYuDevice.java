@@ -115,6 +115,13 @@ public class HuanYuDevice extends MyOnvifDevice {
 //        login();
     }
 
+    // 子类内部也缓存了 useAudio，运行时切换时需要和父类状态保持一致。
+    @Override
+    public void setUseAudio(boolean useAudio) {
+        super.setUseAudio(useAudio);
+        this.useAudio = useAudio;
+    }
+
     private static String UTCTimeFormat(final Date date) {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd@HH:mm:ss#");
         return format.format(date).replace("@", "T").replace("#", "Z");
