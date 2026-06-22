@@ -323,17 +323,18 @@ public class Camera2Device extends Device {
                         float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
                         // 调整饱和度
                         ColorMatrix saturationMatrix = new ColorMatrix();
-                        saturationMatrix.setSatur
-                        if (MainActivity.DEBUG) {ation(saturationValue);
-                        colorMatrix.postConcat(saturationMatrix);
+                        saturationMatrix.setSaturation(saturationValue);
+                        if (MainActivity.DEBUG) {
+                            colorMatrix.postConcat(saturationMatrix);
+                        }
+                        // 组合所有矩阵
+                        paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+                        canvas.drawBitmap(previewBitmap, 0, 0, paint);
+                        //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
+                        //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
+                        //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
+                        return outputBitmap;
                     }
-                    // 组合所有矩阵
-                    paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-                    canvas.drawBitmap(previewBitmap, 0, 0, paint);
-                    //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
-                    //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
-                    //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
-                    return outputBitmap;
                 }
             } else {
                 Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
@@ -406,6 +407,8 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "摄像头设置图像参数异常：" + e);
             return previewBitmap;
         }
+
+        return previewBitmap;
     }
 
     private void updateCaptureRequestParameters() {
