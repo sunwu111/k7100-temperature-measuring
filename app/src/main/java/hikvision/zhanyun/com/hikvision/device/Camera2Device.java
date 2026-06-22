@@ -34,6 +34,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Range;
+import android.util.Rational;
 import android.util.Size;
 
 import androidx.annotation.NonNull;
@@ -45,8 +46,11 @@ import com.zhjinrui.bean.Constant;
 import com.zhjinrui.netty.NettyTcpServer;
 import com.zhjinrui.netty.NettyUtils;
 
+import org.json.JSONException;
+
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -102,7 +106,23 @@ public class Camera2Device extends Device {
     private final AtomicBoolean takePhotoOnce = new AtomicBoolean(false);   // 防止在拉流的时候拍照会被执行多次
     private final AtomicBoolean photoDone = new AtomicBoolean(false);       // 拍照已经成功，但等待方不知道  如果没有这个变量，在一次拍照成功后，设备还在等待拍照任务，会导致拍照失败再次拍照，其实已经成功。
 
+    ///
+    private static final Object sDualCameraLock = new Object();
 
+    private static Camera2Device sCamera0Device;
+    private static Camera2Device sCamera1Device;
+
+    private static boolean sDualStarting = false;
+    private static boolean sDualStarted = false;
+
+    private static final boolean ALWAYS_OPEN_BOTH_MIPI = true;
+
+    private static int sDualPreviewWidth = 1536;
+    private static int sDualPreviewHeight = 864;
+
+    private boolean mDualSessionStarted = false;
+    private boolean mDualSessionStarting = false;
+    ///
 
     public Camera2Device(int ID, Context context, int camID, int board, int rotate, boolean useAudio) { /////
         super(ID, context, useAudio); /////
@@ -121,7 +141,29 @@ public class Camera2Device extends Device {
             mCameraParamThread.start(); /////
             mCameraParamHandler = new Handler(mCameraParamThread.getLooper()); /////
         } /////
+        registerDualCameraInstance(); ///
     }
+
+    ///
+    private void registerDualCameraInstance() {
+        synchronized (sDualCameraLock) {
+            int realCamId = camID % 2;
+
+            if (realCamId == 0) {
+                sCamera0Device = this;
+            } else {
+                sCamera1Device = this;
+            }
+
+            Log.i(Log.TAG, "注册双路 MIPI 对象"
+                    + "，camID = " + camID
+                    + "，realCamId = " + realCamId
+                    + "，this = " + this
+                    + "，sCamera0Device = " + sCamera0Device
+                    + "，sCamera1Device = " + sCamera1Device);
+        }
+    }
+    ///
 
     private class CameraMulthreadLock {
         private class Locker {
@@ -225,67 +267,141 @@ public class Camera2Device extends Device {
 //                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
 
             }
-            Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
-//            Log.i(Log.TAG, "摄像头设置分辨率为" + mResolution.x + "x" + mResolution.y);
+            ///
+            if (mResolution == null) {
+                mResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+            }
+            if (mResolution.x == previewBitmap.getWidth() && mResolution.y == previewBitmap.getHeight()) {
+                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
+                    return previewBitmap;
+                } else {
+                    Bitmap outputBitmap = Bitmap.createBitmap(previewBitmap.getWidth(), previewBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////
+                    Canvas canvas = new Canvas(outputBitmap);
+                    Paint paint = new Paint();
+                    ColorMatrix colorMatrix = new ColorMatrix();
+//                // 是否灰度化
+//                if (photoConfig.color == 0) {
+//                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0, 0, 0, 1, 0
+//                    });
+//                    colorMatrix.postConcat(grayscaleMatrix);
+//                    //Log.i(Log.TAG, "摄像头色彩设置为黑白模式");
+//                } else {
+//                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
+//                }
 
-            Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////
-            Canvas canvas = new Canvas(outputBitmap);
-            Paint paint = new Paint();
-            ColorMatrix colorMatrix = new ColorMatrix();
-//            // 是否灰度化
-//            if (photoConfig.color == 0) {
-//                ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
-//                        0.299f, 0.587f, 0.114f, 0, 0,
-//                        0.299f, 0.587f, 0.114f, 0, 0,
-//                        0.299f, 0.587f, 0.114f, 0, 0,
-//                        0, 0, 0, 1, 0
-//                });
-//                colorMatrix.postConcat(grayscaleMatrix);
-//                //Log.i(Log.TAG, "摄像头色彩设置为黑白模式");
-//            } else {
-//                //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
-//            }
+                    if (photoConfig.brightness != 50) {
+                        // 映射亮度 (1~100 → -128~128)
+                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                        // 调整亮度
+                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                                1, 0, 0, 0, brightnessValue,
+                                0, 1, 0, 0, brightnessValue,
+                                0, 0, 1, 0, brightnessValue,
+                                0, 0, 0, 1, 0
+                        });
+                        colorMatrix.postConcat(brightnessMatrix);
+                    }
+                    if (photoConfig.contrast != 50) {
+                        // 映射对比度 (1~100 → 0.5~2.0)
+                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                        // 调整对比度
+                        float translate = (1 - contrastValue) * 128;
+                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                                contrastValue, 0, 0, 0, translate,
+                                0, contrastValue, 0, 0, translate,
+                                0, 0, contrastValue, 0, translate,
+                                0, 0, 0, 1, 0
+                        });
+                        colorMatrix.postConcat(contrastMatrix);
+                    }
+                    if (photoConfig.saturation != 50) {
+                        // 映射饱和度 (1~100 → 0.0~2.0)
+                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                        // 调整饱和度
+                        ColorMatrix saturationMatrix = new ColorMatrix();
+                        saturationMatrix.setSatur
+                        if (MainActivity.DEBUG) {ation(saturationValue);
+                        colorMatrix.postConcat(saturationMatrix);
+                    }
+                    // 组合所有矩阵
+                    paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+                    canvas.drawBitmap(previewBitmap, 0, 0, paint);
+                    //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
+                    //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
+                    //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
+                    return outputBitmap;
+                }
+            } else {
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
+//                Log.i(Log.TAG, "摄像头设置分辨率为" + mResolution.x + "x" + mResolution.y);
+                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
+                    return scaledBitmap;
+                } else {
+                    Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////
+                    Canvas canvas = new Canvas(outputBitmap);
+                    Paint paint = new Paint();
+                    ColorMatrix colorMatrix = new ColorMatrix();
+//                // 是否灰度化
+//                if (photoConfig.color == 0) {
+//                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0, 0, 0, 1, 0
+//                    });
+//                    colorMatrix.postConcat(grayscaleMatrix);
+//                    //Log.i(Log.TAG, "摄像头色彩设置为黑白模式");
+//                } else {
+//                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
+//                }
 
-            if (photoConfig.brightness != 50) {
-                // 映射亮度 (1~100 → -128~128)
-                float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
-                // 调整亮度
-                ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
-                        1, 0, 0, 0, brightnessValue,
-                        0, 1, 0, 0, brightnessValue,
-                        0, 0, 1, 0, brightnessValue,
-                        0, 0, 0, 1, 0
-                });
-                colorMatrix.postConcat(brightnessMatrix);
+                    if (photoConfig.brightness != 50) {
+                        // 映射亮度 (1~100 → -128~128)
+                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                        // 调整亮度
+                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                                1, 0, 0, 0, brightnessValue,
+                                0, 1, 0, 0, brightnessValue,
+                                0, 0, 1, 0, brightnessValue,
+                                0, 0, 0, 1, 0
+                        });
+                        colorMatrix.postConcat(brightnessMatrix);
+                    }
+                    if (photoConfig.contrast != 50) {
+                        // 映射对比度 (1~100 → 0.5~2.0)
+                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                        // 调整对比度
+                        float translate = (1 - contrastValue) * 128;
+                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                                contrastValue, 0, 0, 0, translate,
+                                0, contrastValue, 0, 0, translate,
+                                0, 0, contrastValue, 0, translate,
+                                0, 0, 0, 1, 0
+                        });
+                        colorMatrix.postConcat(contrastMatrix);
+                    }
+                    if (photoConfig.saturation != 50) {
+                        // 映射饱和度 (1~100 → 0.0~2.0)
+                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                        // 调整饱和度
+                        ColorMatrix saturationMatrix = new ColorMatrix();
+                        saturationMatrix.setSaturation(saturationValue);
+                        colorMatrix.postConcat(saturationMatrix);
+                    }
+                    // 组合所有矩阵
+                    paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+                    canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+                    //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
+                    //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
+                    //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
+                    return outputBitmap;
+                }
             }
-            if (photoConfig.contrast != 50) {
-                // 映射对比度 (1~100 → 0.5~2.0)
-                float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
-                // 调整对比度
-                float translate = (1 - contrastValue) * 128;
-                ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
-                        contrastValue, 0, 0, 0, translate,
-                        0, contrastValue, 0, 0, translate,
-                        0, 0, contrastValue, 0, translate,
-                        0, 0, 0, 1, 0
-                });
-                colorMatrix.postConcat(contrastMatrix);
-            }
-            if (photoConfig.saturation != 50) {
-                // 映射饱和度 (1~100 → 0.0~2.0)
-                float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
-                // 调整饱和度
-                ColorMatrix saturationMatrix = new ColorMatrix();
-                saturationMatrix.setSaturation(saturationValue);
-                colorMatrix.postConcat(saturationMatrix);
-            }
-            // 组合所有矩阵
-            paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-            canvas.drawBitmap(scaledBitmap, 0, 0, paint);
-            //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
-            //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
-            //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
-            return outputBitmap;
+            ///
         } catch (Exception e) {
             Log.i(Log.TAG, "摄像头设置图像参数异常：" + e);
             return previewBitmap;
@@ -316,7 +432,7 @@ public class Camera2Device extends Device {
             if (cameraConfig.backLightCom == 1) {
                 //Log.i(Log.TAG, "MIPI摄像头开启背光补偿");
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值
-                // 强光抑制
+            // 强光抑制
             } else if (cameraConfig.strongLightSup == 1) {
                 //Log.i(Log.TAG, "MIPI摄像头开启强光抑制");
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值
@@ -381,9 +497,6 @@ public class Camera2Device extends Device {
                 if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
                     Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
 
-                    photoDone.set(true);
-
-                    mCameraPhtotingLock.notifyLock();
                     previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
                     drawWatermark(previewBitmap,3,streamType,true); // 先AI识别再画OSD //////
@@ -398,7 +511,13 @@ public class Camera2Device extends Device {
                     }
                     mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
 
-                } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
+                    ///
+                    photoDone.set(true);
+
+                    mCameraPhtotingLock.notifyLock();
+                    ///
+
+                } else if ((isLiving() && rtph264 != null) || isRecording()) {
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
 
@@ -409,8 +528,25 @@ public class Camera2Device extends Device {
                     procVideoHandler.post(() -> { /////
                         encode(finalPreviewBitmap); /////
                     });
+                ///
+                } else if (enableLiveEncode) {
+                    if (mResolution == null) {
+                        Log.i(Log.TAG, "直播帧跳过，mResolution 为空" + "，camID = " + camID);
+                        return;
+                    }
+                    if (rtph264 == null) {
+                        Log.i(Log.TAG, "直播帧跳过，rtph264 为空" + "，isLiving = " + isLiving());
+                        return;
+                    }
+                    drawWatermark(previewBitmap, 3, streamType, false);  // 先AI识别再画OSD
+                    Bitmap finalPreviewBitmap = previewBitmap;  // 这里可以解决OSD闪烁的问题
+                    procVideoHandler.removeCallbacksAndMessages(null);
+                    procVideoHandler.post(() -> {
+                        encode(finalPreviewBitmap);
+                    });
                 }
-                if (mOnShow && controllerCallback != null) {
+                ///
+                if (mOnShow && controllerCallback != null ) {
                     controllerCallback.onFrame(previewBitmap); /////
                 }
             } catch (Exception e) {
@@ -640,8 +776,10 @@ public class Camera2Device extends Device {
                     unlockFocus();
                 }
             };
-            mPreviewSession.stopRepeating();
-            mPreviewSession.abortCaptures();
+            ///
+//            mPreviewSession.stopRepeating();
+//            mPreviewSession.abortCaptures();
+            ///
             mPreviewSession.capture(mPreviewRequestBuilder.build(), CaptureCallback, mBackgroundHandler);
         } catch (Exception e) {
             Log.i(Log.TAG, "拍摄照片异常：" + e.getMessage());
@@ -725,18 +863,18 @@ public class Camera2Device extends Device {
                 case STATE_VIDEO_LIVING:
                 case STATE_VIDEO_RECORDING:
                     captureContinuousPictures();
-                    /////
-                    if (mKeyAisResult != null) {
-                        int[] resultModes = result.get(mKeyAisResult);
-                        if (resultModes != null) {
-                            for (int resMode : resultModes) {
-                                Log.i(Log.TAG, "MFB Result Mode: " + resMode);
-                            }
-                        } else {
-                            Log.i(Log.TAG, "MFB Result Mode not available.");
-                        }
-                    }
-                    /////
+//                    /////
+//                    if (mKeyAisResult != null) {
+//                        int[] resultModes = result.get(mKeyAisResult);
+//                        if (resultModes != null) {
+//                            for (int resMode : resultModes) {
+//                                Log.i(Log.TAG, "MFB Result Mode: " + resMode);
+//                            }
+//                        } else {
+//                            Log.i(Log.TAG, "MFB Result Mode not available.");
+//                        }
+//                    }
+//                    /////
                     mState = STATE_PREVIEW;
                     previewReady = true;
                     break;
@@ -914,95 +1052,187 @@ public class Camera2Device extends Device {
                 return;
             }
             CameraManager cameraManager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
-            int camId = this.camID % 2;
+            int camId = camID % 2;
             if (camId >= cameraManager.getCameraIdList().length) {
                 Log.i(Log.TAG, "摄像头" + camId + "超过支持的摄像头总数：" + cameraManager.getCameraIdList().length);
                 return;
             }
-            for (String camerID : cameraManager.getCameraIdList()) {
-                if (!camerID.equals(Integer.toString(camId))) continue;
+//            for (String camerID : cameraManager.getCameraIdList()) {
+//                if (!camerID.equals(Integer.toString(camId))) continue;
+//
+//                //Settings.VideoCodec vc = getVideoCodec(streamType);
+//                //mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+//
+//                CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(camerID);
+//                /////
+//                // 获取设备支持的CameraCharacteristics Key列表
+//                minFocusDist = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
+//                Log.i(Log.TAG, "MIPI摄像头最小对焦距离为" + 1 / minFocusDist * 100 + "厘米");
+//                List<CameraCharacteristics.Key<?>> keyList = cameraCharacteristics.getKeys();
+//                for (CameraCharacteristics.Key<?> key : keyList) {
+//                    if (key.getName().equals(AIS_AVAILABLE_MODES_KEY_NAME)) {
+//                        mKeyAisAvailableModes = (CameraCharacteristics.Key<int[]>) key;
+//                        Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME);
+//                    }
+//                }
+//                // 获取CaptureResult Key（用于读取MFB处理结果）
+//                List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys();
+//                for (CaptureResult.Key<?> resultKey : resultKeyList) {
+//                    if (resultKey.getName().equals(AIS_RESULT_MODE_KEY_NAME)) {
+//                        mKeyAisResult = (CaptureResult.Key<int[]>) resultKey;
+//                        Log.i(Log.TAG, "Found CaptureResult Key: " + AIS_RESULT_MODE_KEY_NAME);
+//                    }
+//                }
+//                // 获取CaptureRequest Key（用于设置MFB模式）
+//                List<CaptureRequest.Key<?>> requestKeyList = cameraCharacteristics.getAvailableCaptureRequestKeys();
+//                for (CaptureRequest.Key<?> requestKey : requestKeyList) {
+//                    if (requestKey.getName().equals(AIS_REQUEST_MODE_KEY_NAME)) {
+//                        mKeyAisRequestMode = (CaptureRequest.Key<int[]>) requestKey;
+//                        Log.i(Log.TAG, "Found CaptureRequest Key: " + AIS_REQUEST_MODE_KEY_NAME);
+//                    }
+//                }
+//                if (mKeyAisAvailableModes != null) {
+//                    int[] availableModes = cameraCharacteristics.get(mKeyAisAvailableModes);
+//                    if (availableModes != null) {
+//                        for (int mode : availableModes) {
+//                            Log.i(Log.TAG, "Supported MFB Mode: " + mode);
+//                        }
+//                    } else {
+//                        Log.i(Log.TAG, "No available MFB modes.");
+//                    }
+//                } else {
+//                    Log.i(Log.TAG, "MFB Key not found.");
+//                }
+//                /////
+//                //mFlashSupported = cameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+//
+//                streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+//                /*Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
+//                for (int i = 0; i < sizes.length; i++) {
+//                    Log.i(Log.TAG, "支持的分辨率：" + sizes[i].getWidth() + "x" + sizes[i].getHeight());
+//                }
+//
+//                Range<Integer>[] fpsRange = cameraCharacteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+//                for (Range<Integer> fps : fpsRange) {
+//                    Log.i(Log.TAG, "支持的帧率：[" + fps.getLower() + "," + fps.getUpper() + "]");
+//                }*/
+//
+//                /*int[] modes = cameraCharacteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES);
+//                for (int i = 0; i < modes.length; i++) {
+//                    Log.i(Log.TAG, "支持的场景模式：" + modes[i]);
+//                }*/
+//
+//                startBackgroundThread();
+//                cameraManager.openCamera(camerID, mStateCallback, mBackgroundHandler);
+//                mCameraOpenCloseLock.waitLock(2500);
+//                break;
+//            }
+            String cameraId = String.valueOf(camId); ///
 
-                //Settings.VideoCodec vc = getVideoCodec(streamType);
-                //mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+            ///
+            if (mCameraDevice != null) {
+                return;
+            }
+            ///
+            startBackgroundThread();
+            cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler);
+            mCameraOpenCloseLock.waitLock(2500);
+        } catch (Exception e) {
+            Log.i(Log.TAG, String.format("打开摄像头%d异常：%s", camID, e.getMessage()));
+        }
+    }
 
-                CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(camerID);
-                /////
-                // 获取设备支持的CameraCharacteristics Key列表
-                minFocusDist = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
-                Log.i(Log.TAG, "MIPI摄像头最小对焦距离为" + 1 / minFocusDist * 100 + "厘米");
-                List<CameraCharacteristics.Key<?>> keyList = cameraCharacteristics.getKeys();
-                for (CameraCharacteristics.Key<?> key : keyList) {
-                    if (key.getName().equals(AIS_AVAILABLE_MODES_KEY_NAME)) {
-                        mKeyAisAvailableModes = (CameraCharacteristics.Key<int[]>) key;
-                        Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME);
-                    }
-                }
-                // 获取CaptureResult Key（用于读取MFB处理结果）
-                List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys();
-                for (CaptureResult.Key<?> resultKey : resultKeyList) {
-                    if (resultKey.getName().equals(AIS_RESULT_MODE_KEY_NAME)) {
-                        mKeyAisResult = (CaptureResult.Key<int[]>) resultKey;
-                        Log.i(Log.TAG, "Found CaptureResult Key: " + AIS_RESULT_MODE_KEY_NAME);
-                    }
-                }
-                // 获取CaptureRequest Key（用于设置MFB模式）
-                List<CaptureRequest.Key<?>> requestKeyList = cameraCharacteristics.getAvailableCaptureRequestKeys();
-                for (CaptureRequest.Key<?> requestKey : requestKeyList) {
-                    if (requestKey.getName().equals(AIS_REQUEST_MODE_KEY_NAME)) {
-                        mKeyAisRequestMode = (CaptureRequest.Key<int[]>) requestKey;
-                        Log.i(Log.TAG, "Found CaptureRequest Key: " + AIS_REQUEST_MODE_KEY_NAME);
-                    }
-                }
-                if (mKeyAisAvailableModes != null) {
-                    int[] availableModes = cameraCharacteristics.get(mKeyAisAvailableModes);
-                    if (availableModes != null) {
-                        for (int mode : availableModes) {
-                            Log.i(Log.TAG, "Supported MFB Mode: " + mode);
-                        }
-                    } else {
-                        Log.i(Log.TAG, "No available MFB modes.");
-                    }
-                } else {
-                    Log.i(Log.TAG, "MFB Key not found.");
-                }
-                /////
-                //mFlashSupported = cameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-
-                streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-                /*Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
-                for (int i = 0; i < sizes.length; i++) {
-                    Log.i(Log.TAG, "支持的分辨率：" + sizes[i].getWidth() + "x" + sizes[i].getHeight());
-                }
-
-                Range<Integer>[] fpsRange = cameraCharacteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-                for (Range<Integer> fps : fpsRange) {
-                    Log.i(Log.TAG, "支持的帧率：[" + fps.getLower() + "," + fps.getUpper() + "]");
-                }*/
-
-                /*int[] modes = cameraCharacteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES);
-                for (int i = 0; i < modes.length; i++) {
-                    Log.i(Log.TAG, "支持的场景模式：" + modes[i]);
-                }*/
-
-                startBackgroundThread();
-                cameraManager.openCamera(camerID, mStateCallback, mBackgroundHandler);
-                mCameraOpenCloseLock.waitLock(2500);
-                break;
+//    private void closePreviewSession() {
+//        if (mPreviewSession != null) {
+//            mPreviewSession.close();
+//            mPreviewSession = null;
+//        }
+//    }
+    ///
+    private void closePreviewSession() {
+        try {
+            if (mPreviewSession != null) {
+                mPreviewSession.close();
+                mPreviewSession = null;
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, String.format("打开摄像头%d异常: %s", camID, e.getMessage()));
-        }
-    }
-
-    private void closePreviewSession() {
-        if (mPreviewSession != null) {
-            mPreviewSession.close();
             mPreviewSession = null;
         }
+        mPreviewRequestBuilder = null;
     }
 
+    private volatile boolean enableLiveEncode = false;
+
+    public void setEnableLiveEncode(boolean enable) {
+        enableLiveEncode = enable;
+    }
+
+    public void stopLiveAndCloseBothIfIdle() {
+        setEnableLiveEncode(false);
+        closeBothCameraIfNoLive();
+    }
+
+    private static void closeBothCameraIfNoLive() {
+        Camera2Device cam0;
+        Camera2Device cam1;
+        synchronized (sDualCameraLock) {
+            cam0 = sCamera0Device;
+            cam1 = sCamera1Device;
+            boolean cam0Live = cam0 != null && cam0.enableLiveEncode;
+            boolean cam1Live = cam1 != null && cam1.enableLiveEncode;
+            boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing;
+            boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing;
+            boolean cam0Recording = cam0 != null && cam0.isRecording();
+            boolean cam1Recording = cam1 != null && cam1.isRecording();
+            Log.i(Log.TAG, "检查是否需要释放双路 Camera"
+                    + "，cam0Live = " + cam0Live
+                    + "，cam1Live = " + cam1Live
+                    + "，cam0Photoing = " + cam0Photoing
+                    + "，cam1Photoing = " + cam1Photoing
+                    + "，cam0Recording = " + cam0Recording
+                    + "，cam1Recording = " + cam1Recording);
+            if (cam0Live || cam1Live || cam0Photoing || cam1Photoing || cam0Recording || cam1Recording) {
+                Log.i(Log.TAG, "仍有直播、拍照或录像任务，不释放双路 Camera");
+                return;
+            }
+            Log.i(Log.TAG, "两路均无直播、拍照、录像任务，准备释放双路 Camera");
+        }
+        if (cam0 != null) {
+            cam0.closeCamera();
+        }
+        if (cam1 != null && cam1 != cam0) {
+            cam1.closeCamera();
+        }
+        synchronized (sDualCameraLock) {
+            sDualStarted = false;
+            sDualStarting = false;
+        }
+        Log.i(Log.TAG, "双路 Camera 已释放");
+    }
+    ///
+
+//    public synchronized void closeCamera() {
+//        super.closeCamera();
+//        if (mImageReader != null) {
+//            mImageReader.close();
+//            mImageReader = null;
+//        }
+//        if (mCameraDevice != null) {
+//            mCameraDevice.close();
+//            mCameraDevice = null;
+//        }
+//
+//        closePreviewSession();
+//        stopBackgroundThread();
+//        clearState(DevState.OPENING);
+//    }
     public synchronized void closeCamera() {
         super.closeCamera();
+        setEnableLiveEncode(false);
+        mDualSessionStarted = false;
+        mDualSessionStarting = false;
+        previewReady = false;
+
         if (mImageReader != null) {
             mImageReader.close();
             mImageReader = null;
@@ -1015,6 +1245,10 @@ public class Camera2Device extends Device {
         closePreviewSession();
         stopBackgroundThread();
         clearState(DevState.OPENING);
+
+        synchronized (sDualCameraLock) {
+            sDualStarted = false;
+        }
     }
 
     /*
@@ -1024,8 +1258,8 @@ public class Camera2Device extends Device {
     public boolean videoStop() {
         try {
             //Log.i(Log.TAG, "停止录制");
-            unlockFocus();
-            close();
+//            unlockFocus();
+//            close();
             super.videoStop();
             /////
             releaseMuxer();
@@ -1033,6 +1267,7 @@ public class Camera2Device extends Device {
             if (useAudio) {
                 uninitAudioEncoder();
             }
+            closeBothCameraIfNoLive(); ///
             /////
         } catch (Exception e) {
             Log.i(Log.TAG, "停止录像异常：" + e);
@@ -1053,12 +1288,27 @@ public class Camera2Device extends Device {
             if (is6735) {
                 mResolution = new Point(1280, 720);
             }
+            ///
+            if (mResolution == null) {
+                Log.i(Log.TAG, "录像分辨率为空，使用默认 1920x1080"
+                        + "，camID = " + camID);
+                mResolution = new Point(1920, 1080);
+            }
 
-            createPreviewSession(mResolution.x, mResolution.y, true);
+            if (mPreviewSession == null || mCameraDevice == null) {
+                Log.i(Log.TAG, "录像失败，CameraDevice 或 PreviewSession 为空"
+                        + "，camID = " + camID
+                        + "，mCameraDevice = " + mCameraDevice
+                        + "，mPreviewSession = " + mPreviewSession);
+                return false;
+            }
+            ///
+
+//            createPreviewSession(mResolution.x, mResolution.y, true);
 
             {
                 // 对焦最大超时10秒
-                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
+//                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
                 // 状态设置为录像
                 mState = STATE_VIDEO_RECORDING;
             }
@@ -1118,17 +1368,22 @@ public class Camera2Device extends Device {
     }
 
     public boolean close() {
-        closeCamera();
+//        closeCamera();
+        stopLiveAndCloseBothIfIdle(); ///
         return true;
     }
 
     public boolean liveStop() {
         //Log.i(Log.TAG, "停止预览");
         try {
-            if (!mCameraPhotoing && !isRecording()) {
-                unlockFocus();
-                close();
-            }
+            ///
+//            if (!mCameraPhotoing && !isRecording()) {
+//                unlockFocus();
+//                close();
+//            }
+            setEnableLiveEncode(false);
+            mOnShow = false;
+            ///
             uninitVideoEncoder(); /////
             rtph264 = null;
         } catch (Exception e) {
@@ -1136,6 +1391,11 @@ public class Camera2Device extends Device {
             return false;
         } finally {
             clearState(DevState.LIVING); /////
+            ///
+            if (!mCameraPhotoing && !isRecording()) {
+                closeBothCameraIfNoLive();
+            }
+            ///
         }
         return true;
     }
@@ -1151,16 +1411,130 @@ public class Camera2Device extends Device {
         return true;
     }
 
-
+    /////
+//    public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+//        if (isOpening()) {
+//            Log.i(Log.TAG, "摄像头已经打开");
+//            if (cb != null) cb.openSucceed();
+//            return true;
+//        }
+//        if (mMainBoard == 1) {
+//            MipiSwitch.switchTo(camID);
+//        }
+//        streamType = stream;
+//        openCamera();
+//        if (mCameraDevice == null) {
+//            Log.i(Log.TAG, "打开摄像头失败");
+//            if (cb != null) cb.openFailed(-1);
+//            return false;
+//        }
+//
+//        previewReady = false;
+//        setState(DevState.OPENING);
+//        if (cb != null) cb.openSucceed();
+//        return true;
+//    }
     /////
     public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+        ///
+        synchronized (sDualCameraLock) {
+            int realCamId = camID % 2;
+
+            if (realCamId == 0) {
+                sCamera0Device = this;
+            } else {
+                sCamera1Device = this;
+            }
+        }
+        if (ALWAYS_OPEN_BOTH_MIPI) {
+            Camera2Device cam0;
+            Camera2Device cam1;
+            synchronized (sDualCameraLock) {
+                cam0 = sCamera0Device;
+                cam1 = sCamera1Device;
+                if (cam0 == null || cam1 == null) {
+                    if (cb != null) {
+                        cb.openFailed(-1);
+                    }
+                    return false;
+                }
+                if (sDualStarting) {
+                    if (cb != null) {
+                        cb.openSucceed();
+                    }
+                    return true;
+                }
+                if (sDualStarted) {
+                    if (cb != null) {
+                        cb.openSucceed();
+                    }
+                    return true;
+                }
+                sDualStarting = true;
+            }
+            boolean result = false;
+            try {
+                synchronized (sDualCameraLock) {
+                    cam0 = sCamera0Device;
+                    cam1 = sCamera1Device;
+                }
+                if (cam0 == null || cam1 == null) {
+                    return false;
+                }
+                Log.i(Log.TAG, "第 1 步：打开 camera1");
+                boolean ret1 = cam1.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                Log.i(Log.TAG, "第 2 步：打开 camera0");
+                boolean ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                Log.i(Log.TAG, "双路 openSelfOnly 结果"
+                        + "，camera0 = " + ret0
+                        + "，camera1 = " + ret1);
+                if (!ret0 || !ret1) {
+                    Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，停止后续流程");
+                    return false;
+                }
+                Log.i(Log.TAG, "第 3 步：创建 camera1 session");
+                boolean session1 = cam1.startSessionAndRepeatingIfNeeded(
+                        sDualPreviewWidth,
+                        sDualPreviewHeight,
+                        true
+                );
+                Log.i(Log.TAG, "第 4 步：创建 camera0 session");
+                boolean session0 = cam0.startSessionAndRepeatingIfNeeded(
+                        sDualPreviewWidth,
+                        sDualPreviewHeight,
+                        true
+                );
+                Log.i(Log.TAG, "双路 session 和 repeating 启动结果"
+                        + "，camera0 = " + session0
+                        + "，camera1 = " + session1);
+                result = session0 && session1;
+                if (cb != null) {
+                    if (result) {
+                        cb.openSucceed();
+                    } else {
+                        cb.openFailed(-1);
+                    }
+                }
+                return result;
+            } finally {
+                synchronized (sDualCameraLock) {
+                    sDualStarting = false;
+                    sDualStarted = result;
+                }
+            }
+        }
+        if (mCameraDevice != null) {
+            if (cb != null) {
+                cb.openSucceed();
+            }
+            return true;
+        }
+        ///
+
         if (isOpening()) {
             Log.i(Log.TAG, "摄像头已经打开");
             if (cb != null) cb.openSucceed();
             return true;
-        }
-        if (mMainBoard == 1) {
-            MipiSwitch.switchTo(camID);
         }
         streamType = stream;
         openCamera();
@@ -1175,8 +1549,74 @@ public class Camera2Device extends Device {
         if (cb != null) cb.openSucceed();
         return true;
     }
-    /////
 
+    ///
+    public synchronized boolean openSelfOnly(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+//        if (mCameraDevice != null) {
+//            Log.i(Log.TAG, "openSelfOnly 直接成功，mCameraDevice 已存在"
+//                    + "，this = " + this
+//                    + "，camID = " + camID
+//                    + "，cameraId = " + mCameraDevice.getId());
+//            if (cb != null) {
+//                cb.openSucceed();
+//            }
+//            return true;
+//        }
+        if (isOpening()) {
+            Log.i(Log.TAG, "摄像头已经打开");
+            if (cb != null) cb.openSucceed();
+            return true;
+        }
+//        if (mMainBoard == 1) {
+//            MipiSwitch.switchTo(camID);
+//        }
+        streamType = stream;
+        openCamera();
+        if (mCameraDevice == null) {
+            Log.i(Log.TAG, "打开摄像头失败");
+            if (cb != null) cb.openFailed(-1);
+            return false;
+        }
+        previewReady = false;
+        setState(DevState.OPENING);
+        if (cb != null) cb.openSucceed();
+        return true;
+    }
+
+    private synchronized boolean startSessionAndRepeatingIfNeeded(int width, int height, boolean video) {
+        if (mDualSessionStarted) {
+            return true;
+        }
+        if (mDualSessionStarting) {
+            return true;
+        }
+        if (mCameraDevice == null) {
+            return false;
+        }
+        mDualSessionStarting = true;
+        try {
+            if (mPreviewSession == null) {
+                createPreviewSession(width, height, video);
+            }
+            if (mPreviewSession == null) {
+                return false;
+            }
+            previewReady = true;
+            lockFocus(
+                    10000,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
+                    false,
+                    null
+            );
+            mDualSessionStarted = true;
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            mDualSessionStarting = false;
+        }
+    }
+    ///
 
     public boolean liveStart(int stream, int ssrc) {
         if (isRecording()) {
@@ -1188,45 +1628,59 @@ public class Camera2Device extends Device {
             return false;
         }
 
+        setEnableLiveEncode(true); ///
+
         scheduledHandler.post(() -> {
-            Settings.VideoCodec vc = getVideoCodec(streamType);
-            mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+            ///
+            try {
+                Settings.VideoCodec vc = getVideoCodec(streamType);
+                mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+                ///
+                if (mResolution == null) {
+                    Log.i(Log.TAG, "直播分辨率为空，使用默认 1920x1080"
+                            + "，camID = " + camID);
+                    mResolution = new Point(1920, 1080);
+                }
+                ///
 
+                /////
+//                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);         // 默认使用的是主码流
 
-            /////
-//            Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);         // 默认使用的是主码流
+                // 由于分辨率大于1920x1080无法拉流，因此设置最大的分辨率为1920x1080
+                if (mResolution.x > 1920 || mResolution.y > 1080) {
+                    mResolution = new Point(1920, 1080);
+                }
 
-            // 由于分辨率大于1920x1080无法拉流，因此设置最大的分辨率为1920x1080
-            if (mResolution.x > 1920 || mResolution.y > 1080) {
-                mResolution = new Point(1920, 1080);
+                if ((mResolution.x == 800 && mResolution.y == 600) || (mResolution.x == 704 && mResolution.y == 576)) {
+                    mResolution = new Point(640, 480);
+                }
+
+//                mResolution = size;
+                /////
+
+                Log.i(Log.TAG, "视频设置的宽高===>：" + mResolution.x + "x" + mResolution.y);
+
+//                createPreviewSession(mResolution.x, mResolution.y, true); ///
+//                if (mPreviewSession == null) {
+//                    Log.i(Log.TAG, "创建会话失败");
+//                    return;
+//                }
+                { // 直播要打包成rtp包进行发包
+                    initVideoEncoder(streamType, mResolution.x, mResolution.y, true); /////
+                    rtph264 = new RTPH264(ssrc);
+                }
+                // 先开始播放，然后再对焦，提高后台出流时间
+                mOnShow = true;
+                previewReady = true;
+                setState(DevState.LIVING);
+//                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,false,null); ///
+                mState = STATE_VIDEO_LIVING;
+
+                Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc);
+            } catch (Exception e) {
+                setEnableLiveEncode(false);
             }
-
-            if ((mResolution.x == 800 && mResolution.y == 600)||(mResolution.x == 704 && mResolution.y == 576)){
-                mResolution = new Point(640, 480);
-            }
-
-//            mResolution = size;
-            /////
-
-            Log.i(Log.TAG, "视频设置的宽高===>：" + mResolution.x + "x" + mResolution.y);
-
-            createPreviewSession(mResolution.x, mResolution.y, true);
-            if (mPreviewSession == null) {
-                Log.i(Log.TAG, "创建会话失败");
-                return;
-            }
-            { // 直播要打包成rtp包进行发包
-                initVideoEncoder(streamType, mResolution.x, mResolution.y,true); /////
-                rtph264 = new RTPH264(ssrc);
-            }
-            // 先开始播放，然后再对焦，提高后台出流时间
-            mOnShow = true;
-            previewReady = true;
-            setState(DevState.LIVING);
-            lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,false,null);
-            mState = STATE_VIDEO_LIVING;
-
-            Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc);
+            ///
         });
 
         return true;
@@ -1284,6 +1738,18 @@ public class Camera2Device extends Device {
         scheduledHandler.post(() -> {
 
             try{
+                ///
+                mOnShow = show;
+
+                mCameraPhotoing = true;
+
+                takePhotoOnce.set(true);
+                photoDone.set(false);
+
+                mFileImage = filename;
+                mFilePreset = preset;
+                ///
+
                 mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
 
                 if (is6735) {
@@ -1294,34 +1760,39 @@ public class Camera2Device extends Device {
                     mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
                 }
 
-                if (!isLiving()){
-                    createPreviewSession(mResolution.x, mResolution.y, false);
-                }
+                ///
+//                if (!isLiving()){
+//                    createPreviewSession(mResolution.x, mResolution.y, false);
+//                }
 
+                if (mResolution == null) {
+                    Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080"
+                            + "，camID = " + camID);
+                    mResolution = new Point(1920, 1080);
+                }
+                ///
                 if (mPreviewSession == null) {
                     Log.i(Log.TAG, "创建预览会话失败");
 
-                    //// 如果拍照失败，先释放资源，再重新申请
-                    if (!isLiving() && !isRecording()) {
-                        unlockFocus();
-                        close();
-                    }
+                    ///
+//                    //// 如果拍照失败，先释放资源，再重新申请
+//                    if (!isLiving() && !isRecording()) {
+//                        unlockFocus();
+//                        close();
+//                    }
+                    mCameraPhotoing = false;
+                    takePhotoOnce.set(false);
+                    photoDone.set(true);
+                    mCameraPhtotingLock.notifyLock();
+                    ///
 
                     controllerCallback.onPhotoFailed(id, preset, filename);
+                    closeBothCameraIfNoLive(); ///
                     return;
                 }
 
-                mOnShow = show;
-
-                mCameraPhotoing = true;
-
-                takePhotoOnce.set(true);
-                photoDone.set(false);
-
-                mFileImage = filename;
-                mFilePreset = preset;
                 {
-                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
+//                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null); ///
                     mState = STATE_PICTURE_TAKING;
                 }
 
@@ -1340,23 +1811,41 @@ public class Camera2Device extends Device {
                 if (!photoDone.get()) {
                     Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
 
-                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
-                    if (!isLiving() && !isRecording()) {
-                        unlockFocus();
-                        close();
-                    }
+                    ///
+//                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
+//                    if (!isLiving() && !isRecording()) {
+//                        unlockFocus();
+//                        close();
+//                    }
+                    mCameraPhotoing = false;
+                    takePhotoOnce.set(false);
+                    photoDone.set(true);
+                    mCameraPhtotingLock.notifyLock();
+                    ///
                     controllerCallback.onPhotoFailed(id, preset, filename);
                 }
 
             }catch (Exception e){
                 Log.e(Log.TAG, "拍照过程中发生异常"+e);
+                ///
+                mCameraPhotoing = false;
+                takePhotoOnce.set(false);
+                photoDone.set(true);
+                mCameraPhtotingLock.notifyLock();
+                ///
                 controllerCallback.onPhotoFailed(id, preset, filename);
             }finally {
-                if (!isLiving() && !isRecording()) {
-                    unlockFocus();
-                    close();
-                }
+                ///
+//                if (!isLiving() && !isRecording()) {
+//                    unlockFocus();
+//                    close();
+//                }
+                ///
                 mCameraPhotoing = false;
+                ///
+                takePhotoOnce.set(false);
+                closeBothCameraIfNoLive();
+                ///
             }
         });
         return true;
