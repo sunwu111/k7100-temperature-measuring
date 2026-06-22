@@ -7775,11 +7775,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         /////
         if (dev.isCamera()) {
-            if (dev.isLiving()) return 1;
+//            if (dev.isLiving()) return 1;
             // 录制优先
-            if (devBusyRecording()) return 3;
+//            if (devBusyRecording()) return 3;
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
+//            closeOtherPlayingCamera(dev);
             if (currentMode == MODE_WAKEUP) {
                 powerOnMipiIfNeeded("唤醒模式下MIPI直播预览");
             }
