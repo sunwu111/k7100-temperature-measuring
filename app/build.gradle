@@ -9,8 +9,8 @@ println("当前编译版本号: " + buildNumber.toString())
 
 android {
 
-    compileSdkVersion 28
-    buildToolsVersion '28.0.3'
+        compileSdkVersion 28
+        buildToolsVersion '28.0.3'
 
     signingConfigs {
         release {
