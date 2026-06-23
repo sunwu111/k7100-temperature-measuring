@@ -36,6 +36,7 @@ import android.os.SystemClock;
 import android.util.Range;
 import android.util.Rational;
 import android.util.Size;
+import android.view.Surface;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -76,6 +77,7 @@ public class Camera2Device extends Device {
     private HandlerThread mBackgroundThread;
     private CameraDevice mCameraDevice;
     private ImageReader mImageReader;
+    private ImageReader mStillImageReader;
     private CaptureRequest.Builder mPreviewRequestBuilder;
     private CameraCaptureSession mPreviewSession;
     private final CameraMulthreadLock mCameraOpenCloseLock = new CameraMulthreadLock();
@@ -122,6 +124,7 @@ public class Camera2Device extends Device {
 
     private boolean mDualSessionStarted = false;
     private boolean mDualSessionStarting = false;
+    private volatile boolean mUseStillJpegCaptureForCurrentPhoto = false;
     ///
 
     public Camera2Device(int ID, Context context, int camID, int board, int rotate, boolean useAudio) { /////
@@ -479,6 +482,59 @@ public class Camera2Device extends Device {
         return dst;
     }
 
+    private void saveCapturedPhoto(Bitmap bitmap) {
+        if (bitmap == null) {
+            return;
+        }
+        Log.i(Log.TAG, "抓拍图片分辨率：" + bitmap.getWidth() + "x" + bitmap.getHeight());
+
+        bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true);
+        //drawMetrics(bitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
+        drawWatermark(bitmap, 3, streamType, true); // 先AI识别再画OSD //////
+
+        Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100);
+        if (NettyUtils.isTakePhoto()) {
+            toolTakePhoto(bitmap);
+            NettyUtils.setTakePhoto(false);
+        }
+        if (controllerCallback != null) {
+            procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
+        }
+        mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
+        mUseStillJpegCaptureForCurrentPhoto = false;
+        photoDone.set(true);
+        mCameraPhtotingLock.notifyLock();
+    }
+
+    private final ImageReader.OnImageAvailableListener mStillImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            Image img = reader.acquireLatestImage();
+            try {
+                if (img == null || !mCameraPhotoing) return;
+                if (!takePhotoOnce.compareAndSet(true, false)) return;
+
+                Bitmap photoBitmap = imageDecode(img);
+                if (photoBitmap == null) {
+                    throw new IllegalStateException("JPEG静态拍照解码失败");
+                }
+                if (rotate == 1) {
+                    photoBitmap = rotate180WithCanvas(photoBitmap);
+                }
+                photoBitmap = preProcessingPhoto(photoBitmap);
+                saveCapturedPhoto(photoBitmap);
+            } catch (Exception e) {
+                Log.i(Log.TAG, "JPEG静态拍照处理异常：" + e.getMessage());
+                mCameraPhotoing = false;
+                mUseStillJpegCaptureForCurrentPhoto = false;
+                photoDone.set(true);
+                mCameraPhtotingLock.notifyLock();
+            } finally {
+                if (img != null) img.close();
+            }
+        }
+    };
+
 
     // 直播和拍照回调函数  拉流的时候可以拍照，需要结合takephoto函数
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
@@ -497,28 +553,8 @@ public class Camera2Device extends Device {
                 }
                 previewBitmap = preProcessingPhoto(previewBitmap);
 
-                if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
-                    Log.i(Log.TAG, "抓拍图片分辨率：" + previewBitmap.getWidth() + "x" + previewBitmap.getHeight());
-
-                    previewBitmap = processPhoto(previewBitmap, System.currentTimeMillis(), 255, aiParameters, true);
-                    //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-                    drawWatermark(previewBitmap,3,streamType,true); // 先AI识别再画OSD //////
-
-                    Utils.saveBitmapAsJPEG(previewBitmap, mFileImage, 100);
-                    if (NettyUtils.isTakePhoto()) {
-                        toolTakePhoto(previewBitmap);
-                        NettyUtils.setTakePhoto(false);
-                    }
-                    if (controllerCallback != null) {
-                        procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
-                    }
-                    mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
-
-                    ///
-                    photoDone.set(true);
-
-                    mCameraPhtotingLock.notifyLock();
-                    ///
+                if (mCameraPhotoing && !mUseStillJpegCaptureForCurrentPhoto && takePhotoOnce.compareAndSet(true, false)) {
+                    saveCapturedPhoto(previewBitmap);
 
                 } else if ((isLiving() && rtph264 != null) || isRecording()) {
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
@@ -766,9 +802,20 @@ public class Camera2Device extends Device {
     private void captureStillPicture() {
         try {
             //Log.i(Log.TAG, "开始拍摄照片");
+            CaptureRequest.Builder captureBuilder;
+            if (mUseStillJpegCaptureForCurrentPhoto && mStillImageReader != null) {
+                captureBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+                captureBuilder.addTarget(mStillImageReader.getSurface());
+                captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+                captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
+            } else {
+                captureBuilder = mPreviewRequestBuilder;
+            }
+
             // 锁定自动曝光到调整后的最新参数
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 
             CameraCaptureSession.CaptureCallback CaptureCallback = new CameraCaptureSession.CaptureCallback() {
                 @Override
@@ -783,7 +830,7 @@ public class Camera2Device extends Device {
 //            mPreviewSession.stopRepeating();
 //            mPreviewSession.abortCaptures();
             ///
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), CaptureCallback, mBackgroundHandler);
+            mPreviewSession.capture(captureBuilder.build(), CaptureCallback, mBackgroundHandler);
         } catch (Exception e) {
             Log.i(Log.TAG, "拍摄照片异常：" + e.getMessage());
         }
@@ -983,9 +1030,22 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]");
                 return;
             }
+            closeImageReader();
+            closeStillImageReader();
             mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
-            mCameraDevice.createCaptureSession(Arrays.asList(mImageReader.getSurface()), new CameraCaptureSession.StateCallback() {
+
+            List<Surface> surfaces = new ArrayList<>();
+            surfaces.add(mImageReader.getSurface());
+            if (video) {
+                Point stillSize = getConfiguredPhotoResolution();
+                mStillImageReader = ImageReader.newInstance(stillSize.x, stillSize.y, ImageFormat.JPEG, 2);
+                mStillImageReader.setOnImageAvailableListener(mStillImageAvailableListener, mBackgroundHandler);
+                surfaces.add(mStillImageReader.getSurface());
+                Log.i(Log.TAG, "直播会话增加 JPEG 静态拍照输出：" + stillSize.x + "x" + stillSize.y + "，camID = " + camID);
+            }
+
+            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     if (mCameraDevice == null) return;
@@ -1164,6 +1224,73 @@ public class Camera2Device extends Device {
         mPreviewRequestBuilder = null;
     }
 
+    private void closeImageReader() {
+        try {
+            if (mImageReader != null) {
+                mImageReader.close();
+                mImageReader = null;
+            }
+        } catch (Exception e) {
+            mImageReader = null;
+        }
+    }
+
+    private void closeStillImageReader() {
+        try {
+            if (mStillImageReader != null) {
+                mStillImageReader.close();
+                mStillImageReader = null;
+            }
+        } catch (Exception e) {
+            mStillImageReader = null;
+        }
+    }
+
+    private Point getConfiguredPhotoResolution() {
+        Point size = Settings.PhotoConfig.getImageSize(photoConfig.size);
+        if (size == null) {
+            size = new Point(1920, 1080);
+        }
+        if (is6735) {
+            return new Point(1280, 720);
+        }
+        if (streamConfigurationMap != null) {
+            Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
+            return getBestSize2(sizes, size.x, size.y);
+        }
+        return size;
+    }
+
+    private static boolean isAnyDualCameraLiveOrRecording() {
+        synchronized (sDualCameraLock) {
+            boolean cam0Busy = sCamera0Device != null
+                    && (sCamera0Device.enableLiveEncode || sCamera0Device.isLiving() || sCamera0Device.isRecording());
+            boolean cam1Busy = sCamera1Device != null
+                    && (sCamera1Device.enableLiveEncode || sCamera1Device.isLiving() || sCamera1Device.isRecording());
+            return cam0Busy || cam1Busy;
+        }
+    }
+
+    private boolean prepareStillPhotoSession(int width, int height) {
+        if (mCameraDevice == null) {
+            return false;
+        }
+        previewReady = false;
+        closePreviewSession();
+        closeImageReader();
+        closeStillImageReader();
+        mDualSessionStarted = false;
+        mDualSessionStarting = false;
+
+        createPreviewSession(width, height, false);
+        if (mPreviewSession == null) {
+            Log.i(Log.TAG, "创建静态 JPEG 拍照会话失败");
+            return false;
+        }
+        Log.i(Log.TAG, "已切换到静态 JPEG 拍照会话：" + width + "x" + height + "，camID = " + camID);
+        return true;
+    }
+
     private volatile boolean enableLiveEncode = false;
 
     public void setEnableLiveEncode(boolean enable) {
@@ -1240,6 +1367,7 @@ public class Camera2Device extends Device {
             mImageReader.close();
             mImageReader = null;
         }
+        closeStillImageReader();
         if (mCameraDevice != null) {
             mCameraDevice.close();
             mCameraDevice = null;
@@ -1753,15 +1881,7 @@ public class Camera2Device extends Device {
                 mFilePreset = preset;
                 ///
 
-                mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
-
-                if (is6735) {
-                    // 6735通过camera2接口只能设置为1280*720，更大分辨率设置无效
-                    mResolution = new Point(1280, 720);
-                } else if (streamConfigurationMap != null) {
-                    Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
-                    mResolution = getBestSize2(sizes, mResolution.x, mResolution.y);
-                }
+                mResolution = getConfiguredPhotoResolution();
 
                 ///
 //                if (!isLiving()){
@@ -1774,6 +1894,30 @@ public class Camera2Device extends Device {
                     mResolution = new Point(1920, 1080);
                 }
                 ///
+
+                boolean useStillPhotoSession = !isLiving()
+                        && !isRecording()
+                        && !enableLiveEncode
+                        && !isAnyDualCameraLiveOrRecording();
+                mUseStillJpegCaptureForCurrentPhoto = false;
+                if (useStillPhotoSession) {
+                    if (!prepareStillPhotoSession(mResolution.x, mResolution.y)) {
+                        mCameraPhotoing = false;
+                        takePhotoOnce.set(false);
+                        photoDone.set(true);
+                        mCameraPhtotingLock.notifyLock();
+                        controllerCallback.onPhotoFailed(id, preset, filename);
+                        closeBothCameraIfNoLive();
+                        return;
+                    }
+                    mUseStillJpegCaptureForCurrentPhoto = false;
+                } else if (mStillImageReader != null && mPreviewSession != null) {
+                    mUseStillJpegCaptureForCurrentPhoto = true;
+                    Log.i(Log.TAG, "拉流/双路任务中使用 JPEG 静态抓拍输出，camID = " + camID);
+                } else {
+                    Log.i(Log.TAG, "当前存在直播/录像/双路任务，沿用预览帧拍照，避免打断业务，camID = " + camID);
+                }
+
                 if (mPreviewSession == null) {
                     Log.i(Log.TAG, "创建预览会话失败");
 
@@ -1784,6 +1928,7 @@ public class Camera2Device extends Device {
 //                        close();
 //                    }
                     mCameraPhotoing = false;
+                    mUseStillJpegCaptureForCurrentPhoto = false;
                     takePhotoOnce.set(false);
                     photoDone.set(true);
                     mCameraPhtotingLock.notifyLock();
@@ -1795,8 +1940,15 @@ public class Camera2Device extends Device {
                 }
 
                 {
-//                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null); ///
-                    mState = STATE_PICTURE_TAKING;
+                    if (useStillPhotoSession) {
+                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
+                        mState = STATE_PICTURE_TAKING;
+                    } else if (mUseStillJpegCaptureForCurrentPhoto) {
+                        mState = STATE_PREVIEW;
+                        captureStillPicture();
+                    } else {
+                        mState = STATE_PICTURE_TAKING;
+                    }
                 }
 
                 // 等待拍照成功
@@ -1821,6 +1973,7 @@ public class Camera2Device extends Device {
 //                        close();
 //                    }
                     mCameraPhotoing = false;
+                    mUseStillJpegCaptureForCurrentPhoto = false;
                     takePhotoOnce.set(false);
                     photoDone.set(true);
                     mCameraPhtotingLock.notifyLock();
@@ -1832,6 +1985,7 @@ public class Camera2Device extends Device {
                 Log.e(Log.TAG, "拍照过程中发生异常"+e);
                 ///
                 mCameraPhotoing = false;
+                mUseStillJpegCaptureForCurrentPhoto = false;
                 takePhotoOnce.set(false);
                 photoDone.set(true);
                 mCameraPhtotingLock.notifyLock();
@@ -1845,6 +1999,7 @@ public class Camera2Device extends Device {
 //                }
                 ///
                 mCameraPhotoing = false;
+                mUseStillJpegCaptureForCurrentPhoto = false;
                 ///
                 takePhotoOnce.set(false);
                 closeBothCameraIfNoLive();
