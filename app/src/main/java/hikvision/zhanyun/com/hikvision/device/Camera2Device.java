@@ -490,7 +490,7 @@ public class Camera2Device extends Device {
 
         bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true);
         //drawMetrics(bitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-        drawWatermark(bitmap, 3, streamType, true); // 先AI识别再画OSD //////
+        drawWatermark(bitmap, id, streamType, true); // 先AI识别再画OSD //////
 
         Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100);
         if (NettyUtils.isTakePhoto()) {
@@ -560,7 +560,7 @@ public class Camera2Device extends Device {
                     //detectObject(previewBitmap);// 视频AI跟踪，会影响帧率，暂时注释掉
                     //drawMetrics(previewBitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
 
-                    drawWatermark(previewBitmap,3,streamType,false); // 先AI识别再画OSD //////
+                    drawWatermark(previewBitmap, id, streamType, false); // 先AI识别再画OSD //////
 
                     Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
                     procVideoHandler.removeCallbacksAndMessages(null); /////
@@ -577,7 +577,7 @@ public class Camera2Device extends Device {
                         Log.i(Log.TAG, "直播帧跳过，rtph264 为空" + "，isLiving = " + isLiving());
                         return;
                     }
-                    drawWatermark(previewBitmap, 3, streamType, false);  // 先AI识别再画OSD
+                    drawWatermark(previewBitmap, id, streamType, false);  // 先AI识别再画OSD
                     Bitmap finalPreviewBitmap = previewBitmap;  // 这里可以解决OSD闪烁的问题
                     procVideoHandler.removeCallbacksAndMessages(null);
                     procVideoHandler.post(() -> {
