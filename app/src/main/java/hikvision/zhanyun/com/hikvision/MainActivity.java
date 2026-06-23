@@ -8006,9 +8006,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         }
         if (dev.isCamera()) {
-            if (devBusyRecording()) return;
+            // if (devBusyRecording()) return;
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
+            // closeOtherPlayingCamera(dev);
             if (currentMode == MODE_WAKEUP) {
                 powerOnMipiIfNeeded("唤醒模式下MIPI本地预览");
             }
@@ -9499,8 +9499,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         if (dev.isCamera()) {
             // 如果另一个摄像头在直播，停掉直播
-            closeOtherPlayingCamera(dev);
-            if (dev.isRecording()) dev.videoStop();
+            // closeOtherPlayingCamera(dev);
+            // if (dev.isRecording()) dev.videoStop();
         }
         /////
         if (currentMode == MODE_WAKEUP && dev.isCamera()) {
