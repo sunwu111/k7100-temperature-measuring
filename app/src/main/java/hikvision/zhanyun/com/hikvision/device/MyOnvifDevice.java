@@ -65,6 +65,7 @@ import be.teletask.onvif.requests.OnvifRequest;
 import be.teletask.onvif.responses.OnvifResponse;
 import hikvision.zhanyun.com.hikvision.MainActivity;
 import hikvision.zhanyun.com.hikvision.RtspClient;
+import hikvision.zhanyun.com.hikvision.RtspClientCallback;
 import hikvision.zhanyun.com.hikvision.Settings;
 import hikvision.zhanyun.com.hikvision.device.Device;
 import hikvision.zhanyun.com.hikvision.rto.RTPAAC;
@@ -149,6 +150,9 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
     // 以下变量用于解码，为提高性能，避免每次回调都创建和判断使用全局变量提高性能
     private RtspClient rtspLiveClient;          // 直播 RTSP 客户端
+    private RtspClient rtspRecordClient;
+    private RTPH264 recordRtph264;
+    private RTPAAC recordRtpaac;
     protected RtspClient rtspPlaybackClient;      // 回放 RTSP 客户端
     //    private boolean isMuxerInited = false;
     private OnvifManager onvifManager;
@@ -160,6 +164,12 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     private List<OnvifCodecConfig> videoCodecTokens = new ArrayList<>();
     public MediaCodec mediaEncoder; /////
     private boolean useAudio; /////
+    private static final int ONVIF_PAYLOAD_TYPE_VIDEO = 96;
+    private static final int ONVIF_PAYLOAD_TYPE_AUDIO = 104;
+
+    private boolean allowLiveRecordParallel() {
+        return id == 1;
+    }
 
     public MyOnvifDevice(int ID, Context context, String ip, int port, String User, String pwd, boolean useAudio) {
         super(ID, context, useAudio); /////
@@ -415,7 +425,8 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
         if (rtspLiveClient != null) rtspLiveClient.stop();
 
-        rtspLiveClient = new RtspClient(server, 554, user, password, streamURI, rtspLiveCallback);
+        RtspClientCallback callback = allowLiveRecordParallel() ? onvifLiveCallback : rtspLiveCallback;
+        rtspLiveClient = new RtspClient(server, 554, user, password, streamURI, callback);
 
         if (!rtspLiveClient.start(false)) { /////
             Log.e(OnvifLog, "ONVIF直播失败");
@@ -424,6 +435,152 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         setState(DevState.LIVING);
 //        Log.d(OnvifLog, String.format("ONVIF直播: %s@%s:%d", user, server, port));
         return true;
+    }
+
+    private final RtspClientCallback onvifLiveCallback = new RtspClientCallback() {
+        @Override
+        public void onPacket(int channel, byte[] packet, int len) {
+            try {
+                if (len < 12) return;
+                int payloadType = packet[1] & 0x7F;
+                if (payloadType != ONVIF_PAYLOAD_TYPE_VIDEO) return;
+
+                byte[] data = new byte[len];
+                System.arraycopy(packet, 0, data, 0, len);
+                data[8] = (byte) (ssrcLive >> 24);
+                data[9] = (byte) (ssrcLive >> 16);
+                data[10] = (byte) (ssrcLive >> 8);
+                data[11] = (byte) (ssrcLive & 0xFF);
+
+                onVideoFrame(data);
+            } catch (Exception e) {
+                Log.i(Log.TAG, "ONVIF直播RTP包处理异常：" + e);
+            }
+        }
+
+        @Override
+        public void onResponse(List<String> headers, byte[] body) {
+        }
+    };
+
+    private final RtspClientCallback onvifRecordCallback = new RtspClientCallback() {
+        @Override
+        public void onPacket(int channel, byte[] packet, int len) {
+            try {
+                if (!isRecording() || len < 12) return;
+
+                if (recordingStartTime == -1) {
+                    recordingStartTime = System.currentTimeMillis();
+                }
+
+                int payloadType = packet[1] & 0x7F;
+                if (payloadType == ONVIF_PAYLOAD_TYPE_VIDEO) {
+                    byte[] data = new byte[len];
+                    System.arraycopy(packet, 0, data, 0, len);
+                    byte[] frame = recordRtph264 != null ? recordRtph264.rtpToNalu(data, data.length) : null;
+                    if (frame == null || recordRtph264 == null || recordRtph264.sps == null || recordRtph264.pps == null) {
+                        return;
+                    }
+
+                    Handler handler = muxerHandler;
+                    if (handler == null) return;
+                    byte[] sps = recordRtph264.sps;
+                    byte[] pps = recordRtph264.pps;
+                    handler.post(() -> writeRecordVideoFrame(frame, sps, pps));
+                } else if (payloadType == ONVIF_PAYLOAD_TYPE_AUDIO && useAudio) {
+                    byte[] aac = recordRtpaac != null ? recordRtpaac.rtpToAac(packet, len) : null;
+                    if (aac == null) return;
+
+                    Handler handler = muxerHandler;
+                    if (handler == null) return;
+                    handler.post(() -> writeRecordAudioFrame(aac));
+                }
+            } catch (Exception e) {
+                Log.i(Log.TAG, "ONVIF录制RTP包处理异常：" + e);
+            }
+        }
+
+        @Override
+        public void onResponse(List<String> headers, byte[] body) {
+        }
+    };
+
+    private void writeRecordVideoFrame(byte[] frame, byte[] sps, byte[] pps) {
+        if (!isRecording() || mediaMuxer == null) return;
+
+        try {
+            if (!isMuxerInited) {
+                initRecordMuxer(sps, pps);
+            }
+
+            tryStartMuxerOnvif();
+            if (!muxerStarted) return;
+
+            int type = recordRtph264 != null ? recordRtph264.frameType(frame) : 0;
+            if (type == 6 || type == 7 || type == 8) return;
+
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            info.size = frame.length;
+            info.offset = 0;
+            info.flags = type == 5 ? MediaCodec.BUFFER_FLAG_KEY_FRAME : 0;
+
+            long elapsed = Math.max(0, System.currentTimeMillis() - recordingStartTime);
+            info.presentationTimeUs = elapsed * 1000L;
+
+            mediaMuxer.writeSampleData(videoTrackIndex, ByteBuffer.wrap(frame), info);
+        } catch (Exception e) {
+            Log.e(Log.TAG, "ONVIF录制视频帧写入异常：" + e);
+        }
+    }
+
+    private void writeRecordAudioFrame(byte[] aac) {
+        if (!isRecording() || mediaMuxer == null || !muxerStarted || audioTrackIndex < 0) return;
+
+        try {
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            long elapsed = Math.max(0, System.currentTimeMillis() - recordingStartTime);
+            info.offset = 0;
+            info.size = aac.length;
+            info.presentationTimeUs = elapsed * 1000L;
+            info.flags = 0;
+
+            mediaMuxer.writeSampleData(audioTrackIndex, ByteBuffer.wrap(aac), info);
+        } catch (Exception e) {
+            Log.e(Log.TAG, "ONVIF录制音频帧写入异常：" + e);
+        }
+    }
+
+    private void initRecordMuxer(byte[] sps, byte[] pps) {
+        if (isMuxerInited || mediaMuxer == null) return;
+
+        RtspClient.SDPInfo sdpInfo = rtspRecordClient != null ? rtspRecordClient.sdpInfo : null;
+        if (sdpInfo == null) {
+            Log.e(Log.TAG, "ONVIF录制初始化Muxer失败：缺少SDP信息");
+            return;
+        }
+
+        Settings.VideoCodec vCodec = getVideoCodec(streamType);
+        byte[] muxerSps = withStartCode((sps != null && sps.length > 0) ? sps : sdpInfo.sps);
+        byte[] muxerPps = withStartCode((pps != null && pps.length > 0) ? pps : sdpInfo.pps);
+
+        if (muxerSps == null || muxerSps.length == 0 || muxerPps == null || muxerPps.length == 0) {
+            Log.e(Log.TAG, "ONVIF录制初始化Muxer失败：缺少H264 SPS/PPS");
+            return;
+        }
+
+        MediaFormat videoFormat = MediaFormat.createVideoFormat(
+                MediaFormat.MIMETYPE_VIDEO_AVC,
+                sdpInfo.width,
+                sdpInfo.height);
+        if (vCodec != null) {
+            videoFormat.setInteger(MediaFormat.KEY_CAPTURE_RATE, vCodec.frame);
+        }
+        videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
+        videoFormat.setByteBuffer("csd-0", ByteBuffer.wrap(muxerSps));
+        videoFormat.setByteBuffer("csd-1", ByteBuffer.wrap(muxerPps));
+
+        videoTrackIndex = mediaMuxer.addTrack(videoFormat);
+        isMuxerInited = true;
     }
 
 
@@ -554,11 +711,21 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     public boolean videoStop() {
 
         recording = false;
+        super.videoStop();
 
-        if (rtspLiveClient != null) {
-            rtspLiveClient.stop();
-            rtspLiveClient = null;
+        if (allowLiveRecordParallel()) {
+            if (rtspRecordClient != null) {
+                rtspRecordClient.stop();
+                rtspRecordClient = null;
+            }
+        } else {
+            if (rtspLiveClient != null) {
+                rtspLiveClient.stop();
+                rtspLiveClient = null;
+            }
         }
+        recordRtph264 = null;
+        recordRtpaac = null;
 
         try {
 
@@ -595,8 +762,6 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
         }
 
         muxerHandler = null;
-
-        super.videoStop();
 
         return true;
     }
@@ -694,10 +859,18 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
             lastVideoPtsUs = 0;
             lastAudioPtsUs = 0;
 
-            rtph264 = new RTPH264(0);
+            if (allowLiveRecordParallel()) {
+                recordRtph264 = new RTPH264(0);
+            } else {
+                rtph264 = new RTPH264(0);
+            }
 
             if (useAudio) {
-                rtpaac = new RTPAAC();
+                if (allowLiveRecordParallel()) {
+                    recordRtpaac = new RTPAAC();
+                } else {
+                    rtpaac = new RTPAAC();
+                }
             }
 
             mediaMuxer = new MediaMuxer(
@@ -705,19 +878,40 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
             );
 
-            if (rtspLiveClient != null) {
-                rtspLiveClient.stop();
+            super.videoStart(stream, filename, duration, upload);
+
+            RtspClient.SDPInfo sdpInfo;
+            if (allowLiveRecordParallel()) {
+                if (rtspRecordClient != null) {
+                    rtspRecordClient.stop();
+                }
+
+                rtspRecordClient = new RtspClient(
+                        server, 554, user, password, streamURI, onvifRecordCallback
+                );
+
+                if (!rtspRecordClient.start(useAudio)) {
+                    videoStop();
+                    return false;
+                }
+
+                sdpInfo = rtspRecordClient.sdpInfo;
+            } else {
+                if (rtspLiveClient != null) {
+                    rtspLiveClient.stop();
+                }
+
+                rtspLiveClient = new RtspClient(
+                        server, 554, user, password, streamURI, rtspLiveCallback
+                );
+
+                if (!rtspLiveClient.start(useAudio)) {
+                    videoStop();
+                    return false;
+                }
+
+                sdpInfo = rtspLiveClient.sdpInfo;
             }
-
-            rtspLiveClient = new RtspClient(
-                    server, 554, user, password, streamURI, rtspLiveCallback
-            );
-
-            if (!rtspLiveClient.start(useAudio)) {
-                return false;
-            }
-
-            RtspClient.SDPInfo sdpInfo = rtspLiveClient.sdpInfo;
 
             // ⭐ 提前加 audio track
             if (useAudio && sdpInfo != null) {
@@ -738,8 +932,6 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
 
                 audioTrackIndex = mediaMuxer.addTrack(audioFormat);
             }
-
-            super.videoStart(stream, filename, duration, upload);
 
             // ⭐ 定时停止
             new Timer("recordStop").schedule(new TimerTask() {
@@ -825,7 +1017,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
         if (isRecording()) return false;
         // 录像优先级高于直播拉流
-        if (isLiving()) liveStop();
+        if (!allowLiveRecordParallel() && isLiving()) liveStop();
 
         scheduledHandler.post(()->{
             videoStart(stream, filename, duration, upload);

@@ -67,6 +67,7 @@ import static lyh.Utils.su;
 import static lyh.Utils.subString;
 
 import android.Manifest;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlarmManager;
@@ -782,22 +783,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //                    batVoltage = 12.7F; // 休眠 
                     Log.e(Log.TAG,"=========batVoltage:========="+batVoltage);
 
-                    float verificationVoltage = batVoltage;
-
-                    // if (temperature <= 0){   // 当环境温度小于等于0的时候，模式一直为full，只有在大于0且持续30分钟才切换模式
-                    //     Log.e(Log.TAG,"环境温度为：" + temperature);
-                    //     if (verificationVoltage < 12.99f){
-                    //         verificationVoltage = 12.96f;
-                    //     }
-                    // }
-
-                    //添加一个测试变量
-                    if (DEBUG){
-                        testBatAmperCount++;
-                        boolean useHigh = (testBatAmperCount / frequency) % 2 == 1;
-                        verificationVoltage = useHigh ? 13.4f : 12.96f;
-                        Log.e(Log.TAG,String.format("=========%d=========test::verificationVoltage:%f=========",testBatAmperCount,verificationVoltage));
-                    }
+                    float verificationVoltage = 13.40f;
 
 
                     int oldMode = currentMode;
@@ -7341,9 +7327,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return;
         }
 
-        if (dev.isLiving()) {
-            dev.liveStop();
-        }
+        // if (dev.isLiving()) {
+        //     dev.liveStop();
+        // }
 
         markWakeupActivity(dev, "唤醒模式下录制短视频");
         if (currentMode == MODE_WAKEUP && dev.isCamera()) {
