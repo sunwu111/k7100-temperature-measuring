@@ -119,8 +119,11 @@ public class Camera2Device extends Device {
 
     private static final boolean ALWAYS_OPEN_BOTH_MIPI = true;
 
-    private static int sDualPreviewWidth = 1536;
-    private static int sDualPreviewHeight = 864;
+    // private static int sDualPreviewWidth = 1536;
+    // private static int sDualPreviewHeight = 864;
+
+    private static int sDualPreviewWidth = 1920;
+    private static int sDualPreviewHeight = 1080;
 
     private boolean mDualSessionStarted = false;
     private boolean mDualSessionStarting = false;
