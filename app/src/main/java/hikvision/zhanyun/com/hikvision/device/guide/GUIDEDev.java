@@ -191,6 +191,12 @@ public class GUIDEDev extends Device {
     Bitmap sourceBitmap;
     // RESIZE之后的预览图
     Bitmap previewBitmap;
+    private final Object guideStreamLock = new Object();
+    private volatile boolean guidePreviewRunning = false;
+    private volatile boolean guideFrameLoopRunning = false;
+    private byte[] guideLivePpsSps;
+    private long guideLiveFirstFrameTimestamp = 0;
+    private long liveTempReportTime = 0;
 
     /*private int count;
     private long liveStartTime;*/
@@ -405,6 +411,7 @@ public class GUIDEDev extends Device {
 
     private void startPreview(int stream, int preset) {
         Log.i(Log.TAG, "高德红外开启预览");
+        guidePreviewRunning = true;
 
         mGuideInterface.startPreview((dataCallback) -> {
             if (!dataCallback.isSuccess) {
@@ -684,6 +691,7 @@ public class GUIDEDev extends Device {
         if (mGuideInterface != null) {
             mGuideInterface.stopPreview();
         }
+        guidePreviewRunning = false;
 
         if (timerEveryTime != null) timerEveryTime.cancel();
     }
@@ -1942,21 +1950,144 @@ public class GUIDEDev extends Device {
     }
 
     String tmpRecordFile = MainActivity.DATA_DIR + "record_" + id + ".mp4";
+
+    private void updateVideoOutputSize(int stream) {
+        Settings.VideoCodec vCodec = getVideoCodec(streamType);
+        Point size = Settings.VideoCodec.getResolution(vCodec.resolution);
+        if (codec.get(String.valueOf(stream)).resolution > 11) {
+            sizeX = 1600;
+            sizeY = 1200;
+        } else {
+            sizeX = size.x;
+            sizeY = size.y;
+        }
+    }
+
+    private void ensureGuideVideoPipeline(int stream, int preset) {
+        synchronized (guideStreamLock) {
+            if (mediaCodec == null) {
+                initVideoEncoder(stream, (int) sizeX, (int) sizeY,false);
+            }
+            if (!guidePreviewRunning) {
+                startPreview(stream, preset);
+            }
+            if (!guideFrameLoopRunning) {
+                guideFrameLoopRunning = true;
+                new Thread(this::guideFrameLoop, "GUIDEPreviewConsumer").start();
+            }
+        }
+    }
+
+    private void guideFrameLoop() {
+        try {
+            while (isLiving() || isRecording()) {
+                Bitmap frameBitmap = null;
+                try {
+                    synchronized (videoFrame.data) {
+                        videoFrame.data.wait(10);
+                        if (!videoFrame.isReady) {
+                            continue;
+                        }
+                        sourceBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(videoFrame.data));
+                        frameBitmap = Bitmap.createScaledBitmap(sourceBitmap, (int) sizeX, (int) sizeY, true);
+                        videoFrame.isReady = false;
+                    }
+
+                    drawWatermark(frameBitmap);
+                    if (isLiving()) {
+                        drawTempRegion(0, frameBitmap, IRRegionTemp.RegionType.REGION_LIVE);
+                        if (liveRegionsTemp.size() > 0
+                                && liveRegionsDistance.size() > 0
+                                && (System.currentTimeMillis() - liveTempReportTime >= PERIOD_MINUTE)) {
+                            doTempReport(0, System.currentTimeMillis(), liveRegionsTemp, liveRegionsDistance);
+                            liveTempReportTime = System.currentTimeMillis();
+                        }
+                    }
+
+                    Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
+                    Vector<Float> staticRegionsDistance = staticRegionsDistanceMaps.get(0);
+                    if (sensorConfig.onPalette == 1) {
+                        drawPalette(frameBitmap, staticRegions, staticRegionsDistance);
+                    }
+                    if (sensorConfig.hotTracker == 1) {
+                        drawHotTracker(frameBitmap);
+                    }
+                    if (irOverProtect.getMode() == Protection) {
+                        drawProtection(frameBitmap);
+                    }
+
+                    encode(frameBitmap);
+                } catch (Exception e) {
+                    Log.i(Log.TAG, "高德红外共享预览处理异常：" + e);
+                } finally {
+                    if (frameBitmap != null && frameBitmap != previewBitmap) {
+                        frameBitmap.recycle();
+                    }
+                }
+            }
+        } finally {
+            guideFrameLoopRunning = false;
+            if (!isLiving() && !isRecording()) {
+                stopGuideVideoPipeline();
+            }
+        }
+    }
+
+    private void stopGuideVideoPipeline() {
+        synchronized (guideStreamLock) {
+            if (isLiving() || isRecording()) {
+                return;
+            }
+            stopTemp();
+            if (guidePreviewRunning) {
+                stopPreview();
+            }
+            uninitVideoEncoder();
+            close();
+        }
+    }
+
+    private void tryStartGuideMuxer() {
+        if (muxerStarted || mediaMuxer == null) return;
+
+        if (useAudio) {
+            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
+                mediaMuxer.start();
+                muxerStarted = true;
+                muxerEverStarted = true;
+            }
+        } else if (videoTrackIndex >= 0) {
+            mediaMuxer.start();
+            muxerStarted = true;
+            muxerEverStarted = true;
+        }
+    }
+
+    private void releaseGuideMuxer() {
+        if (mediaMuxer == null) return;
+
+        try {
+            if (muxerStarted) {
+                mediaMuxer.stop();
+            }
+            mediaMuxer.release();
+            Log.i(Log.TAG, "成功释放高德红外Muxer");
+        } catch (Exception e) {
+            Log.i(Log.TAG, "释放高德红外Muxer异常：" + e.getMessage());
+        } finally {
+            mediaMuxer = null;
+            videoTrackIndex = -1;
+            audioTrackIndex = -1;
+            muxerStarted = false;
+            muxerEverStarted = false;
+            avStartNs = 0;
+        }
+    }
+
     @Override
     public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try {
-            /////
-            Settings.VideoCodec vCodec = getVideoCodec(streamType);
-            //initEncoder(stream, CAMERA_RESOLUTION_W * RESIZE, CAMERA_RESOLUTION_H * RESIZE);
-            Point size = Settings.VideoCodec.getResolution(vCodec.resolution);
-            if (codec.get(String.valueOf(stream)).resolution > 11) {
-                sizeX = 1600;
-                sizeY = 1200;
-            } else {
-                sizeX = size.x;
-                sizeY = size.y;
-            }
-            /////
+            updateVideoOutputSize(stream);
             super.videoStart(stream, filename, duration, upload);
             mediaMuxer = new MediaMuxer(tmpRecordFile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             muxerStarted = false;
@@ -1972,46 +2103,7 @@ public class GUIDEDev extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
-            /////
-            startPreview(stream, 0);
-            //startTemp(0);
-
-            new Thread(() -> {
-                while (isRecording()) {
-                    try {
-                        synchronized (videoFrame.data) {  // 线程同步，消费者
-                            videoFrame.data.wait(10);
-                            if (!videoFrame.isReady) {
-                                continue;
-                            } else {
-                                sourceBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(videoFrame.data));
-                                previewBitmap = Bitmap.createScaledBitmap(sourceBitmap,
-                                        (int) sizeX, /////
-                                        (int) sizeY, /////
-                                        true);
-                                videoFrame.isReady = false;
-                            }
-                        }
-                        drawWatermark(previewBitmap);
-                        // 区域温度校正后再绘制调色板
-                        Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
-                        Vector<Float> staticRegionsDistance = staticRegionsDistanceMaps.get(0);
-                        if (sensorConfig.onPalette == 1) {
-                            drawPalette(previewBitmap, staticRegions, staticRegionsDistance);
-                        }
-                        if (sensorConfig.hotTracker == 1) {
-                            drawHotTracker(previewBitmap);
-                        }
-                        if (irOverProtect.getMode() == Protection) {
-                            drawProtection(previewBitmap);
-                        }
-                        encode(previewBitmap);
-                    } catch (Exception e) {
-                        Log.i(Log.TAG, "高德红外直播预览异常：" + e);
-                    }
-                }
-            }).start();
+            ensureGuideVideoPipeline(stream, 0);
 
             new Timer("recordStop").schedule(new TimerTask() {
                 @Override
@@ -2043,16 +2135,15 @@ public class GUIDEDev extends Device {
     @Override
     public boolean videoStop() {
         try {
-            stopTemp();
-            stopPreview();
-            close();
             super.videoStop();
 
-            releaseMuxer();
+            releaseGuideMuxer();
             /////
-            uninitVideoEncoder();
             if (useAudio) {
                 uninitAudioEncoder();
+            }
+            if (!isLiving()) {
+                stopGuideVideoPipeline();
             }
             /////
             Log.i(Log.TAG, "高德红外机芯停止录制");
@@ -2069,84 +2160,17 @@ public class GUIDEDev extends Device {
 
         setState(DevState.LIVING);
         getVideoCodec(streamType);
-        //initEncoder(stream, CAMERA_RESOLUTION_W * RESIZE, CAMERA_RESOLUTION_H * RESIZE);
-        Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(stream)).resolution);
-        /////
-        if (codec.get(String.valueOf(stream)).resolution > 11) {
-            sizeX = 1600;
-            sizeY = 1200;
-        } else {
-            sizeX = size.x;
-            sizeY = size.y;
-        }
-        initVideoEncoder(stream, (int) sizeX, (int) sizeY,false); /////
-        /////
+        updateVideoOutputSize(stream);
         rtph264 = new RTPH264(ssrc);            // 创建RTP H264编码器
-        startPreview(stream, 0);
-        //startTemp(0);
 
         this.ssrcLive = ssrc;
         this.streamType = stream;
         liveRegionsTemp.clear();
         liveRegionsDistance.clear();
+        guideLivePpsSps = null;
+        guideLiveFirstFrameTimestamp = 0;
 
-        new Thread(() -> {
-            long curTime = 0;
-            //int frameCnt = 0;
-            while (isLiving()) {
-                try {
-                    synchronized (videoFrame.data) {   // 线程同步，消费者
-                        videoFrame.data.wait(10);
-                        if (!videoFrame.isReady) {
-                            continue;
-                        } else {
-                            sourceBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(videoFrame.getData()));
-                            previewBitmap = Bitmap.createScaledBitmap(sourceBitmap,
-                                    (int) sizeX, /////
-                                    (int) sizeY, /////
-                                    true);
-                            videoFrame.isReady = false;
-                        }
-                    }
-
-                    drawWatermark(previewBitmap);
-
-                    drawTempRegion(0, previewBitmap, IRRegionTemp.RegionType.REGION_LIVE);
-
-                    // 区域温度校正后再绘制调色板
-                    Vector<IRRegionTemp> staticRegions = staticRegionsMaps.get(0);
-                    Vector<Float> staticRegionsDistance = staticRegionsDistanceMaps.get(0);
-                    if (sensorConfig.onPalette == 1) {
-                        drawPalette(previewBitmap, staticRegions, staticRegionsDistance);
-                    }
-
-                    if (sensorConfig.hotTracker == 1) {
-                        drawHotTracker(previewBitmap);
-                    }
-
-                    if (irOverProtect.getMode() == Protection) {
-                        drawProtection(previewBitmap);
-                    }
-
-                    //controllerCallback.onFrame(previewBitmap);  // 这个地方的属性的rgb图片
-                    encode(previewBitmap);
-
-                    /*frameCnt++;
-                    if (System.currentTimeMillis() - curTime >= PERIOD_SECOND) {
-                        Log.i(Log.TAG, "视频发送帧率：" + frameCnt * PERIOD_SECOND / (System.currentTimeMillis() - curTime));
-                        curTime = System.currentTimeMillis();
-                        frameCnt = 0;
-                    }*/
-                    if (liveRegionsTemp.size() > 0 && liveRegionsDistance.size() > 0 && (System.currentTimeMillis() - curTime >= PERIOD_MINUTE)) {
-                        // 1分钟上报一次温度数据
-                        doTempReport(0, System.currentTimeMillis(), liveRegionsTemp, liveRegionsDistance);
-                        curTime = System.currentTimeMillis();
-                    }
-                } catch (Exception e) {
-                    Log.i(Log.TAG, "高德红外直播预览异常：" + e);
-                }
-            }
-        }).start();
+        ensureGuideVideoPipeline(stream, 0);
 
         return true;
     }
@@ -2154,15 +2178,14 @@ public class GUIDEDev extends Device {
     @Override
     public boolean liveStop() {
         try {
-            stopTemp();
-            stopPreview();
-            close();
-
             rtph264 = null;
         } catch (Exception e) {
             Log.i(Log.TAG, "停止高德红外直播异常：" + e);
         } finally {
             clearState(DevState.LIVING);
+            if (!isRecording()) {
+                stopGuideVideoPipeline();
+            }
         }
         Log.i(Log.TAG, "停止高德红外直播成功");
 
@@ -2391,11 +2414,26 @@ public class GUIDEDev extends Device {
 //            }
             if (isRecording() && !pausing && mediaMuxer != null) {
                 if (outIndex >= 0) {
+                    if (videoTrackIndex < 0 && mediaCodec != null) {
+                        MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                        tryStartGuideMuxer();
+                    }
                     if (muxerStarted && bufferInfo.size > 0) {
                         ByteBuffer outBuf = mediaCodec.getOutputBuffer(outIndex);
                         if (outBuf != null) {
-                            outBuf.position(bufferInfo.offset);
-                            outBuf.limit(bufferInfo.offset + bufferInfo.size);
+                            ByteBuffer recordBuf = outBuf.duplicate();
+                            recordBuf.position(bufferInfo.offset);
+                            recordBuf.limit(bufferInfo.offset + bufferInfo.size);
+
+                            if (isLiving() && rtph264 != null) {
+                                ByteBuffer liveBuf = outBuf.duplicate();
+                                liveBuf.position(bufferInfo.offset);
+                                liveBuf.limit(bufferInfo.offset + bufferInfo.size);
+                                byte[] outData = new byte[bufferInfo.size];
+                                liveBuf.get(outData);
+                                sendLiveEncodedFrame(outData, bufferInfo.presentationTimeUs);
+                            }
 
                             long ptsUs = bufferInfo.presentationTimeUs;
                             long nowUs = (avStartNs != 0) ? ((System.nanoTime() - avStartNs) / 1000) : ptsUs;
@@ -2404,13 +2442,103 @@ public class GUIDEDev extends Device {
                             lastVideoPtsUs = ptsUs;
                             bufferInfo.presentationTimeUs = ptsUs;
 
-                            mediaMuxer.writeSampleData(videoTrackIndex, outBuf, bufferInfo); /////
+                            mediaMuxer.writeSampleData(videoTrackIndex, recordBuf, bufferInfo); /////
                         }
                     }
                 }
             }
         } catch (Exception e) {
             Log.i(Log.TAG, "高德红外录制视频文件异常：" + e);
+        }
+    }
+
+    @Override
+    protected void encode(Bitmap bitmap) {
+        if (mediaCodec == null || bitmap == null) return;
+
+        try {
+            ByteBuffer encodeBuffer = ByteBuffer.allocate(bitmap.getByteCount());
+            bitmap.copyPixelsToBuffer(encodeBuffer);
+            byte[] yuvBytes = encodeBuffer.array();
+
+            int inputBufferIndex = mediaCodec.dequeueInputBuffer(0);
+            if (inputBufferIndex >= 0) {
+                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
+                if (inputBuffer != null) {
+                    inputBuffer.clear();
+                    inputBuffer.put(yuvBytes, 0, yuvBytes.length);
+                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, yuvBytes.length, System.nanoTime() / 1000, 0);
+                }
+            } else {
+                Log.w(Log.TAG, "高德红外视频帧编码输入错误：" + inputBufferIndex);
+            }
+
+            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+            int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
+
+            if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) {
+                    MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                    videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                    tryStartGuideMuxer();
+                }
+                Log.w(Log.TAG, "高德红外视频帧编码新格式：" + mediaCodec.getOutputFormat());
+            } else if (outputBufferIndex >= 0) {
+                try {
+                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
+                    if (outputBuffer == null || bufferInfo.size <= 0) {
+                        return;
+                    }
+
+                    if (isRecording()) {
+                        doSampleData(outputBuffer, bufferInfo, outputBufferIndex);
+                    } else if (isLiving() && rtph264 != null) {
+                        ByteBuffer liveBuf = outputBuffer.duplicate();
+                        liveBuf.position(bufferInfo.offset);
+                        liveBuf.limit(bufferInfo.offset + bufferInfo.size);
+                        byte[] outData = new byte[bufferInfo.size];
+                        liveBuf.get(outData);
+                        sendLiveEncodedFrame(outData, bufferInfo.presentationTimeUs);
+                    }
+                } finally {
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                }
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "高德红外视频帧编码异常：" + e.getMessage());
+        }
+    }
+
+    private void sendLiveEncodedFrame(byte[] outData, long presentationTimeUs) {
+        if (controllerCallback == null || rtph264 == null || outData == null || outData.length < 5) return;
+
+        try {
+            if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1) {
+                int type = outData[4] & 0x1F;
+                if (type == 7) {
+                    guideLivePpsSps = outData;
+                    return;
+                } else if (type == 5 && guideLivePpsSps != null) {
+                    byte[] iframeData = new byte[guideLivePpsSps.length + outData.length];
+                    System.arraycopy(guideLivePpsSps, 0, iframeData, 0, guideLivePpsSps.length);
+                    System.arraycopy(outData, 0, iframeData, guideLivePpsSps.length, outData.length);
+                    outData = iframeData;
+                }
+            }
+
+            long timestamp = presentationTimeUs / 1000 * 90;
+            if (guideLiveFirstFrameTimestamp == 0) {
+                guideLiveFirstFrameTimestamp = timestamp;
+            }
+            rtph264.timestamp = timestamp - guideLiveFirstFrameTimestamp;
+            byte[][] rtps = rtph264.encode(outData, 96, 0);
+            if (rtps != null) {
+                for (byte[] pack : rtps) {
+                    controllerCallback.onFrame(GUIDEDev.this, pack);
+                }
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "高德红外录制并行直播封包异常：" + e);
         }
     }
 
