@@ -101,6 +101,9 @@ public class Camera2Device extends Device {
     private float minFocusDist;
     private int rotate;
     private boolean useAudio;
+    private final Object mipiStreamLock = new Object();
+    private byte[] mipiLivePpsSps;
+    private long mipiLiveFirstFrameTimestamp = 0;
     /////
 
 
@@ -119,11 +122,11 @@ public class Camera2Device extends Device {
 
     private static final boolean ALWAYS_OPEN_BOTH_MIPI = true;
 
-    // private static int sDualPreviewWidth = 1536;
-    // private static int sDualPreviewHeight = 864;
+    private static int sDualPreviewWidth = 1536;
+    private static int sDualPreviewHeight = 864;
 
-    private static int sDualPreviewWidth = 1920;
-    private static int sDualPreviewHeight = 1080;
+    // private static int sDualPreviewWidth = 1920;
+    // private static int sDualPreviewHeight = 1080;
 
     private boolean mDualSessionStarted = false;
     private boolean mDualSessionStarting = false;
@@ -214,11 +217,17 @@ public class Camera2Device extends Device {
         try {
             if (isRecording() && !pausing && mediaMuxer != null) {
                 if (outIndex >= 0) {
+                    if (videoTrackIndex < 0 && mediaCodec != null) {
+                        MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                        tryStartMipiMuxer();
+                    }
                     if (muxerStarted && bufferInfo.size > 0) {
                         ByteBuffer outBuf = mediaCodec.getOutputBuffer(outIndex);
                         if (outBuf != null) {
-                            outBuf.position(bufferInfo.offset);
-                            outBuf.limit(bufferInfo.offset + bufferInfo.size);
+                            ByteBuffer recordBuf = outBuf.duplicate();
+                            recordBuf.position(bufferInfo.offset);
+                            recordBuf.limit(bufferInfo.offset + bufferInfo.size);
 
                             long ptsUs = bufferInfo.presentationTimeUs;
                             long nowUs = (avStartNs != 0) ? ((System.nanoTime() - avStartNs) / 1000) : ptsUs;
@@ -227,7 +236,7 @@ public class Camera2Device extends Device {
                             lastVideoPtsUs = ptsUs;
                             bufferInfo.presentationTimeUs = ptsUs;
 
-                            mediaMuxer.writeSampleData(videoTrackIndex, outBuf, bufferInfo); /////
+                            mediaMuxer.writeSampleData(videoTrackIndex, recordBuf, bufferInfo); /////
                         }
                     }
                 }
@@ -236,6 +245,102 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "MIPI摄像头录制视频文件异常：" + e);
         }
         /////
+    }
+
+    @Override
+    protected void encode(Bitmap bitmap) {
+        if (mediaCodec == null || bitmap == null) return;
+
+        try {
+            ByteBuffer encodeBuffer = ByteBuffer.allocate(bitmap.getByteCount());
+            bitmap.copyPixelsToBuffer(encodeBuffer);
+            byte[] argbBytes = encodeBuffer.array();
+
+            int inputBufferIndex = mediaCodec.dequeueInputBuffer(0);
+            if (inputBufferIndex >= 0) {
+                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
+                if (inputBuffer != null) {
+                    inputBuffer.clear();
+                    inputBuffer.put(argbBytes, 0, argbBytes.length);
+                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, argbBytes.length, System.nanoTime() / 1000, 0);
+                }
+            } else {
+                Log.w(Log.TAG, "MIPI video encode input error: " + inputBufferIndex);
+            }
+
+            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+            int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
+
+            if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) {
+                    MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                    videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                    tryStartMipiMuxer();
+                }
+                Log.w(Log.TAG, "MIPI video encode format changed: " + mediaCodec.getOutputFormat());
+            } else if (outputBufferIndex >= 0) {
+                try {
+                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
+                    if (outputBuffer == null || bufferInfo.size <= 0) {
+                        return;
+                    }
+
+                    byte[] liveData = null;
+                    if (isLiving() && rtph264 != null) {
+                        ByteBuffer liveBuf = outputBuffer.duplicate();
+                        liveBuf.position(bufferInfo.offset);
+                        liveBuf.limit(bufferInfo.offset + bufferInfo.size);
+                        liveData = new byte[bufferInfo.size];
+                        liveBuf.get(liveData);
+                    }
+
+                    if (isRecording()) {
+                        doSampleData(outputBuffer, bufferInfo, outputBufferIndex);
+                    }
+
+                    if (liveData != null) {
+                        sendMipiLiveEncodedFrame(liveData, bufferInfo.presentationTimeUs);
+                    }
+                } finally {
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                }
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "MIPI video encode error: " + e.getMessage());
+        }
+    }
+
+    private void sendMipiLiveEncodedFrame(byte[] outData, long presentationTimeUs) {
+        if (controllerCallback == null || rtph264 == null || outData == null || outData.length < 5) return;
+
+        try {
+            if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1) {
+                int type = outData[4] & 0x1F;
+                if (type == 7) {
+                    mipiLivePpsSps = outData;
+                    return;
+                } else if (type == 5 && mipiLivePpsSps != null) {
+                    byte[] iframeData = new byte[mipiLivePpsSps.length + outData.length];
+                    System.arraycopy(mipiLivePpsSps, 0, iframeData, 0, mipiLivePpsSps.length);
+                    System.arraycopy(outData, 0, iframeData, mipiLivePpsSps.length, outData.length);
+                    outData = iframeData;
+                }
+            }
+
+            long timestamp = presentationTimeUs / 1000 * 90;
+            if (mipiLiveFirstFrameTimestamp == 0) {
+                mipiLiveFirstFrameTimestamp = timestamp;
+            }
+            rtph264.timestamp = timestamp - mipiLiveFirstFrameTimestamp;
+            byte[][] rtps = rtph264.encode(outData, 96, 0);
+            if (rtps != null) {
+                for (byte[] pack : rtps) {
+                    controllerCallback.onFrame(Camera2Device.this, pack);
+                }
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "MIPI live RTP packet error: " + e);
+        }
     }
 
     private Bitmap imageDecode(Image image) {
@@ -846,7 +951,7 @@ public class Camera2Device extends Device {
     private static final int STATE_VIDEO_RECORDING = 5;
     private static final int STATE_VIDEO_LIVING = 6;
     private int mState = STATE_PREVIEW;
-    private static boolean previewReady;
+    private volatile boolean previewReady;
 
     private CameraCaptureSession.CaptureCallback mCaptureCallback
             = new CameraCaptureSession.CaptureCallback() {
@@ -1305,6 +1410,71 @@ public class Camera2Device extends Device {
         closeBothCameraIfNoLive();
     }
 
+    private boolean hasMipiBusiness() {
+        return enableLiveEncode || isLiving() || isRecording() || mCameraPhotoing;
+    }
+
+    private boolean hasOpenedCamera() {
+        return mCameraDevice != null;
+    }
+
+    private void ensureMipiVideoEncoder(int stream, boolean mipiMark) {
+        synchronized (mipiStreamLock) {
+            if (mediaCodec == null) {
+                initVideoEncoder(stream, mResolution.x, mResolution.y, mipiMark);
+                mipiLivePpsSps = null;
+                mipiLiveFirstFrameTimestamp = 0;
+            }
+        }
+    }
+
+    private void releaseMipiVideoEncoderIfIdle() {
+        synchronized (mipiStreamLock) {
+            if (!isLiving() && !isRecording() && mediaCodec != null) {
+                uninitVideoEncoder();
+                mipiLivePpsSps = null;
+                mipiLiveFirstFrameTimestamp = 0;
+            }
+        }
+    }
+
+    private void tryStartMipiMuxer() {
+        if (muxerStarted || mediaMuxer == null) return;
+
+        if (useAudio) {
+            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
+                mediaMuxer.start();
+                muxerStarted = true;
+                muxerEverStarted = true;
+            }
+        } else if (videoTrackIndex >= 0) {
+            mediaMuxer.start();
+            muxerStarted = true;
+            muxerEverStarted = true;
+        }
+    }
+
+    private void releaseMipiMuxer() {
+        if (mediaMuxer == null) return;
+
+        try {
+            if (muxerStarted) {
+                mediaMuxer.stop();
+            }
+            mediaMuxer.release();
+            Log.i(Log.TAG, "release MIPI muxer success");
+        } catch (Exception e) {
+            Log.i(Log.TAG, "release MIPI muxer error: " + e.getMessage());
+        } finally {
+            mediaMuxer = null;
+            videoTrackIndex = -1;
+            audioTrackIndex = -1;
+            muxerStarted = false;
+            muxerEverStarted = false;
+            avStartNs = 0;
+        }
+    }
+
     private static void closeBothCameraIfNoLive() {
         Camera2Device cam0;
         Camera2Device cam1;
@@ -1396,11 +1566,11 @@ public class Camera2Device extends Device {
 //            close();
             super.videoStop();
             /////
-            releaseMuxer();
-            uninitVideoEncoder();
+            releaseMipiMuxer();
             if (useAudio) {
                 uninitAudioEncoder();
             }
+            releaseMipiVideoEncoderIfIdle();
             closeBothCameraIfNoLive(); ///
             /////
         } catch (Exception e) {
@@ -1464,7 +1634,7 @@ public class Camera2Device extends Device {
                 initAudioEncoder();
                 startAudio();
             }
-            initVideoEncoder(stream, mResolution.x, mResolution.y, false);   // 录制短视频使用配置文件中的分辨率和I帧间隔
+            ensureMipiVideoEncoder(stream, isLiving() || enableLiveEncode);   // 录制和直播共用 MIPI 编码器
             /////
 
             new Timer("recordStop").schedule(new TimerTask() { /////
@@ -1518,7 +1688,6 @@ public class Camera2Device extends Device {
             setEnableLiveEncode(false);
             mOnShow = false;
             ///
-            uninitVideoEncoder(); /////
             rtph264 = null;
         } catch (Exception e) {
             Log.i(Log.TAG, "停止预览异常：" + e);
@@ -1526,6 +1695,7 @@ public class Camera2Device extends Device {
         } finally {
             clearState(DevState.LIVING); /////
             ///
+            releaseMipiVideoEncoderIfIdle();
             if (!mCameraPhotoing && !isRecording()) {
                 closeBothCameraIfNoLive();
             }
@@ -1753,7 +1923,7 @@ public class Camera2Device extends Device {
     ///
 
     public boolean liveStart(int stream, int ssrc) {
-        if (isRecording()) {
+        if (false && isRecording()) {
             Log.i(Log.TAG, "拉流失败，正在录制视频");
             return false;
         }
@@ -1762,12 +1932,13 @@ public class Camera2Device extends Device {
             return false;
         }
 
+        this.streamType = stream;
         setEnableLiveEncode(true); ///
 
         scheduledHandler.post(() -> {
             ///
             try {
-                Settings.VideoCodec vc = getVideoCodec(streamType);
+                Settings.VideoCodec vc = getVideoCodec(stream);
                 mResolution = Settings.VideoCodec.getResolution(vc.resolution);
                 ///
                 if (mResolution == null) {
@@ -1800,8 +1971,10 @@ public class Camera2Device extends Device {
 //                    return;
 //                }
                 { // 直播要打包成rtp包进行发包
-                    initVideoEncoder(streamType, mResolution.x, mResolution.y, true); /////
+                    ensureMipiVideoEncoder(stream, true); /////
                     rtph264 = new RTPH264(ssrc);
+                    mipiLivePpsSps = null;
+                    mipiLiveFirstFrameTimestamp = 0;
                 }
                 // 先开始播放，然后再对焦，提高后台出流时间
                 mOnShow = true;
@@ -2018,7 +2191,7 @@ public class Camera2Device extends Device {
     public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
         if (isRecording()) return false;
         // 录像优先级高于直播拉流
-        if (isLiving()) liveStop();
+        if (false && isLiving()) liveStop();
 
         scheduledHandler.post(() -> {
             videoStart(stream, filename, duration, upload);
