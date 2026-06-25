@@ -490,7 +490,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private Button btnUp, btnBottom, btnLeft, btnRight, btnZoomin, btnZoomout, btnAddPreset, btnRemovePreset, btnEditPreset, btnAddCruise, btnRemoveCruise, btnEditCruise; /////
     private TextView tvState;
     private TextView textVersion;
-    private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio; // cbBatOnly,     ///////
+    private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio,TDptz; // cbBatOnly,     ///////
     private EditText tbRotate, tvDVRUser, tvDVRPwd, tvDVRIP, tvDVRPort, tvID, tvServer, tvPort, tvCamID, etTraffic, etConfidence, etWidgetsConfidence, etFrame, etCruiseDuration, etCruiseSpeed, etPtzSpeed; //, etConfidence; /////
     private EditText irTempAdj, irObjEmi, irObjDistance, irTempReflect, irTempEnv, irHumiEnv, irRegionDistance, irRegionEmi, irAngle, irHorDisplacement, irVerDisplacement, irShutterInt; /////
     ////////

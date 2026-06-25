@@ -1334,6 +1334,39 @@ public class HuanYuDevice extends MyOnvifDevice {
         return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
     }
 
+
+    @Override
+    public boolean ptz3D(int StartingPointXCoordinate, int StartingPointYCoordinate, int AtTheEndOfXCoordinate, int AtTheEndOfCoordinate) {
+        /**
+         * xTop = 鼠标当前所选区域的起始点坐标的值*255/352；
+         xBottom = 鼠标当前所选区域的结束点坐标的值*255/352；
+         yTop = 鼠标当前所选区域的起始点坐标的值*255/288；
+         yBottom = 鼠标当前所选区域的结束点坐标的值*255/288；
+         */
+        Settings.VideoCodec vc = getVideoCodec(streamType);
+        Point size = Settings.VideoCodec.getResolution(vc.resolution);
+        int left = size.x * StartingPointXCoordinate / 255;
+        int top = size.y * StartingPointYCoordinate / 255;
+        int right = size.x * AtTheEndOfXCoordinate / 255;
+        int bottom = size.y * AtTheEndOfCoordinate / 255;
+        int zoom = top < bottom ? 1 : 0;
+
+//        // {"Left":809,"Right":1135,"Top":470,"Bottom":811,"Zoom":1}
+//        String body = String.format("{\"Left\":%d,\"Right\":%d,\"Top\":%d,\"Bottom\":%d,\"Zoom\":%d}",
+//                left, right, top, bottom, zoom);
+//        Response response = request(url + "/merlin/SetPtzPosition.cgi", body);
+//        if (response != null) {
+//            Log.i(Log.TAG, String.format("3D控球 (%d, %d) - (%d, %d): %d => %s", left, top, right, bottom, response.code(), response.message()));
+//        } else {
+//            Log.i(Log.TAG, String.format("3D控球 (%d, %d) - (%d, %d): 失败", left, top, right, bottom));
+//        }
+
+        return true;
+    }
+
+
+
+
     private String setPTZPosParamJson(int action, int panPos, int tiltPos, int zoomPos, int focusPos, int channel) {
 
         Map<String, Object> table = new HashMap<>();

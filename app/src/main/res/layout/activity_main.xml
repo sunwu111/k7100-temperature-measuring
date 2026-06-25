@@ -480,7 +480,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.432"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/spnZoomRatio"
+            app:layout_constraintTop_toBottomOf="@+id/TDptz"
             app:layout_constraintVertical_bias="0.861" />
 
         <EditText
@@ -1565,6 +1565,17 @@
             android:textAlignment="viewStart"
             app:layout_constraintStart_toStartOf="@+id/tvResolution"
             app:layout_constraintTop_toBottomOf="@+id/tvResolution" />
+
+        <CheckBox
+            android:id="@+id/TDptz"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:onClick="btnCbAIAccTestClick"
+            android:text="3D控球"
+            android:textAlignment="viewStart"
+            app:layout_constraintStart_toStartOf="@+id/cbAIAccTest"
+            app:layout_constraintTop_toBottomOf="@+id/cbAIAccTest" />
 
         <TextView
             android:id="@+id/tvZoomRatio"
