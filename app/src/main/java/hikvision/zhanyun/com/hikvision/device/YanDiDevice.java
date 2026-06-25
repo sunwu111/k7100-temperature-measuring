@@ -755,7 +755,7 @@ public class YanDiDevice extends Device {
                     Log.e(Log.TAG, "调用预置位时显示名字错误: " + e.getMessage());
                 }
             }).start();*/
-            response = requestPoint(url + "action/ptz_sensor_ctl_form", 18, para);
+            response = requestPoint(url + "action/ptz_sensor_ctl_form", 18, normalizePresetForDevice(para));
         } else if (cmd == 3) {  // 上下左右步进
             response = step(url + "action/ptz_ctrl_form", 1, ptzStep);
         } else if (cmd == 4) {

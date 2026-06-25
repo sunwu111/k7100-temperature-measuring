@@ -617,6 +617,10 @@ public abstract class Device {
         }).start();
     }
 
+    protected int normalizePresetForDevice(int preset) {
+        return preset > 255 ? preset % 255 : preset;
+    }
+
     public void startCruise(int group) {
         if (cruiseSettings == null) return;
 

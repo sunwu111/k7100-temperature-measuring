@@ -925,6 +925,7 @@
             android:layout_marginEnd="8dp"
             android:layout_marginTop="8dp"
             android:entries="@array/preset"
+            android:dropDownWidth="120dp"
             android:dropDownHeight="200dp"
             app:layout_constraintStart_toStartOf="@+id/irShutterInv"
             app:layout_constraintTop_toBottomOf="@+id/irShutterInv" />

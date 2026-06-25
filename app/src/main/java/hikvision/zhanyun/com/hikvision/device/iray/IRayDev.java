@@ -1812,7 +1812,7 @@ public class IRayDev extends Device {
 
     @Override
     public void move(int cmd, int para) {
-        ptzDev.move(cmd, para);
+        ptzDev.move(cmd, cmd == 2 ? normalizePresetForDevice(para) : para);
     }
 
     /////

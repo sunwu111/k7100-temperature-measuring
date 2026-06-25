@@ -1360,7 +1360,7 @@ public class AipuDevice extends Device {
         } else if (cmd == 1) {     // 摄像机打开电源 NET_DVR_REMOTECONTROL_POWER_ON
 
         } else if (cmd == 2) {      // 转到指定预置位
-            response = request(url + "/merlin/PtzCtrl.cgi?operation=20&speed=4&channelno=0&value=" + para, true); /////
+            response = request(url + "/merlin/PtzCtrl.cgi?operation=20&speed=4&channelno=0&value=" + normalizePresetForDevice(para), true); /////
         } else if (cmd == 3) {  // 上下左右步进
             response = step(2, 200);
         } else if (cmd == 4) {

@@ -3473,8 +3473,9 @@ public class HuanYuDevice extends MyOnvifDevice {
         } else if (cmd == 1) {
             // 摄像机打开电源
         } else if (cmd == 2) {
-            if (para != 0) {
-                goPreset(para);
+            int devicePreset = normalizePresetForDevice(para);
+            if (devicePreset != 0) {
+                goPreset(devicePreset);
             }
         } else if (cmd == 3) {
             if (isMoving) {
