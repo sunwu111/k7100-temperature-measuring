@@ -61,6 +61,10 @@ public class HuanYuDevice extends MyOnvifDevice {
     //      TODO 如果频繁登录会登录失败  登录后不登出，链接会保持2分钟，如果频繁登录，总的协议数量超过20了就不能再登录了
     private static final long SESSION_VALID_TIME = 2 * 60 * 1000;
     private static final int MAX_LOGIN_RETRY = 20;
+    private static final int PTZ_3D_PAN_DELTA = 1200;
+    private static final int PTZ_3D_TILT_DELTA = 600;
+    private static final int PTZ_3D_ZOOM_DELTA = 400;
+    private static final int PTZ_POSITION_MAX = 35999;
     private static final int MAX_REAL_LENGTH = 61;        // 这个字段太长，会导致自定义的osd不显示，有点奇怪，查看机芯上提示，字符过长
     private static final long AUTO_FOCUS_DELAY = 5000; // 5秒延迟
     private static final long CMD2_BLOCK_DURATION = 20000;  // 20秒时间窗口
@@ -1343,13 +1347,38 @@ public class HuanYuDevice extends MyOnvifDevice {
          yTop = 鼠标当前所选区域的起始点坐标的值*255/288；
          yBottom = 鼠标当前所选区域的结束点坐标的值*255/288；
          */
-        Settings.VideoCodec vc = getVideoCodec(streamType);
-        Point size = Settings.VideoCodec.getResolution(vc.resolution);
-        int left = size.x * StartingPointXCoordinate / 255;
-        int top = size.y * StartingPointYCoordinate / 255;
-        int right = size.x * AtTheEndOfXCoordinate / 255;
-        int bottom = size.y * AtTheEndOfCoordinate / 255;
-        int zoom = top < bottom ? 1 : 0;
+        int startX = clamp3DCoordinate(StartingPointXCoordinate);
+        int startY = clamp3DCoordinate(StartingPointYCoordinate);
+        int endX = clamp3DCoordinate(AtTheEndOfXCoordinate);
+        int endY = clamp3DCoordinate(AtTheEndOfCoordinate);
+
+        PTZPosition currentPosition = getCurrentPTZPosition();
+        if (currentPosition == null) {
+            Log.e(HuanyuDeviceLog, "3D控球失败，获取当前PTZ坐标失败");
+            return false;
+        }
+        // 获取PTZ位置response: {"id":0,"params":{"Action":0,"FocusPos":30765,"PanPos":29304,"TiltPos":35999,"ZoomPos":0},"result":true,"session":872848800}
+
+        int centerX = (startX + endX) / 2;
+        int centerY = (startY + endY) / 2;
+        int offsetX = centerX - 127;
+        int offsetY = centerY - 127;
+        int width = Math.abs(endX - startX);
+        int height = Math.abs(endY - startY);
+
+        int panDelta = offsetX * PTZ_3D_PAN_DELTA / 127;
+        int tiltDelta = -offsetY * PTZ_3D_TILT_DELTA / 127;
+        int zoomDelta = 0;
+        if (Math.max(width, height) > 8) {
+            zoomDelta = (255 - Math.max(width, height)) * PTZ_3D_ZOOM_DELTA / 255;
+            if (endY < startY) {
+                zoomDelta = -zoomDelta;
+            }
+        }
+
+        int targetPan = clampPtzPosition(currentPosition.PanPos + panDelta);
+        int targetTilt = clampPtzPosition(currentPosition.TiltPos + tiltDelta);
+        int targetZoom = Math.max(0, currentPosition.ZoomPos + zoomDelta);
 
 //        // {"Left":809,"Right":1135,"Top":470,"Bottom":811,"Zoom":1}
 //        String body = String.format("{\"Left\":%d,\"Right\":%d,\"Top\":%d,\"Bottom\":%d,\"Zoom\":%d}",
@@ -1361,7 +1390,30 @@ public class HuanYuDevice extends MyOnvifDevice {
 //            Log.i(Log.TAG, String.format("3D控球 (%d, %d) - (%d, %d): 失败", left, top, right, bottom));
 //        }
 
-        return true;
+        if (panDelta == 0 && tiltDelta == 0 && zoomDelta == 0) {
+            return true;
+        }
+
+        if (!login()) return false;
+
+        String json = setPTZPosParamJson(1, targetPan, targetTilt, targetZoom, currentPosition.FocusPos, 0);
+        Response response = http_request(url, json);
+        boolean result = parseResponse(response);
+        Log.i(HuanyuDeviceLog, String.format("3D控球 (%d,%d)-(%d,%d), current=(%d,%d,%d), target=(%d,%d,%d), result=%s",
+                startX, startY, endX, endY,
+                currentPosition.PanPos, currentPosition.TiltPos, currentPosition.ZoomPos,
+                targetPan, targetTilt, targetZoom, result));
+        // 2026-06-25 20:07:06.154 : HuanyuDeviceLog : 3D控球 (116,132)-(116,132), current=(29304,35999,0), target=(29201,35976,0), result=true
+
+        return result;
+    }
+
+    private int clamp3DCoordinate(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    private int clampPtzPosition(int value) {
+        return Math.max(0, Math.min(PTZ_POSITION_MAX, value));
     }
 
 

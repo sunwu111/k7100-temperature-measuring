@@ -606,9 +606,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     // 这个容器里的数据只在当此拉流过程中有效，下次拉流这个容器要清空
     private Vector<IRSetting.IrRegion> irLiveRegions = new Vector<>();
     private DrawTempRegion drawTempRegion;
+    private float local3DStartX;
+    private float local3DStartY;
+
     View.OnTouchListener svTouchListener = new View.OnTouchListener() {
         @Override
         public boolean onTouch(View v, MotionEvent event) {
+            if (TDptz != null && TDptz.isChecked()) {
+                return handleLocal3DPtzTouch(v, event);
+            }
+
             if (cbType.getSelectedItemPosition() != DEVICE_USB_GUIDE && cbType.getSelectedItemPosition() != DEVICE_USB_IRAY)
                 return true;
 
@@ -637,6 +644,38 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             return true;
         }
     };
+
+    private boolean handleLocal3DPtzTouch(View view, MotionEvent event) {
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                local3DStartX = event.getX();
+                local3DStartY = event.getY();
+                return true;
+            case MotionEvent.ACTION_UP:
+                int channel = spnChannels.getSelectedItemPosition() + 1;
+                Device dev = channels.get(String.valueOf(channel));
+                if (dev == null || !dev.isDVR()) return true;
+
+                int width = Math.max(1, view.getWidth());
+                int height = Math.max(1, view.getHeight());
+                int startX = normalizeLocal3DCoordinate(local3DStartX, width);
+                int startY = normalizeLocal3DCoordinate(local3DStartY, height);
+                int endX = normalizeLocal3DCoordinate(event.getX(), width);
+                int endY = normalizeLocal3DCoordinate(event.getY(), height);
+
+                utilsHandler.post(() -> dev.ptz3D(startX, startY, endX, endY));
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    private int normalizeLocal3DCoordinate(float value, int max) {
+        int coordinate = Math.round(value * 255f / max);
+        return Math.max(0, Math.min(255, coordinate));
+    }
 
 
 
@@ -4676,6 +4715,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        cbBatOnly = findViewById(R.id.cbOnlyBat);
         cbToCheck = findViewById(R.id.cbToCheck); ///////
         switchAudio = findViewById(R.id.switchAudio); ///////
+        TDptz = findViewById(R.id.TDptz);
         tvDVRIP = findViewById(R.id.etDVRIP);
         tvDVRPort = findViewById(R.id.etDVRPort);
         tvDVRPwd = findViewById(R.id.etDVRPwd);

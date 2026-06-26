@@ -1571,7 +1571,6 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:onClick="btnCbAIAccTestClick"
             android:text="3D控球"
             android:textAlignment="viewStart"
             app:layout_constraintStart_toStartOf="@+id/cbAIAccTest"
