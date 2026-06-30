@@ -3946,7 +3946,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 continue;
             }
 
-            setSinglePhotoAlarm(i, item, "定时拍照_" + item.channel + "_" + item.preset);
+//            setSinglePhotoAlarm(i, item, "定时拍照_" + item.channel + "_" + item.preset);   // 现在都是全功能模式，这个就可以直接注释掉
 
         }
 
@@ -5496,11 +5496,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             cbToCheck.setEnabled(false);
             cbPhotoCheck.setEnabled(false);
             switchAudio.setEnabled(false);
-
-            cbBackLightCom.setEnabled(false);
-            cbStrongLightSup.setEnabled(false);
-            cbElectronicFog.setEnabled(false);
-            cbLowLight.setEnabled(false);
 
             cbVideoLoss.setEnabled(false);
             cbVideoBlock.setEnabled(false);
