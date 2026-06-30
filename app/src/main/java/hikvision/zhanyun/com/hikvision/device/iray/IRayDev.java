@@ -865,7 +865,7 @@ public class IRayDev extends Device {
 
 
     @Override
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///
         //Log.i(Log.TAG, "开启红外机芯");
         try {
             enter(timeoutSeconds + 60); // 打开设备超时认为卡死，重启apk
@@ -1173,10 +1173,16 @@ public class IRayDev extends Device {
         if ((preset != 0 && preset != recordPreset) || (preset != 0 && preset == recordPreset && isLiving())) {
 //        if (preset != 0 && preset != recordPreset) {  // 如果拉流时转动了云台，再拍照，则不会转回拍照预置位，存在问题！
 //        if (preset != 0) {
-            move(2, preset);
-            SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位
+            ///
+            if (!isLiving()) {
+                move(2, preset);
+                SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位
+            }
         } else if (preset != 0) {
-            move(2, preset);
+            if (!isLiving()) {
+                move(2, preset);
+            }
+            ///
         }
         /////
         // 如果有环境温度区域，就需要先等待环境温度的获取

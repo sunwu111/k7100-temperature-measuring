@@ -1337,6 +1337,27 @@
             app:layout_constraintStart_toStartOf="@+id/spnChargeController"
             app:layout_constraintTop_toTopOf="@+id/etFrame" />
 
+        <TextView
+            android:id="@+id/tvDayAndNightMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="日夜模式"
+            app:layout_constraintBottom_toBottomOf="@+id/spnDayAndNightMode"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/spnGainControl" />
+
+        <Spinner
+            android:id="@+id/spnDayAndNightMode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:entries="@array/dayAndNightMode"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/irObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/spnGainControl" />
+
         <CheckBox
             android:id="@+id/cbBackLightCom"
             android:layout_width="0dp"
@@ -1344,8 +1365,8 @@
             android:layout_marginEnd="8dp"
             android:layout_marginTop="2dp"
             android:text="@string/backLightCom"
-            app:layout_constraintStart_toStartOf="@+id/tvGainControl"
-            app:layout_constraintTop_toBottomOf="@+id/spnGainControl" />
+            app:layout_constraintStart_toStartOf="@+id/tvDayAndNightMode"
+            app:layout_constraintTop_toBottomOf="@+id/spnDayAndNightMode" />
 
         <CheckBox
             android:id="@+id/cbStrongLightSup"

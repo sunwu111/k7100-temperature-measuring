@@ -521,7 +521,7 @@ public class AipuDevice extends Device {
     private boolean closeForce;
 
     @Override
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///
         long bootTime = System.currentTimeMillis();
 
         closeForce = false;
@@ -1691,14 +1691,22 @@ public class AipuDevice extends Device {
             if ((preset != 0 && preset != recordPreset) || (preset != 0 && preset == recordPreset && isLiving())) {
 //            if (preset != 0 && preset != recordPreset) {  // 如果拉流时转动了云台，再拍照，则不会转回拍照预置位，存在问题！
 //            if (preset != 0) {
-                move(2, preset);
+                ///
+                if (!isLiving()) {
+                    move(2, preset);
+                }
                 if (imageStitch == 0) {
-                    SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位
+                    if (!isLiving()) {
+                        SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位
+                    }
                 } else {
                     SystemClock.sleep(5 * 1000);  // 图像拼接时只需等待5秒
                 }
             } else if (preset != 0) {
-                move(2, preset);
+                if (!isLiving()) {
+                    move(2, preset);
+                }
+                ///
                 SystemClock.sleep(5000);  // 等待OSD配置生效
             } else {
                 SystemClock.sleep(5000);  // 等待OSD配置生效

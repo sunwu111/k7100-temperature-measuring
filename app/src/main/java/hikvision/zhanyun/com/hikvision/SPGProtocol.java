@@ -1898,7 +1898,11 @@ public class SPGProtocol {
         Log.i(Log.TAG, String.format("主站请求拍照，通道：%d，预置位：%d", mReceiveData[10] & 0xff, mReceiveData[11] & 0xff));
         sendPack(ORDER_83H, mReceiveData, null);
 
-        listenerCallBack.takePhoto(mReceiveData[10] & 0xFF, mReceiveData[11] & 0xFF);
+        ///
+        MainActivity.runValidBusiness(() -> {
+            listenerCallBack.takePhoto(mReceiveData[10] & 0xFF, mReceiveData[11] & 0xFF);
+        });
+        ///
 //        listenerCallBack.takePhoto(mReceiveData[10] & 0xFF, mReceiveData[11] & 0xFF, 1); ///////
     }
 
@@ -2281,11 +2285,16 @@ public class SPGProtocol {
         int ssrc = parseSSRC(ssrcBytes);
 
         //////
-        short ret = listenerCallBack.startLiveVideo(toInt(raw[10]), toInt(raw[11]), raw[12], ssrc, ip, port);
-        Log.e(Log.TAG, String.format("启动直播，协议：%s，服务器：%s:%d，SSRC：%d，启动结果：%d", newProtocol ? "新" : "旧", ip, port, ssrc, ret));
+        ///
+        Number ret = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.startLiveVideo(toInt(raw[10]), toInt(raw[11]), raw[12], ssrc, ip, port),
+                -1
+        );
+        Log.e(Log.TAG, String.format("启动直播，协议：%s，服务器：%s:%d，SSRC：%d，启动结果：%d", newProtocol ? "新" : "旧", ip, port, ssrc, ret.shortValue()));
+        ///
 
         try {
-            if (ret == 0) {
+            if (ret.shortValue() == 0) { ///
                 // 成功回包
                 sendPack(ORDER_89H, raw, null);
             } else {
@@ -2293,7 +2302,7 @@ public class SPGProtocol {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 bos.write(raw[10]);    // 通道号
-                dos.writeShort(ret);   // 错误码
+                dos.writeShort(ret.shortValue());   // 错误码 ///
                 dos.write(ssrcBytes);  // SSRC
                 sendPack(ORDER_89H, null, bos.toByteArray());
                 bos.close();
@@ -2616,7 +2625,12 @@ public class SPGProtocol {
      * @param channelType 通道（码流）类型
      */
     public void doGetVideoTimeTable(byte channel, byte channelType) {
-        List<Settings.VideoTimeItem> videoRecordChannel = listenerCallBack.getVideoTimeTable(channel, channelType);
+        ///
+        List<Settings.VideoTimeItem> videoRecordChannel = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.getVideoTimeTable(channel, channelType),
+                null
+        );
+        ///
         byte[] dataDomain;
         if (videoRecordChannel == null)
             dataDomain = new byte[]{channel, channelType, 0, 0};
@@ -2705,7 +2719,12 @@ public class SPGProtocol {
         this.channelNum = raw[10];
         Log.i(Log.TAG, String.format("启动录制小视频， 通道 %d，码流： %d，时长：%d", channelNum, raw[11], raw[12]));
 
-        short ret = listenerCallBack.startShortVideo(raw[10], raw[11], raw[12] & 0xFF);
+        ///
+        Number ret = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.startShortVideo(raw[10], raw[11], raw[12] & 0xFF),
+                0
+        );
+        ///
 
 //
 //        if (uploading){       // 当前正在传输中
@@ -2713,13 +2732,15 @@ public class SPGProtocol {
 //        }
 
         int resultCode; ///////
-        if (ret == 0) {
+        if (ret.shortValue() == 0) { ///
             sendPack(ORDER_93H, raw, null);
             Log.i(Log.TAG, "短视频录制启动成功");
             resultCode = 1;
         } else {
-            Log.e(Log.TAG, "启动录制小视频失败：" + ret);
-            sendPack(ORDER_93H, null, new byte[]{raw[10], raw[11], hi(ret), lo(ret)});
+            ///
+            Log.e(Log.TAG, "启动录制小视频失败：" + ret.shortValue());
+            sendPack(ORDER_93H, null, new byte[]{raw[10], raw[11], hi(ret.shortValue()), lo(ret.shortValue())});
+            ///
             resultCode = 0;
         }
     }
@@ -2748,7 +2769,12 @@ public class SPGProtocol {
         Settings.TimeRecord start = new Settings.TimeRecord(subBytes(raw, 15, 6));
         Settings.TimeRecord end = new Settings.TimeRecord(subBytes(raw, 21, 6));
 
-        int fileCount = listenerCallBack.fileFiles(raw[10], videoType, start, end);
+        ///
+        int fileCount = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.fileFiles(raw[10], videoType, start, end),
+                0
+        );
+        ///
 
         byte[] size = new byte[]{lo(hi(fileCount)), lo(lo(fileCount))};  // 拆分成2字节
         byte[] dataDomain = byteMerger(subBytes(raw, 10, 17), size);  // 原始参数 + 文件数
@@ -2793,7 +2819,14 @@ public class SPGProtocol {
         if (endNumb < 0) endNumb = 0;
         int videoType = (raw[11] << 24) | (raw[12] << 16) | (raw[13] << 8) | (raw[14] & 0xFF);
 
-        Settings.FileList list = listenerCallBack.findVideoFileList(raw[10] & 0xFF, videoType, startVideoTime, stopVideoTime, startNumb, endNumb);
+        ///
+        int finalStartNumb = startNumb;
+        int finalEndNumb = endNumb;
+        Settings.FileList list = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.findVideoFileList(raw[10] & 0xFF, videoType, startVideoTime, stopVideoTime, finalStartNumb, finalEndNumb),
+                null
+        );
+        ///
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
@@ -2869,9 +2902,15 @@ public class SPGProtocol {
 
         int ssrc = parseSSRC(ssrcBytes);
 
-        byte ret = listenerCallBack.playbackFile(raw[10], raw[11] == 0, startVideoTime, stopVideoTime, ip, port, ssrc);
+        ///
+        String finalIp = ip;
+        Number ret = MainActivity.runValidBusinessWithResult(
+                () -> listenerCallBack.playbackFile(raw[10], raw[11] == 0, startVideoTime, stopVideoTime, finalIp, port, ssrc),
+                0
+        );
 
-        byte[] dataDomain = byteMerger(new byte[]{raw[10], ret, 0}, ssrcBytes);
+        byte[] dataDomain = byteMerger(new byte[]{raw[10], ret.byteValue(), 0}, ssrcBytes);
+        ///
 
         sendPack(responseOrder, null, dataDomain);
 

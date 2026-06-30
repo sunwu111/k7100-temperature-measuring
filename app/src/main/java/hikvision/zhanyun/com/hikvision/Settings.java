@@ -393,6 +393,8 @@ public class Settings {
         public byte brightness = 50;   // 亮度 0~100;
         public byte contrast = 50;    // 对比度 0~100
         public byte saturation = 50;   // 饱和度 0~100
+        public byte sharpness = 50;   // 锐度 0~100 ///
+        public byte hue = 50;   // 色度 0~100 ///
 
         public static Point getImageSize(int pixel) {
             Point[] points = new Point[]{
@@ -473,6 +475,7 @@ public class Settings {
         public short bps = 1024;            // 单位: kbps
         public byte vbr = 0;
         public byte resolution = 8;
+        public int smooth = 50;  // 码流平滑度 ///
 
         public static Point getResolution(int index) {
             Point[] points = new Point[]{

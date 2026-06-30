@@ -1102,7 +1102,7 @@ public class GUIDEDev extends Device {
     }
 
     @Override
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///
         Log.i(Log.TAG, "开启高德红外机芯");
         try {
             enter(timeoutSeconds + 60);  // 打开设备超时认为卡死，重启apk
@@ -1526,8 +1526,12 @@ public class GUIDEDev extends Device {
 
         // 这个地方需要修改检查预置位是否到达
         if (preset != 0) {
-            move(2, preset);
-            SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位   20S
+            ///
+            if (!isLiving()) {
+                move(2, preset);
+                SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位   20S
+            }
+            ///
         }
 
 

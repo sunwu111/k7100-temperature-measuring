@@ -189,8 +189,12 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -485,7 +489,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private Map<Integer, PendingIntent> checkLineAlarms = new HashMap<>();   // 定时巡检闹钟
     private SurfaceView surfaceView, surfaceDraw;
     //    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, spnZoomRatio, irOperator, irObjType, irObjFlag; ///////
-    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///////
+    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnDayAndNightMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///
     private ArrayAdapter<String> adapter;
     private Button btnUp, btnBottom, btnLeft, btnRight, btnZoomin, btnZoomout, btnAddPreset, btnRemovePreset, btnEditPreset, btnAddCruise, btnRemoveCruise, btnEditCruise; /////
     private TextView tvState;
@@ -2679,7 +2683,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         Device device = channels.get(String.valueOf(channel)); /////
                         if (device.isDVR() || device.isCamera()) {
                             Log.i(Log.TAG, "BDS改变拍照");
-                            takePhoto(Integer.valueOf(channel), 0);
+                            ///
+                            runValidBusiness(() -> {
+                                takePhoto(Integer.valueOf(channel), 0);
+                            });
+                            ///
                             break;
                         }
                     }
@@ -2857,6 +2865,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this; ///
         Log.logDeviceInfo();
 
         setContentView(R.layout.activity_main);
@@ -2915,7 +2924,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         SystemSettings.sleepAfter(this, 15);
 
 
-        SystemSettings.airplaneOff(this);
+//        SystemSettings.airplaneOff(this); ///
         // 打开BDS定位 ////////
         SystemSettings.bdsON(this);
 
@@ -3070,6 +3079,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //        },1 * 60 * 1000); // 1分钟后还是全工作模式就开始缓存
 //
 
+        startAux5IdleMonitor();  // 每60秒执行1次，用来判断是否空闲满10分钟，然后关闭辅助开关5 ///
     }
 
 
@@ -4573,6 +4583,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnDenoiseMode.setSelection(cAMERASetting.cameraConfig.get("1").denoiseMode);  // 用通道一的
         spnGainControl.setSelection(cAMERASetting.cameraConfig.get("1").gainControl);  // 用通道一的
         spnFocusMode.setSelection(cAMERASetting.cameraConfig.get("1").focusMode);  // 用通道一的
+        spnDayAndNightMode.setSelection(cAMERASetting.cameraConfig.get("1").dayAndNightMode);  // 用通道一的 ///
         cbBackLightCom.setChecked(cAMERASetting.cameraConfig.get("1").backLightCom == 1);  // 用通道一的
         cbStrongLightSup.setChecked(cAMERASetting.cameraConfig.get("1").strongLightSup == 1);  // 用通道一的
         cbElectronicFog.setChecked(cAMERASetting.cameraConfig.get("1").electronicFog == 1);  // 用通道一的
@@ -4671,6 +4682,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     spnDenoiseMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).denoiseMode);
                     spnGainControl.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).gainControl);
                     spnFocusMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).focusMode);
+                    spnDayAndNightMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).dayAndNightMode); ///
                     cbBackLightCom.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).backLightCom == 1);
                     cbStrongLightSup.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).strongLightSup == 1);
                     cbElectronicFog.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).electronicFog == 1);
@@ -4738,6 +4750,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnDenoiseMode = findViewById(R.id.spnDenoiseMode);
         spnGainControl = findViewById(R.id.spnGainControl);
         spnFocusMode = findViewById(R.id.spnFocusMode);
+        spnDayAndNightMode = findViewById(R.id.spnDayAndNightMode); ///
         cbVideoLoss = findViewById(R.id.cbVideoLoss);
         cbVideoBlock = findViewById(R.id.cbVideoBlock);
         cbVideoOutFocus = findViewById(R.id.cbVideoOutFocus);
@@ -4924,14 +4937,26 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         int preset = spnPreset.getSelectedItemPosition();
         Log.e(Log.TAG, "进行手动抓拍");
-        utilsHandler.post(() -> takePhoto(ch, preset, true, null, true));
+        utilsHandler.post(() -> {
+            ///
+            runValidBusiness(() -> {
+                takePhoto(ch, preset, true, null, true);
+            });
+            ///
+        });
         showMsg("手动抓拍");
     }
 
     public void btnVideoClick(View v) {
         final int ch = spnChannels.getSelectedItemPosition() + 1;
 
-        utilsHandler.post(() -> takeVideo(ch, 0, 20, false));
+        utilsHandler.post(() -> {
+            ///
+            runValidBusiness(() -> {
+                takeVideo(ch, 0, 20, false);
+            });
+            ///
+        });
         showMsg("手动录制短视频");
     }
 
@@ -5252,6 +5277,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).denoiseMode = (byte) spnDenoiseMode.getSelectedItemPosition();
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).gainControl = (byte) spnGainControl.getSelectedItemPosition();
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).focusMode = (byte) spnFocusMode.getSelectedItemPosition();
+            cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).dayAndNightMode = (byte) spnDayAndNightMode.getSelectedItemPosition(); ///
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).backLightCom = (byte) (cbBackLightCom.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).strongLightSup = (byte) (cbStrongLightSup.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).electronicFog = (byte) (cbElectronicFog.isChecked() ? 1 : 0);
@@ -5260,6 +5286,18 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoBlock = (byte) (cbVideoBlock.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoOutFocus = (byte) (cbVideoOutFocus.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoScreenDist = (byte) (cbVideoScreenDist.isChecked() ? 1 : 0);
+            ///
+            if (chanIdx == 0) {
+                new Thread(() -> {
+                    try {
+                        Device dev = channels.get("1");
+                        dev.setCameraParam(cAMERASetting.cameraConfig.get("1"));
+                    } catch (Exception e) {
+                        Log.i(Log.TAG, "手动保存机芯参数失败");
+                    }
+                }).start();
+            }
+            ///
             saveSettings(cAMERASetting, CAMERA_SETTING_FILE);
             /////
 
@@ -5344,7 +5382,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         // 手动打开视频不排队
         //utilsHandler.post(() -> {
         new Thread(() -> {
-            startLocalPlay(lastPlayChannel, preset);
+            ///
+            runValidBusiness(() -> {
+                startLocalPlay(lastPlayChannel, preset);
+            });
+            ///
         }).start();
         //});
     }
@@ -6252,7 +6294,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         final VideoTimeItem item = videoPolicy.get(index);
         if (item == null) return;
 
-        utilsHandler.post(() -> takeVideo(item, false));
+        utilsHandler.post(() -> {
+            ///
+            runValidBusiness(() -> {
+                takeVideo(item, false);
+            });
+            ///
+        });
 //        utilsHandler.post(() -> takeVideo(item, false, 0)); ///////
     }
 
@@ -6307,7 +6355,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 finishTimeConsumeTask(taskName, dev.isDVR());
                 sleepDevice(channel, wakeupReason + "打开失败");
             }
-        }, DVR_BOOT_TIME, false);
+        }, DVR_BOOT_TIME, false, true, false); ///
     }
 
     private void runCheckLineAfterDeviceReady(int channel, int group, int count, List<CheckGroup> cgs,
@@ -6476,7 +6524,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         // 当前index对应任务
         final CheckScheduleItem item = items.get(index);
-        utilsHandler.post(() -> runCheckLine(channel, item.group - 1, item.count));
+        utilsHandler.post(() -> {
+            ///
+            runValidBusiness(() -> {
+                runCheckLine(channel, item.group - 1, item.count);
+            });
+            ///
+        });
         index++;
 
         // 闹钟回调后，为了防止闹钟延迟回调，需要把从index到当前时间的任务都运行掉！
@@ -6486,7 +6540,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             final CheckScheduleItem next = items.get(index);
             if (next == null || next.hour > now.hour || next.minute > now.minute) break;
 
-            utilsHandler.post(() -> runCheckLine(channel, next.group - 1, next.count));
+            utilsHandler.post(() -> {
+                ///
+                runValidBusiness(() -> {
+                    runCheckLine(channel, next.group - 1, next.count);
+                });
+                ///
+            });
             index++;
         }
         initCheckLineTask(channel, index);
@@ -6525,7 +6585,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.e(Log.TAG, "------定时拍照 - 时间:" + scheduledTime
                     + " 通道:" + item.channel
                     + " 预置位:" + (item.preset & 0xFF)+"------");
-            takePhoto(item.channel, item.preset & 0xFF, false, null, true, item.channel == 1 || item.channel == 2);
+            ///
+            runValidBusiness(() -> {
+                takePhoto(item.channel, item.preset & 0xFF, false, null, true, item.channel == 1 || item.channel == 2);
+            });
+            ///
             SystemClock.sleep(5000);
         });
     }
@@ -6998,11 +7062,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         if (order == 1)
             doWakeup("服务器开机指令，开启所有云台与红外", 23);
         else if (order == 15) {
-            runCruise(channelNum, para);
+            ///
+            runValidBusiness(() -> {
+                runCruise(channelNum, para);
+            });
+            ///
         } else if (order == 16) {
             dev.stopCruise();
         } else if (order == 31) {  // 开始巡检，表示设置完成，可以复位了
-            runCheckLine(channelNum, para - 1, 1);
+            ///
+            runValidBusiness(() -> {
+                runCheckLine(channelNum, para - 1, 1);
+            });
+            ///
         } else if (order == 32) {
             dev.stopCheckLine();
         } else if (order == 33) { /////
@@ -7076,21 +7148,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             /////
             ///////
         } else if (order == 17 && para == 5) {
+            aux5Switching = true;
             sleepMode = false;
             if (deviceConfig.chargeControl >= 6) {
                 sleepModeIr = false;
             }
             // 1. 各接口上电
             ////////
-            if (speaker != null) {
-                for (int i = 0; i < 3; i++) {
-                    boolean errcode = RS485Impl.Instance().gpioOpenSpeaker();
-                    Log.i(Log.TAG, String.format("Speaker上电%s", errcode ? "成功" : "失败"));
-                    if (errcode) {
-                        break;
-                    }
-                }
-            }
             if (camera != null) {
                 for (int i = 0; i < 3; i++) {
                     boolean errcode = RS485Impl.Instance().gpioOpenMIPI();
@@ -7126,7 +7190,6 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
                 }
             }
-
             for (int i = 0; i < 3; i++) {
                 boolean errcode = RS485Impl.Instance().gpioOpenRJ45();
                 Log.i(Log.TAG, String.format("RJ45上电%s", errcode ? "成功" : "失败"));
@@ -7140,16 +7203,21 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             doWakeup("辅助开关5打开，进入正常模式打开云台与红外", 23);
             // 3. 打开网口
             openShare("辅助开关5打开，进入正常模式打开网口");
-            // 4. 打开Wi-Fi
+            ///
+            // 4. 恢复系统中除心跳外的所有闹钟事件
+            initAlarmTasksAsync("init core");  // 初始化所有的闹钟，当时间到的时候就执行，广播消息接收器中对应的函数
+            ///
+            // 5. 打开Wi-Fi
             Log.i(Log.TAG, "打开Wi-Fi");
 
             wifiInit();
 
-            // 5. 开启BDS ////////
+            // 6. 开启BDS ////////
             initBDS(); ////////
 
             Log.e(Log.TAG, "初始化DBS");
-
+            aux5Switching = false;
+            aux5Open = true;
         } else if (order == 18 && para == 5) {
             sleepMode = true;
             if (deviceConfig.chargeControl >= 6) {
@@ -7162,12 +7230,29 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Log.i(Log.TAG, "关闭Wi-Fi");
             wifiAP.disable();
 
+            ///
+            // 3. 取消系统中除心跳外的所有闹钟事件
+            Log.i(Log.TAG, "取消系统中除心跳外的所有闹钟事件");
+            if (photoIntent != null) cancelAllPhotoAlarms();
+            if (videoIntent != null) alarmManager.cancel(videoIntent);
+            if (videoIntent != null) alarmManager.cancel(recordIntent);
+            cancelAllCheckLineAlarms();
+            if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
+            if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent);
+            if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
+            if (powerOffIntent != null) alarmManager.cancel(powerOffIntent);
+            if (sampleIntent != null) alarmManager.cancel(sampleIntent);
+            if (utilizationRateIntent != null) alarmManager.cancel(utilizationRateIntent);
+            if (rebootIntent1 != null) alarmManager.cancel(rebootIntent1);
+            if (rebootIntent2 != null) alarmManager.cancel(rebootIntent2);
+            ///
 
-            // 3. 关闭网口
+            // 4. 关闭网口
+            Log.i(Log.TAG, "进入休眠模式关闭网口");
             closeShare("辅助开关5关闭，进入休眠模式关闭网口");
-            // 4. 云台与红外下电
+            // 5. 云台与红外下电
             doSleep("辅助开关5关闭，进入休眠模式关闭云台与红外", 23);
-            // 5. 各接口下电
+            // 6. 各接口下电
             ////////
             for (int i = 0; i < 3; i++) {
                 boolean errcode = RS485Impl.Instance().gpioCloseRJ45();
@@ -7209,15 +7294,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
                 }
             }
-            if (speaker == null) {
-                for (int i = 0; i < 3; i++) {
-                    boolean errcode = RS485Impl.Instance().gpioCloseSpeaker();
-                    Log.i(Log.TAG, String.format("Speaker下电%s", errcode ? "成功" : "失败"));
-                    if (errcode) {
-                        break;
-                    }
-                }
-            }
+            aux5Switching = false;
+            aux5Open = false;
             ////////
             ///////
         } else if (order == 17 && para == 6) {
@@ -7436,10 +7514,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         };
 
         if (dev.isDVR()) {
-            dev.open(stream, callback, DVR_BOOT_TIME, !isWorkHour());  // 这个地方打开成功调用前面的回调函数
+            dev.open(stream, callback, DVR_BOOT_TIME, !isWorkHour(), true, true);  // 这个地方打开成功调用前面的回调函数 ///
         }
         if (dev.isCamera()) {
-            dev.open(stream, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(stream, callback, DVR_BOOT_TIME, false, true, true);  // 这个地方打开成功调用前面的回调函数 ///
         }
 
 //        dev.open(stream, callback, DVR_BOOT_TIME, false);
@@ -7529,10 +7607,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
 
         if (dev.isDVR()) {
-            dev.open(item.stream, callback, DVR_BOOT_TIME, !isWorkHour());  // 这个地方打开成功调用前面的回调函数
+            dev.open(item.stream, callback, DVR_BOOT_TIME, !isWorkHour(), true, true);  // 这个地方打开成功调用前面的回调函数 ///
         }
         if (dev.isCamera()) {
-            dev.open(item.stream, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(item.stream, callback, DVR_BOOT_TIME, false, true, true);  // 这个地方打开成功调用前面的回调函数 ///
         }
         /////
 
@@ -7582,7 +7660,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 if (task == null) return;
                 isVideoTaskRunning = true;
                 Log.i(Log.TAG, "开始执行视频任务: channel=" + task.channel + ", stream=" + task.stream);
-                takeVideo(task.channel, task.stream, task.time, task.upload);
+                ///
+                runValidBusiness(() -> {
+                    takeVideo(task.channel, task.stream, task.time, task.upload);
+                });
+                ///
             }
         });
     }
@@ -7944,11 +8026,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
 
         if (dev.isDVR()) {
-            dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(streamType, callback, DVR_BOOT_TIME, false, true, false);  // 这个地方打开成功调用前面的回调函数 ///
         }
 
         if (dev.isCamera()) {
-            dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(streamType, callback, DVR_BOOT_TIME, false, true, false);  // 这个地方打开成功调用前面的回调函数 ///
         }
 
         return 0;
@@ -8129,7 +8211,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
         };
 
-        dev.open(streamType, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+        dev.open(streamType, callback, DVR_BOOT_TIME, false, true, false);  // 这个地方打开成功调用前面的回调函数 ///
     }
 
     @Override
@@ -8575,10 +8657,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         /////
         if (dev.isDVR()) {
-            dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour());  // 这个地方打开成功调用前面的回调函数
+            dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour(), true, false);  // 这个地方打开成功调用前面的回调函数 ///
         }
         if (dev.isCamera()) {
-            dev.open(0, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(0, callback, DVR_BOOT_TIME, false, true, false);  // 这个地方打开成功调用前面的回调函数 ///
         }
         /////
         return 0;
@@ -9059,6 +9141,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     protected void onDestroy() {
         Log.i(Log.TAG, "主窗体销毁！");
         super.onDestroy();
+        ///
+        if (instance == this) {
+            instance = null;
+        }
+        scheduler.shutdownNow();
+        ///
         // apk退出的时候不应该关闭wifi，否则远程调试的时候控屏软件手动关闭apk的话网络就断了
         // if (wifiAP != null) wifiAP.disable();
         RS485Impl.Instance().gpioUnInit();
@@ -9485,7 +9573,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
     @Override
     public void takePhoto(int channel, int preset) {
-        utilsHandler.post(() -> takePhoto(channel, preset, false, null, true));
+        utilsHandler.post(() -> {
+            ///
+            runValidBusiness(() -> {
+                takePhoto(channel, preset, false, null, true);
+            });
+            ///
+        });
     }
 
     /**
@@ -9643,7 +9737,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                                 controllerCallback.onPhotoFailed(finalDevRgb.id, preset, fn);
                             }
                         };
-                        finalDevRgb.open(0, callbackRgb, DVR_BOOT_TIME, !isWorkHour());
+                        finalDevRgb.open(0, callbackRgb, DVR_BOOT_TIME, !isWorkHour(), false, false); ///
                     }
                     /////
                 } else {
@@ -9670,14 +9764,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         /////
         if (dev.isDVR()) {
             if (dev.isUSB()){
-                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && (sleeping || sleepingIr));  // 这个地方打开成功调用前面的回调函数
+                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && (sleeping || sleepingIr), false, false);  // 这个地方打开成功调用前面的回调函数 ///
             }else {
-                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && sleeping);  // 这个地方打开成功调用前面的回调函数
+                dev.open(0, callback, DVR_BOOT_TIME, !isWorkHour() && sleeping, false, false);  // 这个地方打开成功调用前面的回调函数 ///
             }
         }
 
         if (dev.isCamera()) {
-            dev.open(0, callback, DVR_BOOT_TIME, false);  // 这个地方打开成功调用前面的回调函数
+            dev.open(0, callback, DVR_BOOT_TIME, false, false, false);  // 这个地方打开成功调用前面的回调函数 ///
         }
     }
 
@@ -10470,18 +10564,40 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 //            SystemSettings.airplaneOn(context); /////  使用这个函数会导致软件卡死
 
 
-            try {
-                Log.i(Log.TAG, "关闭 4G蜂窝网络（开启飞行模式）");
-                android.provider.Settings.Global.putInt(context.getContentResolver(), android.provider.Settings.Global.AIRPLANE_MODE_ON, 1);
-                Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
-                intent.putExtra("state", true);
-                context.sendBroadcast(intent);
-            } catch (Exception e) {
-                Log.e(Log.TAG, "开启飞行模式失败" + e);
-            }
+            ///
+//            try {
+//                Log.i(Log.TAG, "关闭 4G蜂窝网络（开启飞行模式）");
+//                android.provider.Settings.Global.putInt(context.getContentResolver(), android.provider.Settings.Global.AIRPLANE_MODE_ON, 1);
+//                Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+//                intent.putExtra("state", true);
+//                context.sendBroadcast(intent);
+//            } catch (Exception e) {
+//                Log.e(Log.TAG, "开启飞行模式失败" + e);
+//            }
+            ///
 
+            ///
+            // 4. 取消系统所有闹钟事件
+            Log.i(Log.TAG, "取消系统所有闹钟事件");
+//            if (photoIntent != null) alarmManager.cancel(photoIntent);
+            if (photoIntent != null) cancelAllPhotoAlarms();
+            if (videoIntent != null) alarmManager.cancel(videoIntent);
+            cancelAllCheckLineAlarms();
+            if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
+            if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent);
+            if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
+            if (powerOffIntent != null) alarmManager.cancel(powerOffIntent);
+//            if (heartBeatIntent != null) alarmManager.cancel(heartBeatIntent); ///
+            if (sampleIntent != null) alarmManager.cancel(sampleIntent);
+            if (utilizationRateIntent != null) alarmManager.cancel(utilizationRateIntent); ///
+            if (rebootIntent1 != null) alarmManager.cancel(rebootIntent1);
+            if (rebootIntent2 != null) alarmManager.cancel(rebootIntent2);
+            if (protectIntent != null) alarmManager.cancel(protectIntent);
+//            if (wifiIntent != null) alarmManager.cancel(wifiIntent);
+//        if (protectIntent != null) alarmManager.cancel(photoCheckIntent); /////
+            ///
 
-            // 4. 停止业务逻辑
+            // 5. 停止业务逻辑
             Log.i(Log.TAG, "停止摄像服务和定时任务");
             for (Device dev : channels.values()) {
                 // 关闭摄像头，拍照、直播、录制情况除外
@@ -10497,35 +10613,35 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             }
 
 
-            // 取消系统所有闹钟事件
-            Log.i(Log.TAG, "取消系统所有闹钟事件");
-//            if (photoIntent != null) alarmManager.cancel(photoIntent);
-            if (photoIntent != null) cancelAllPhotoAlarms();
-            if (videoIntent != null) alarmManager.cancel(videoIntent);
-            cancelAllCheckLineAlarms();
-            if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
-            if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent);
-            if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
-            if (powerOffIntent != null) alarmManager.cancel(powerOffIntent);
-            if (heartBeatIntent != null) alarmManager.cancel(heartBeatIntent);
-            if (sampleIntent != null) alarmManager.cancel(sampleIntent);
-            if (rebootIntent1 != null) alarmManager.cancel(rebootIntent1);
-            if (rebootIntent2 != null) alarmManager.cancel(rebootIntent2);
-            if (protectIntent != null) alarmManager.cancel(protectIntent);
-//            if (wifiIntent != null) alarmManager.cancel(wifiIntent);
-//        if (protectIntent != null) alarmManager.cancel(photoCheckIntent); /////
+//            // 取消系统所有闹钟事件
+//            Log.i(Log.TAG, "取消系统所有闹钟事件");
+////            if (photoIntent != null) alarmManager.cancel(photoIntent);
+//            if (photoIntent != null) cancelAllPhotoAlarms();
+//            if (videoIntent != null) alarmManager.cancel(videoIntent);
+//            cancelAllCheckLineAlarms();
+//            if (powerOnIntent != null) alarmManager.cancel(powerOnIntent);
+//            if (powerRgbOnIntent != null) alarmManager.cancel(powerRgbOnIntent);
+//            if (powerIrOnIntent != null) alarmManager.cancel(powerIrOnIntent);
+//            if (powerOffIntent != null) alarmManager.cancel(powerOffIntent);
+//            if (heartBeatIntent != null) alarmManager.cancel(heartBeatIntent);
+//            if (sampleIntent != null) alarmManager.cancel(sampleIntent);
+//            if (rebootIntent1 != null) alarmManager.cancel(rebootIntent1);
+//            if (rebootIntent2 != null) alarmManager.cancel(rebootIntent2);
+//            if (protectIntent != null) alarmManager.cancel(protectIntent);
+////            if (wifiIntent != null) alarmManager.cancel(wifiIntent);
+////        if (protectIntent != null) alarmManager.cancel(photoCheckIntent); /////
 
-            // 5. 断开网口
+            // 6. 断开网口
             if (deviceConfig.toCheck) {
                 closeShare("软关机");
             }
 
-            // 6. 清理缓存 / 数据同步
+            // 7. 清理缓存 / 数据同步
             Log.i(Log.TAG, "清理缓存并同步数据");
             Runtime.getRuntime().exec("sync");  // 强制写入 eMMC
             SystemClock.sleep(1000);  // 等待写入完成
 
-//            // 7. 写入 shutdown.flag 标记
+//            // 8. 写入 shutdown.flag 标记
 //            Log.i(Log.TAG, "写入 shutdown.flag");
 //            File flagFile = new File("/mnt/sdcard/shutdown.flag");
 //            FileOutputStream fos = new FileOutputStream(flagFile);
@@ -10546,7 +10662,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
             }, 2 * 60 * 1000);
 
-            // 8. 控制GPIO关闭多路负载
+            // 9. 控制GPIO关闭多路负载
             /////
             for (Device dev : channels.values()) {
                 if (dev.isDVR()) {
@@ -11006,4 +11122,239 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
     }
     /////
+
+    ///
+    private static final int AUX5_CHANNEL_NUM = 1;
+    private static final int AUX5_OPEN_ORDER = 17;
+    private static final int AUX5_CLOSE_ORDER = 18;
+    private static final int AUX5_PARA = 5;
+
+    private static final int IDLE_LIMIT_SECONDS = 2 * 60;
+    private static final int IDLE_ADD_SECONDS = 60;
+
+    private boolean aux5Open = true;
+    private boolean aux5Switching = false;
+    private boolean hasBusinessTask = false;
+
+    private int idleSeconds = 0;
+
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    private static MainActivity instance;
+
+    public void startAux5IdleMonitor() {
+        scheduler.scheduleAtFixedRate(() -> {
+            onIdleMonitorTick();
+        }, 60, 60, TimeUnit.SECONDS);
+    }
+
+    private boolean setAux5Switch(boolean open) {
+        try {
+            int order = open ? AUX5_OPEN_ORDER : AUX5_CLOSE_ORDER;
+            if (order == AUX5_OPEN_ORDER) {
+                Log.i(Log.TAG, "打开辅助开关5");
+            } else {
+                Log.i(Log.TAG, "关闭辅助开关5");
+            }
+            ptzControl(AUX5_CHANNEL_NUM, order, AUX5_PARA);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private boolean openAux5() {
+        if (aux5Open) {
+            Log.i(Log.TAG, "辅助开关5已经开启，无需再开启");
+            return true;
+        }
+
+        boolean success = setAux5Switch(true);
+
+        if (!success) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean closeAux5() {
+        if (!aux5Open) {
+            Log.i(Log.TAG, "辅助开关5已经关闭，无需再关闭");
+            return true;
+        }
+
+        boolean success = setAux5Switch(false);
+
+        if (!success) {
+            return false;
+        }
+        return true;
+    }
+
+    private void resetIdleTimer() {
+        idleSeconds = 0;
+    }
+
+    public static void runValidBusiness(Runnable business) {
+        MainActivity activity = instance;
+
+        if (activity != null) {
+            activity.runValidBusinessInner(business);
+        }
+    }
+
+    public static <T> T runValidBusinessWithResult(Supplier<T> business, T defaultValue) {
+        MainActivity activity = instance;
+
+        if (activity != null) {
+            return activity.runValidBusinessWithResultInner(business, defaultValue);
+        }
+
+        return defaultValue;
+    }
+
+    private void runValidBusinessInner(Runnable business) {
+        boolean allowRun;
+
+        synchronized (this) {
+            allowRun = prepareValidBusiness();
+        }
+
+        if (allowRun && business != null) {
+            business.run();
+        }
+    }
+
+    private <T> T runValidBusinessWithResultInner(Supplier<T> business, T defaultValue) {
+        boolean allowRun;
+
+        synchronized (this) {
+            allowRun = prepareValidBusiness();
+        }
+
+        if (!allowRun || business == null) {
+            return defaultValue;
+        }
+
+        try {
+            return business.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return defaultValue;
+        }
+    }
+
+    private boolean prepareValidBusiness() {
+        if (aux5Open) {
+            resetIdleTimer();
+            return true;
+        }
+
+        if (openAux5()) {
+            resetIdleTimer();
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isNowInVideoTimeTable(List<Settings.VideoTimeItem> videoTimeTable) {
+        if (videoTimeTable == null || videoTimeTable.isEmpty()) {
+            return false;
+        }
+
+        Calendar calendar = Calendar.getInstance();
+
+        int nowSeconds =
+                calendar.get(Calendar.HOUR_OF_DAY) * 3600
+                        + calendar.get(Calendar.MINUTE) * 60
+                        + calendar.get(Calendar.SECOND);
+
+        for (Settings.VideoTimeItem item : videoTimeTable) {
+            if (item == null) {
+                continue;
+            }
+
+            int startSeconds =
+                    (item.hour & 0xFF) * 3600
+                            + (item.min & 0xFF) * 60
+                            + (item.sec & 0xFF);
+
+            int duration = item.duration;
+
+            if (duration <= 0) {
+                continue;
+            }
+
+            if (duration >= 24 * 3600) {
+                return true;
+            }
+
+            int endSeconds = startSeconds + duration;
+
+            if (endSeconds <= 24 * 3600) {
+                if (nowSeconds >= startSeconds && nowSeconds < endSeconds) {
+                    return true;
+                }
+            } else {
+                int realEndSeconds = endSeconds % (24 * 3600);
+
+                if (nowSeconds >= startSeconds || nowSeconds < realEndSeconds) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean hasRunningBusinessTask() {
+        boolean hasRunningBusinessTask = false;
+        for (Device dev : channels.values()) {
+            if (dev.isPhotoing() || dev.isLiving() || dev.isRecording() || isNowInVideoTimeTable(settings.videoTimeTable) || dev.isPlaybacking()) {
+                hasRunningBusinessTask = true;
+            }
+        }
+        return hasRunningBusinessTask;
+    }
+
+    public synchronized void onIdleMonitorTick() {
+        Log.i(Log.TAG, "开始判断是否空闲满10分钟");
+        if (aux5Switching) {
+            return;
+        }
+
+        boolean hasTask = hasRunningBusinessTask();
+        hasBusinessTask = hasTask;
+
+        if (hasBusinessTask) {
+            Log.i(Log.TAG, "当前为非空闲状态");
+            if (!aux5Open) {
+                openAux5();
+            }
+
+            resetIdleTimer();
+            return;
+        }
+
+        if (!aux5Open) {
+            Log.i(Log.TAG, "辅助开关5已经关闭");
+            return;
+        }
+
+        idleSeconds += IDLE_ADD_SECONDS;
+
+        if (idleSeconds < IDLE_LIMIT_SECONDS) {
+            Log.i(Log.TAG, "当前为空闲状态，但未满10分钟");
+            return;
+        }
+
+        if (!hasBusinessTask) {
+            Log.i(Log.TAG, "空闲状态已满10分钟");
+            closeAux5();
+            resetIdleTimer();
+        }
+    }
+    ///
 }

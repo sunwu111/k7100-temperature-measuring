@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicLong;
 
+import hikvision.zhanyun.com.hikvision.CAMERASetting;
 import hikvision.zhanyun.com.hikvision.RtspClient;
 import hikvision.zhanyun.com.hikvision.RtspClientCallback;
 import hikvision.zhanyun.com.hikvision.Settings;
@@ -797,8 +798,12 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             if (login()) {
                 if (preset != 0 || wait) {
-                    move(2, preset);
-                    SystemClock.sleep(20 * 1000);
+                    ///
+                    if (!isLiving()) {
+                        move(2, preset);
+                        SystemClock.sleep(20 * 1000);
+                    }
+                    ///
                 } else {
                     // 原有 else 分支
                 }
@@ -1943,14 +1948,14 @@ public class HuanYuDevice extends MyOnvifDevice {
                 "                \"videoColor\": {\n" +
                 "                    \"brightness\": %d,\n" +
                 "                    \"contrast\": %d,\n" +
-                "                    \"hue\": 50,\n" +
+                "                    \"hue\": %d,\n" + ///
                 "                    \"saturation\": %d,\n" +
-                "                    \"sharpness\": 50\n" +
+                "                    \"sharpness\": %d\n" + ///
                 "                }\n" +
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
-                "}", session, id, v.brightness, v.contrast, v.saturation);
+                "}", session, id, v.brightness, v.contrast, v.hue, v.saturation, v.sharpness); ///
 
         if (login()) {
             // 发送两个请求并获取响应
@@ -2029,6 +2034,1523 @@ public class HuanYuDevice extends MyOnvifDevice {
             return false;
         }
     }
+
+    ///
+    @Override
+    public boolean setCameraParam(CAMERASetting.CameraConfig c) {
+        Log.e(HuanyuDeviceLog, "设置机芯参数");
+
+        // 构建摄像头参数配置JSON
+        String paramJson;
+        if (c.denoiseMode == 3) {
+            photoConfig.contrast = 80;
+            photoConfig.sharpness = 25;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 0;
+            codec.get("1:0").bps = 128;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 30,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 0,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"triDim\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.lowLight == 1) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 6,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"10cm\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.backLightCom == 1) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": true,\n" +
+                    "              \"mode\": \"left\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.strongLightSup == 1) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": true,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.gainControl == 0) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.focusMode == 1) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.focusMode == 2) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else if (c.dayAndNightMode == 1) {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"manual\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"photosensitive\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("1:0").vbr = 1;
+            codec.get("1:0").bps = 1024;
+            setCodec(codec.get("1:0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "          \"lightRegulation\": {\n" +
+                    "            \"backlight\": {\n" +
+                    "              \"custom\": {\n" +
+                    "                \"rect\": [\n" +
+                    "                  339,\n" +
+                    "                  336,\n" +
+                    "                  294,\n" +
+                    "                  312\n" +
+                    "                ]\n" +
+                    "              },\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"mode\": \"top\"\n" +
+                    "            },\n" +
+                    "            \"hlc\": {\n" +
+                    "              \"enable\": false,\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"industrialStrobe\": {\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            },\n" +
+                    "            \"lightLevel\": 50,\n" +
+                    "            \"wideDynamic\": {\n" +
+                    "              \"level\": 5,\n" +
+                    "              \"mode\": \"close\"\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        }
+
+        if (login()) {
+            // 发送请求并获取响应
+            Response response = http_request(url, paramJson);
+
+
+            if (response == null) {
+                Log.e(HuanyuDeviceLog, "login::response is null");
+                return false;
+            }
+
+
+            // 标记两个响应的处理结果
+            boolean isResponseSuccess = false;
+
+            // 处理响应
+            if (response != null && response.isSuccessful()) {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(HuanyuDeviceLog, "请求返回: " + responseBody);
+
+                    JSONObject responseJson = JSONObject.parseObject(responseBody);
+                    if (responseJson != null && responseJson.getBooleanValue("result")) {
+                        isResponseSuccess = true;
+                        Log.d(HuanyuDeviceLog, "请求处理成功");
+                    } else {
+                        Log.e(HuanyuDeviceLog, "请求result为false或解析异常");
+                    }
+                } catch (IOException e) {
+                    Log.e(HuanyuDeviceLog, "读取响应体失败: " + e.getMessage());
+                } catch (Exception e) {
+                    Log.e(HuanyuDeviceLog, "解析响应JSON失败: " + e.getMessage());
+                } finally {
+                    // 关闭响应体释放资源
+                    if (response.body() != null) {
+                        response.body().close();
+                    }
+                }
+            } else {
+                Log.e(HuanyuDeviceLog, "请求响应为空或状态异常");
+            }
+
+            // 仅当两个响应都成功时返回true
+            return isResponseSuccess;
+        } else {
+            Log.i(HuanyuDeviceLog, "摄像头参数设置失败，login false");
+            return false;
+        }
+    }
+    ///
 
     // 查询视频参数配置
     private String getConfigJson(int channel) {
@@ -2177,7 +3699,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"streamType\": \"videoandaudio\"\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", session, id, stream, v.frame > 25 ? 25 : v.frame, iFrame, v.bps, v.vbr == 0 ? "constant" : "variable", x, y);
+                    "}", session, id, stream, v.frame > 25 ? 25 : v.frame, iFrame, v.bps, v.vbr == 0 ? "constant" : "variable", x, y, v.smooth); ///
 
             Log.e(HuanyuDeviceLog, "json" + json);
 

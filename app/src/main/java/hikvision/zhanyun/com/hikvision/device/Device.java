@@ -851,7 +851,7 @@ public abstract class Device {
 
         }
     }
-    public abstract boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck);
+    public abstract boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo); ///
 
     public abstract boolean close();
 
@@ -1139,6 +1139,13 @@ public abstract class Device {
         this.photoConfig = config;
         return true;
     }
+
+    ///
+    public boolean setCameraParam(CAMERASetting.CameraConfig config) {
+        this.cameraConfig = config;
+        return true;
+    }
+    ///
 
 
     public List<Settings.VideoTimeItem> getRecordTimes(int stream) {

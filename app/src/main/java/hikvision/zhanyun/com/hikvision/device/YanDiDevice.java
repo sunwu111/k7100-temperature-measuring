@@ -251,10 +251,16 @@ public class YanDiDevice extends Device {
             if ((preset != 0 && preset != recordPreset) || (preset != 0 && preset == recordPreset && isLiving())) {
 //            if (preset != 0 && preset != recordPreset) {  // 如果拉流时转动了云台，再拍照，则不会转回拍照预置位，存在问题！
 //            if (preset != 0) {
-                move(2, preset);
-                SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位30秒
+                ///
+                if (!isLiving()) {
+                    move(2, preset);
+                    SystemClock.sleep(PTZ_PRESET_MOVE_TIME);    // 等待到达预置位30秒
+                }
             } else if (preset != 0) {
-                move(2, preset);
+                if (!isLiving()) {
+                    move(2, preset);
+                }
+                ///
             }
             /////
             // 原始文件保存到其他目录进行图片处理，处理完成再拷贝到目的文件，防止在文件处理的过程中进行累积文件上传
@@ -447,7 +453,7 @@ public class YanDiDevice extends Device {
     }
 
     @Override
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///
         long bootTime = System.currentTimeMillis();
 
         closeForce = false;

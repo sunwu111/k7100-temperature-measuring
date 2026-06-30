@@ -1044,7 +1044,7 @@ public class MyOnvifDevice extends Device implements OnvifResponseListener {
     private boolean closeForce;
     public boolean wait; /////
     @Override
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck)     // waitSelfCheck true
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo)     // waitSelfCheck true ///
     {
         wait = waitSelfCheck;
 
