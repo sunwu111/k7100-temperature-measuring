@@ -1547,6 +1547,7 @@ public class Camera2Device extends Device {
 
     private volatile boolean enableLiveEncode = false;
     private volatile boolean liveStarting = false;
+    private volatile boolean videoStarting = false;
 
     public void setEnableLiveEncode(boolean enable) {
         enableLiveEncode = enable;
@@ -1625,8 +1626,8 @@ public class Camera2Device extends Device {
             boolean cam1Live = cam1 != null && (cam1.enableLiveEncode || cam1.liveStarting);
             boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing;
             boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing;
-            boolean cam0Recording = cam0 != null && cam0.isRecording();
-            boolean cam1Recording = cam1 != null && cam1.isRecording();
+            boolean cam0Recording = cam0 != null && (cam0.isRecording() || cam0.videoStarting);
+            boolean cam1Recording = cam1 != null && (cam1.isRecording() || cam1.videoStarting);
             Log.i(Log.TAG, "检查是否需要释放双路 Camera"
                     + "，cam0Live = " + cam0Live
                     + "，cam1Live = " + cam1Live
@@ -1675,6 +1676,7 @@ public class Camera2Device extends Device {
         mDualSessionStarted = false;
         mDualSessionStarting = false;
         liveStarting = false;
+        videoStarting = false;
         previewReady = false;
 
         closePreviewSession();
@@ -1699,6 +1701,7 @@ public class Camera2Device extends Device {
     @Override
     public boolean videoStop() {
         try {
+            videoStarting = false;
             //Log.i(Log.TAG, "停止录制");
 //            unlockFocus();
 //            close();
@@ -1723,6 +1726,10 @@ public class Camera2Device extends Device {
     @Override   // 录制短视频使用配置文件中的分辨率和I帧间隔
     public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try {
+            if (!videoStarting) {
+                return false;
+            }
+            videoStarting = true;
 
             Settings.VideoCodec vc = getVideoCodec(stream); /////
             mResolution = Settings.VideoCodec.getResolution(vc.resolution);
@@ -1744,6 +1751,7 @@ public class Camera2Device extends Device {
                         + "，camID = " + camID
                         + "，mCameraDevice = " + mCameraDevice
                         + "，mPreviewSession = " + mPreviewSession);
+                videoStarting = false;
                 return false;
             }
             ///
@@ -1758,6 +1766,7 @@ public class Camera2Device extends Device {
             }
             refreshLowNoiseRepeatingRequest(vc, true);
             super.videoStart(stream, filename, duration, upload); /////
+            videoStarting = false;
             String tmpfile = MainActivity.DATA_DIR + "record_" + id + ".mp4"; /////
 
             /////
@@ -1798,6 +1807,7 @@ public class Camera2Device extends Device {
                 }
             }, (duration + 1) * 1000);  // 多1秒作为保险余地，不然可能录像时间不足
         } catch (Exception e) {
+            videoStarting = false;
             videoStop(); /////
             Log.e(Log.TAG, "MIPI摄像头录制视频异常: " + e.getMessage());
         }
@@ -2163,7 +2173,7 @@ public class Camera2Device extends Device {
     ///
 
     public boolean liveStart(int stream, int ssrc) {
-        if (false && isRecording()) {
+        if (false && (isRecording() || videoStarting)) {
             Log.i(Log.TAG, "拉流失败，正在录制视频");
             return false;
         }
@@ -2447,10 +2457,11 @@ public class Camera2Device extends Device {
 
     @Override
     public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
-        if (isRecording()) return false;
+        if (isRecording() || videoStarting) return false;
         // 录像优先级高于直播拉流
         if (false && isLiving()) liveStop();
 
+        videoStarting = true;
         scheduledHandler.post(() -> {
             videoStart(stream, filename, duration, upload);
         });
