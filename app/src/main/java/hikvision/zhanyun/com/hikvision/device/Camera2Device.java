@@ -1546,12 +1546,14 @@ public class Camera2Device extends Device {
     }
 
     private volatile boolean enableLiveEncode = false;
+    private volatile boolean liveStarting = false;
 
     public void setEnableLiveEncode(boolean enable) {
         enableLiveEncode = enable;
     }
 
     public void stopLiveAndCloseBothIfIdle() {
+        liveStarting = false;
         setEnableLiveEncode(false);
         closeBothCameraIfNoLive();
     }
@@ -1619,8 +1621,8 @@ public class Camera2Device extends Device {
         synchronized (sDualCameraLock) {
             cam0 = sCamera0Device;
             cam1 = sCamera1Device;
-            boolean cam0Live = cam0 != null && cam0.enableLiveEncode;
-            boolean cam1Live = cam1 != null && cam1.enableLiveEncode;
+            boolean cam0Live = cam0 != null && (cam0.enableLiveEncode || cam0.liveStarting);
+            boolean cam1Live = cam1 != null && (cam1.enableLiveEncode || cam1.liveStarting);
             boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing;
             boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing;
             boolean cam0Recording = cam0 != null && cam0.isRecording();
@@ -1672,6 +1674,7 @@ public class Camera2Device extends Device {
         setEnableLiveEncode(false);
         mDualSessionStarted = false;
         mDualSessionStarting = false;
+        liveStarting = false;
         previewReady = false;
 
         closePreviewSession();
@@ -1823,6 +1826,7 @@ public class Camera2Device extends Device {
 //                unlockFocus();
 //                close();
 //            }
+            liveStarting = false;
             setEnableLiveEncode(false);
             mOnShow = false;
             ///
@@ -2163,16 +2167,20 @@ public class Camera2Device extends Device {
             Log.i(Log.TAG, "拉流失败，正在录制视频");
             return false;
         }
-        if (isLiving()) {
+        if (isLiving() || liveStarting) {
             Log.i(Log.TAG, "拉流失败，正在播放视频");
             return false;
         }
 
         this.streamType = stream;
+        liveStarting = true;
 
         scheduledHandler.post(() -> {
             ///
             try {
+                if (!liveStarting) {
+                    return;
+                }
                 Settings.VideoCodec vc = getVideoCodec(stream);
                 mResolution = Settings.VideoCodec.getResolution(vc.resolution);
                 ///
@@ -2213,6 +2221,7 @@ public class Camera2Device extends Device {
                     mipiLivePpsSps = null;
                     mipiLiveFirstFrameTimestamp = 0;
                     setEnableLiveEncode(true); ///
+                    liveStarting = false;
                 }
                 // 先开始播放，然后再对焦，提高后台出流时间
                 mOnShow = true;
@@ -2223,6 +2232,7 @@ public class Camera2Device extends Device {
 
                 Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc);
             } catch (Exception e) {
+                liveStarting = false;
                 setEnableLiveEncode(false);
             }
             ///
