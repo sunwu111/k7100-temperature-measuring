@@ -104,6 +104,9 @@ public class Camera2Device extends Device {
     private final Object mipiStreamLock = new Object();
     private byte[] mipiLivePpsSps;
     private long mipiLiveFirstFrameTimestamp = 0;
+    private volatile long mipiRecordSamplesWritten = 0;
+    private volatile long mipiRecordBytesWritten = 0;
+    private volatile long mipiRecordKeyFramesWritten = 0;
     /////
 
 
@@ -217,6 +220,9 @@ public class Camera2Device extends Device {
                         videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
                         tryStartMipiMuxer();
                     }
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        return;
+                    }
                     if (muxerStarted && bufferInfo.size > 0) {
                         ByteBuffer outBuf = mediaCodec.getOutputBuffer(outIndex);
                         if (outBuf != null) {
@@ -232,6 +238,11 @@ public class Camera2Device extends Device {
                             bufferInfo.presentationTimeUs = ptsUs;
 
                             mediaMuxer.writeSampleData(videoTrackIndex, recordBuf, bufferInfo); /////
+                            mipiRecordSamplesWritten++;
+                            mipiRecordBytesWritten += bufferInfo.size;
+                            if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+                                mipiRecordKeyFramesWritten++;
+                            }
                         }
                     }
                 }
@@ -264,24 +275,31 @@ public class Camera2Device extends Device {
             }
 
             MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-            int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
-
-            if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) {
-                    MediaFormat mediaFormat = mediaCodec.getOutputFormat();
-                    videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
-                    tryStartMipiMuxer();
+            for (int drainCount = 0; drainCount < 16; drainCount++) {
+                int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
+                if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    break;
                 }
-                Log.w(Log.TAG, "MIPI video encode format changed: " + mediaCodec.getOutputFormat());
-            } else if (outputBufferIndex >= 0) {
+                if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) {
+                        MediaFormat mediaFormat = mediaCodec.getOutputFormat();
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                        tryStartMipiMuxer();
+                    }
+                    Log.w(Log.TAG, "MIPI video encode format changed: " + mediaCodec.getOutputFormat());
+                    continue;
+                }
+                if (outputBufferIndex < 0) {
+                    continue;
+                }
                 try {
                     ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
                     if (outputBuffer == null || bufferInfo.size <= 0) {
-                        return;
+                        continue;
                     }
 
                     byte[] liveData = null;
-                    if (isLiving() && rtph264 != null) {
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0 && isLiving() && rtph264 != null) {
                         ByteBuffer liveBuf = outputBuffer.duplicate();
                         liveBuf.position(bufferInfo.offset);
                         liveBuf.limit(bufferInfo.offset + bufferInfo.size);
@@ -1603,7 +1621,10 @@ public class Camera2Device extends Device {
                 mediaMuxer.stop();
             }
             mediaMuxer.release();
-            Log.i(Log.TAG, "release MIPI muxer success");
+            Log.i(Log.TAG, "release MIPI muxer success"
+                    + "，samples = " + mipiRecordSamplesWritten
+                    + "，bytes = " + mipiRecordBytesWritten
+                    + "，keyFrames = " + mipiRecordKeyFramesWritten);
         } catch (Exception e) {
             Log.i(Log.TAG, "release MIPI muxer error: " + e.getMessage());
         } finally {
@@ -1614,6 +1635,12 @@ public class Camera2Device extends Device {
             muxerEverStarted = false;
             avStartNs = 0;
         }
+    }
+
+    private void resetMipiRecordStats() {
+        mipiRecordSamplesWritten = 0;
+        mipiRecordBytesWritten = 0;
+        mipiRecordKeyFramesWritten = 0;
     }
 
     private static void closeBothCameraIfNoLive() {
@@ -1745,6 +1772,13 @@ public class Camera2Device extends Device {
                         + "，camID = " + camID);
                 mResolution = new Point(1536, 864); ///
             }
+            // MIPI session 在打开时会把视频分辨率限制到 1536x864，编码器必须使用同样尺寸。
+            if (mResolution.x > 1536 || mResolution.y > 864) {
+                mResolution = new Point(1536, 864);
+            }
+            Log.i(Log.TAG, "MIPI录制编码分辨率，camID = " + camID
+                    + "，width = " + mResolution.x
+                    + "，height = " + mResolution.y);
 
             if (mPreviewSession == null || mCameraDevice == null) {
                 Log.i(Log.TAG, "录像失败，CameraDevice 或 PreviewSession 为空"
@@ -1773,6 +1807,7 @@ public class Camera2Device extends Device {
             mediaMuxer = new MediaMuxer(tmpfile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             muxerStarted = false;
             videoTrackIndex = -1;
+            resetMipiRecordStats();
             if (useAudio) {
                 audioTrackIndex = -1;
                 avStartNs = System.nanoTime();
@@ -1790,20 +1825,33 @@ public class Camera2Device extends Device {
             new Timer("recordStop").schedule(new TimerTask() { /////
                 @Override
                 public void run() {
-                    procVideoHandler.removeCallbacksAndMessages(null); /////
-                    if (useAudio) {
-                        procAudioHandler.removeCallbacksAndMessages(null); /////
-                    }
-                    videoStop();
-                    if (upload) {
-                        Utils.su("mv " + tmpfile + " " + filename);
+                    Runnable finishRecord = () -> {
+                        videoStop();
+                        if (upload) {
+                            Utils.su("mv " + tmpfile + " " + filename);
+                        } else {
+                            File file = new File(tmpfile);
+                            File finalFile = new File(filename);
+                            file.renameTo(new File(MainActivity.FILE_PATH + id + File.separator + finalFile.getName()));
+                            Log.i(Log.TAG, "MIPI摄像头文件不上传，修改文件为：" + (MainActivity.FILE_PATH + id + File.separator + finalFile.getName())); /////
+                        }
+                        File recordedFile = upload
+                                ? new File(filename)
+                                : new File(MainActivity.FILE_PATH + id + File.separator + new File(filename).getName());
+                        Log.i(Log.TAG, "MIPI录制完成文件大小"
+                                + "，file = " + recordedFile.getAbsolutePath()
+                                + "，exists = " + recordedFile.exists()
+                                + "，length = " + (recordedFile.exists() ? recordedFile.length() : -1)
+                                + "，samples = " + mipiRecordSamplesWritten
+                                + "，bytes = " + mipiRecordBytesWritten
+                                + "，keyFrames = " + mipiRecordKeyFramesWritten);
+                        controllerCallback.onVideoFinished(System.currentTimeMillis(), id, streamType, filename, upload);
+                    };
+                    if (procVideoHandler != null) {
+                        procVideoHandler.post(finishRecord);
                     } else {
-                        File file = new File(tmpfile);
-                        File finalFile = new File(filename);
-                        file.renameTo(new File(MainActivity.FILE_PATH + id + File.separator + finalFile.getName()));
-                        Log.i(Log.TAG, "MIPI摄像头文件不上传，修改文件为：" + (MainActivity.FILE_PATH + id + File.separator + finalFile.getName())); /////
+                        finishRecord.run();
                     }
-                    controllerCallback.onVideoFinished(System.currentTimeMillis(), id, streamType, filename, upload);
                 }
             }, (duration + 1) * 1000);  // 多1秒作为保险余地，不然可能录像时间不足
         } catch (Exception e) {

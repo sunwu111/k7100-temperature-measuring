@@ -573,9 +573,7 @@ public abstract class Device {
         if (isRecording()) return false;
         if (isLiving()) liveStop();
 
-        videoStart(stream, filename, duration, upload);
-
-        return true;
+        return videoStart(stream, filename, duration, upload);
     }
 
     /**

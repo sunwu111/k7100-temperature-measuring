@@ -1775,6 +1775,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 powerOffMipiIfIdle("MIPI录制失败");
             }
             /////
+
+            synchronized (videoQueue) {
+                isVideoTaskRunning = false;
+            }
+            tryStartNextVideoTask();
         }
 
         @Override
@@ -7481,7 +7486,18 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
                 ////////
 
-                dev.takeVideo(fn, time, stream, upload);
+                if (!dev.takeVideo(fn, time, stream, upload)) {
+                    DeviceExceptionManager.openFailed();
+                    finishTask(fn);
+                    if (dev.isCamera()) {
+                        powerOffMipiIfIdle("MIPI录制短视频启动失败");
+                    }
+                    synchronized (videoQueue) {
+                        isVideoTaskRunning = false;
+                    }
+                    tryStartNextVideoTask();
+                    return;
+                }
 
                 if (dev.type == DEVICE_DVR_AIPU) {
                     if (dev.isOldCamera) {
@@ -7505,6 +7521,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     applyPowerTuning();
                 }
 
+                synchronized (videoQueue) {
+                    isVideoTaskRunning = false;
+                }
+                tryStartNextVideoTask();
             }
         };
 
@@ -7579,7 +7599,17 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 }
                 /////
 
-                dev.takeVideo(fn, item.duration, item.stream, upload);
+                if (!dev.takeVideo(fn, item.duration, item.stream, upload)) {
+                    DeviceExceptionManager.openFailed(); /////
+                    finishTask(fn);
+                    if (dev.isCamera()) {
+                        powerOffMipiIfIdle("MIPI定时录制短视频启动失败");
+                    }
+                    if (deviceConfig.toCheck && item.channel == 2) {
+                        applyPowerTuning();
+                    }
+                    return;
+                }
                 DeviceExceptionManager.openSucceed(); /////
             }
 
