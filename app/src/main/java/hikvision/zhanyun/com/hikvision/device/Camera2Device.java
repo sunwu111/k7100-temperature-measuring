@@ -1491,6 +1491,14 @@ public class Camera2Device extends Device {
     private void closePreviewSession() {
         try {
             if (mPreviewSession != null) {
+                try {
+                    mPreviewSession.stopRepeating();
+                } catch (Exception ignored) {
+                }
+                try {
+                    mPreviewSession.abortCaptures();
+                } catch (Exception ignored) {
+                }
                 mPreviewSession.close();
                 mPreviewSession = null;
             }
@@ -1666,17 +1674,14 @@ public class Camera2Device extends Device {
         mDualSessionStarting = false;
         previewReady = false;
 
-        if (mImageReader != null) {
-            mImageReader.close();
-            mImageReader = null;
-        }
+        closePreviewSession();
+        closeImageReader();
         closeStillImageReader();
         if (mCameraDevice != null) {
             mCameraDevice.close();
             mCameraDevice = null;
         }
 
-        closePreviewSession();
         stopBackgroundThread();
         clearState(DevState.OPENING);
 
@@ -1927,6 +1932,12 @@ public class Camera2Device extends Device {
                         + "，camera1 = " + ret1);
                 if (!ret0 || !ret1) {
                     Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，停止后续流程");
+                    if (ret0 && cam0 != null) {
+                        cam0.closeCamera();
+                    }
+                    if (ret1 && cam1 != null && cam1 != cam0) {
+                        cam1.closeCamera();
+                    }
                     return false;
                 }
                 Log.i(Log.TAG, "第 3 步：创建 camera1 session");
