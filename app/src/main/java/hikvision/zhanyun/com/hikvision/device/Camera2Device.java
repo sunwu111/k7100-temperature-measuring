@@ -118,12 +118,15 @@ public class Camera2Device extends Device {
 
     ///
     private static final Object sDualCameraLock = new Object();
+    private static final Object sDualPhotoTaskLock = new Object();
 
     private static Camera2Device sCamera0Device;
     private static Camera2Device sCamera1Device;
 
     private static boolean sDualStarting = false;
     private static boolean sDualStarted = false;
+    private static boolean sDualClosing = false;
+    private static int sDualPhotoTaskCount = 0;
 
     private static final boolean ALWAYS_OPEN_BOTH_MIPI = true;
 
@@ -664,11 +667,16 @@ public class Camera2Device extends Device {
         if (controllerCallback != null) {
             procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
         }
-        mCameraPhotoing = false;    /////// sunwu ，设置为false是为了防止在拉流的过程中一直拍照，在拉流的过程中只需要一张照片
-
-        photoDone.set(true);
-
-        mCameraPhtotingLock.notifyLock();
+        Runnable done = () -> {
+            photoDone.set(true);
+            mCameraPhtotingLock.notifyLock();
+        };
+        if (mBackgroundHandler != null) {
+            mBackgroundHandler.postDelayed(done, 1500);
+            return;
+        }
+        SystemClock.sleep(1500);
+        done.run();
     }
 
 
@@ -1677,12 +1685,16 @@ public class Camera2Device extends Device {
         Camera2Device cam0;
         Camera2Device cam1;
         synchronized (sDualCameraLock) {
+            if (sDualClosing) {
+                return;
+            }
             cam0 = sCamera0Device;
             cam1 = sCamera1Device;
             boolean cam0Live = cam0 != null && (cam0.enableLiveEncode || cam0.liveStarting);
             boolean cam1Live = cam1 != null && (cam1.enableLiveEncode || cam1.liveStarting);
             boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing;
             boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing;
+            boolean dualPhotoPending = sDualPhotoTaskCount > 0;
             boolean cam0Recording = cam0 != null && (cam0.isRecording() || cam0.videoStarting);
             boolean cam1Recording = cam1 != null && (cam1.isRecording() || cam1.videoStarting);
             Log.i(Log.TAG, "检查是否需要释放双路 Camera"
@@ -1692,21 +1704,27 @@ public class Camera2Device extends Device {
                     + "，cam1Photoing = " + cam1Photoing
                     + "，cam0Recording = " + cam0Recording
                     + "，cam1Recording = " + cam1Recording);
-            if (cam0Live || cam1Live || cam0Photoing || cam1Photoing || cam0Recording || cam1Recording) {
+            if (cam0Live || cam1Live || cam0Photoing || cam1Photoing || dualPhotoPending || cam0Recording || cam1Recording) {
                 Log.i(Log.TAG, "仍有直播、拍照或录像任务，不释放双路 Camera");
                 return;
             }
             Log.i(Log.TAG, "两路均无直播、拍照、录像任务，准备释放双路 Camera");
+            sDualClosing = true;
         }
-        if (cam0 != null) {
-            cam0.closeCamera();
-        }
-        if (cam1 != null && cam1 != cam0) {
-            cam1.closeCamera();
-        }
-        synchronized (sDualCameraLock) {
-            sDualStarted = false;
-            sDualStarting = false;
+        try {
+            if (cam0 != null) {
+                cam0.closeCamera();
+            }
+            if (cam1 != null && cam1 != cam0) {
+                cam1.closeCamera();
+            }
+        } finally {
+            synchronized (sDualCameraLock) {
+                sDualStarted = false;
+                sDualStarting = false;
+                sDualClosing = false;
+                sDualCameraLock.notifyAll();
+            }
         }
         Log.i(Log.TAG, "双路 Camera 已释放");
     }
@@ -2000,7 +2018,7 @@ public class Camera2Device extends Device {
                     return false;
                 }
                 long waitEnd = SystemClock.uptimeMillis() + 15000;
-                while (sDualStarting) {
+                while (sDualClosing || sDualStarting) {
                     long waitMs = waitEnd - SystemClock.uptimeMillis();
                     if (waitMs <= 0) {
                         break;
@@ -2012,7 +2030,7 @@ public class Camera2Device extends Device {
                         break;
                     }
                 }
-                if (sDualStarting) {
+                if (sDualClosing || sDualStarting) {
                     Log.i(Log.TAG, "等待双路 Camera 打开超时");
                     if (cb != null) {
                         cb.openFailed(-1);
@@ -2444,7 +2462,11 @@ public class Camera2Device extends Device {
     @Override
     public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
         aiParameters = aps; /////
+        synchronized (sDualCameraLock) {
+            sDualPhotoTaskCount++;
+        }
         scheduledHandler.post(() -> {
+            synchronized (sDualPhotoTaskLock) {
 
             try{
                 ///
@@ -2556,8 +2578,14 @@ public class Camera2Device extends Device {
                 mCameraPhotoing = false;
                 ///
                 takePhotoOnce.set(false);
+                synchronized (sDualCameraLock) {
+                    if (sDualPhotoTaskCount > 0) {
+                        sDualPhotoTaskCount--;
+                    }
+                }
                 closeBothCameraIfNoLive();
                 ///
+            }
             }
         });
         return true;
