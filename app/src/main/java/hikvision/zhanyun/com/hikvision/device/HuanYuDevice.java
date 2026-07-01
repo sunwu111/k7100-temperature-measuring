@@ -2046,9 +2046,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 80;
             photoConfig.sharpness = 25;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 0;
-            codec.get("1:0").bps = 128;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 0;
+            codec.get("0").bps = 128;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2208,9 +2208,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2370,9 +2370,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2532,9 +2532,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("1"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2694,9 +2694,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2856,9 +2856,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -3018,9 +3018,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -3180,9 +3180,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -3342,9 +3342,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
-            codec.get("1:0").vbr = 1;
-            codec.get("1:0").bps = 1024;
-            setCodec(codec.get("1:0"));
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -3504,6 +3504,12 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         if (login()) {
             // 发送请求并获取响应
+
+            if (paramJson != null) {
+                return sendCameraParamRequests(paramJson);
+            }
+            Log.e(HuanyuDeviceLog, "paramJson::"+paramJson);
+
             Response response = http_request(url, paramJson);
 
 
@@ -3553,6 +3559,99 @@ public class HuanYuDevice extends MyOnvifDevice {
     ///
 
     // 查询视频参数配置
+    private boolean sendCameraParamRequests(String paramJson) {
+        JSONObject requestJson;
+        try {
+            paramJson = normalizeCameraParamJson(paramJson);
+            requestJson = JSONObject.parseObject(paramJson);
+        } catch (Exception e) {
+            Log.e(HuanyuDeviceLog, "camera param json parse error: " + e.getMessage());
+            Log.e(HuanyuDeviceLog, "camera param json::" + paramJson);
+            return false;
+        }
+
+        JSONObject params = requestJson.getJSONObject("params");
+        JSONObject table = params == null ? null : params.getJSONObject("table");
+        JSONObject auto = table == null ? null : table.getJSONObject("auto");
+        if (auto == null || auto.isEmpty()) {
+            Log.e(HuanyuDeviceLog, "camera param auto config is empty");
+            Log.e(HuanyuDeviceLog, "camera param json::" + paramJson);
+            return false;
+        }
+
+        JSONObject dayAndNight = auto.getJSONObject("dayAndNight");
+        if (dayAndNight != null && dayAndNight.containsKey("lightRegulation")) {
+            auto.put("lightRegulation", dayAndNight.remove("lightRegulation"));
+        }
+
+        boolean allSuccess = true;
+        String[] orderedKeys = new String[]{"exposure", "focus", "lightRegulation", "imageEnhancement", "whiteBalance", "dayAndNight"};
+        for (String key : orderedKeys) {
+            if (!auto.containsKey(key)) {
+                continue;
+            }
+            JSONObject splitAuto = new JSONObject();
+            splitAuto.put(key, auto.get(key));
+            String splitParamJson = buildVideoInSetConfigJson(splitAuto);
+
+//            Log.e(HuanyuDeviceLog, "camera param request[" + key + "]::" + splitParamJson);
+            Response response = http_request(url, splitParamJson);
+            if (response == null) {
+                Log.e(HuanyuDeviceLog, "camera param response[" + key + "] is null");
+                allSuccess = false;
+                continue;
+            }
+
+            try {
+                String responseBody = response.body() == null ? "" : response.body().string();
+                Log.e(HuanyuDeviceLog, "camera param response[" + key + "]::" + responseBody);
+
+                JSONObject responseJson = TextUtils.isEmpty(responseBody) ? null : JSONObject.parseObject(responseBody);
+                if (!response.isSuccessful() || responseJson == null || !responseJson.getBooleanValue("result")) {
+                    allSuccess = false;
+                }
+            } catch (IOException e) {
+                Log.e(HuanyuDeviceLog, "camera param response[" + key + "] read error: " + e.getMessage());
+                allSuccess = false;
+            } catch (Exception e) {
+                Log.e(HuanyuDeviceLog, "camera param response[" + key + "] parse error: " + e.getMessage());
+                allSuccess = false;
+            } finally {
+                if (response.body() != null) {
+                    response.body().close();
+                }
+            }
+        }
+        return allSuccess;
+    }
+
+    private String normalizeCameraParamJson(String paramJson) {
+        return paramJson
+                .replace("        }\n        \"dayAndNight\"", "        },\n        \"dayAndNight\"")
+                .replace("          }\n          \"lightRegulation\"", "          },\n          \"lightRegulation\"");
+    }
+
+    private String buildVideoInSetConfigJson(JSONObject autoConfig) {
+        JSONObject call = new JSONObject();
+        call.put("service", "videoIn");
+        call.put("method", "setConfig");
+
+        JSONObject table = new JSONObject();
+        table.put("scene", "auto");
+        table.put("auto", autoConfig);
+
+        JSONObject params = new JSONObject();
+        params.put("channel", 0);
+        params.put("table", table);
+
+        JSONObject request = new JSONObject();
+        request.put("session", session);
+        request.put("id", id);
+        request.put("call", call);
+        request.put("params", params);
+        return JSON.toJSONString(request, SerializerFeature.PrettyFormat);
+    }
+
     private String getConfigJson(int channel) {
 
         Map<String, Object> params = new HashMap<>();
@@ -3701,7 +3800,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "    }\n" +
                     "}", session, id, stream, v.frame > 25 ? 25 : v.frame, iFrame, v.bps, v.vbr == 0 ? "constant" : "variable", x, y, v.smooth); ///
 
-            Log.e(HuanyuDeviceLog, "json" + json);
+//            Log.e(HuanyuDeviceLog, "json" + json);
 
             Response response = http_request(url, json);
 
