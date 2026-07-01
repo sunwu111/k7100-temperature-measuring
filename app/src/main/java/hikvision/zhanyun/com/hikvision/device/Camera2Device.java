@@ -111,6 +111,8 @@ public class Camera2Device extends Device {
     private final AtomicBoolean takePhotoOnce = new AtomicBoolean(false);   // 防止在拉流的时候拍照会被执行多次
     private final AtomicBoolean photoDone = new AtomicBoolean(false);       // 拍照已经成功，但等待方不知道  如果没有这个变量，在一次拍照成功后，设备还在等待拍照任务，会导致拍照失败再次拍照，其实已经成功。
 
+    private final AtomicBoolean videoEncodePending = new AtomicBoolean(false);
+
     ///
     private static final Object sDualCameraLock = new Object();
 
@@ -569,9 +571,50 @@ public class Camera2Device extends Device {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩
             }
             // 更新请求
+            applyLowNoiseCaptureRequestParameters(isRecording() ? getVideoCodec(streamType) : null, isRecording());
             mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (Exception e) {
             Log.e(Log.TAG, "更新CaptureRequest参数失败: " + e.getMessage());
+        }
+    }
+
+    private void applyLowNoiseCaptureRequestParameters(Settings.VideoCodec vc, boolean isRecordVideo) {
+        if (mPreviewRequestBuilder == null) {
+            return;
+        }
+        applyLowNoiseCaptureRequestParameters(mPreviewRequestBuilder, vc, isRecordVideo);
+    }
+
+    private void applyLowNoiseCaptureRequestParameters(CaptureRequest.Builder builder, Settings.VideoCodec vc, boolean isRecordVideo) {
+        if (builder == null) {
+            return;
+        }
+        int denoiseMode = CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY;
+        if (cameraConfig != null && cameraConfig.denoiseMode >= 0 && cameraConfig.denoiseMode <= 2) {
+            denoiseMode = cameraConfig.denoiseMode;
+        }
+        builder.set(CaptureRequest.NOISE_REDUCTION_MODE, denoiseMode);
+
+        if (isRecordVideo && vc != null && vc.frame > 0) {
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));
+        } else {
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));
+        }
+
+        if (mKeyAisRequestMode != null) {
+            builder.set(mKeyAisRequestMode, new int[]{2});
+        }
+    }
+
+    private void refreshLowNoiseRepeatingRequest(Settings.VideoCodec vc, boolean isRecordVideo) {
+        try {
+            if (mPreviewSession == null || mPreviewRequestBuilder == null) {
+                return;
+            }
+            applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+        } catch (Exception e) {
+            Log.e(Log.TAG, "Refresh low-noise CaptureRequest failed: " + e.getMessage());
         }
     }
 
@@ -612,6 +655,22 @@ public class Camera2Device extends Device {
 
 
     // 直播和拍照回调函数  拉流的时候可以拍照，需要结合takephoto函数
+    private void postEncodeFrame(Bitmap bitmap) {
+        if (bitmap == null || procVideoHandler == null) {
+            return;
+        }
+        if (!videoEncodePending.compareAndSet(false, true)) {
+            return;
+        }
+        procVideoHandler.post(() -> {
+            try {
+                encode(bitmap);
+            } finally {
+                videoEncodePending.set(false);
+            }
+        });
+    }
+
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
@@ -628,7 +687,7 @@ public class Camera2Device extends Device {
                 }
                 previewBitmap = preProcessingPhoto(previewBitmap);
 
-                if (mCameraPhotoing && takePhotoOnce.compareAndSet(true, false)) {
+                if (mCameraPhotoing && mStillImageReader == null && takePhotoOnce.compareAndSet(true, false)) {
                     saveCapturedPhoto(previewBitmap);
 
                 } else if ((isLiving() && rtph264 != null) || isRecording()) {
@@ -638,10 +697,7 @@ public class Camera2Device extends Device {
                     drawWatermark(previewBitmap, id, streamType, false); // 先AI识别再画OSD //////
 
                     Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
-                    procVideoHandler.removeCallbacksAndMessages(null); /////
-                    procVideoHandler.post(() -> { /////
-                        encode(finalPreviewBitmap); /////
-                    });
+                    postEncodeFrame(finalPreviewBitmap);
                 ///
                 } else if (enableLiveEncode) {
                     if (mResolution == null) {
@@ -654,10 +710,7 @@ public class Camera2Device extends Device {
                     }
                     drawWatermark(previewBitmap, id, streamType, false);  // 先AI识别再画OSD
                     Bitmap finalPreviewBitmap = previewBitmap;  // 这里可以解决OSD闪烁的问题
-                    procVideoHandler.removeCallbacksAndMessages(null);
-                    procVideoHandler.post(() -> {
-                        encode(finalPreviewBitmap);
-                    });
+                    postEncodeFrame(finalPreviewBitmap);
                 }
                 ///
                 if (mOnShow && controllerCallback != null ) {
@@ -665,6 +718,40 @@ public class Camera2Device extends Device {
                 }
             } catch (Exception e) {
                 Log.i(Log.TAG, "图片处理异常：" + e.getMessage());
+            } finally {
+                if (img != null) img.close();
+            }
+        }
+    };
+
+    private final ImageReader.OnImageAvailableListener mStillImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            Image img = reader.acquireLatestImage();
+            try {
+                if (img == null || !mCameraPhotoing) {
+                    return;
+                }
+                if (!takePhotoOnce.compareAndSet(true, false)) {
+                    return;
+                }
+                Bitmap bitmap = imageDecode(img);
+                if (bitmap == null) {
+                    Log.i(Log.TAG, "Still photo decode failed, camID = " + camID);
+                    photoDone.set(true);
+                    mCameraPhtotingLock.notifyLock();
+                    return;
+                }
+                if (rotate == 1) {
+                    bitmap = rotate180WithCanvas(bitmap);
+                }
+                bitmap = preProcessingPhoto(bitmap);
+                Log.i(Log.TAG, "Still photo resolution: " + bitmap.getWidth() + "x" + bitmap.getHeight() + ", camID = " + camID);
+                saveCapturedPhoto(bitmap);
+            } catch (Exception e) {
+                Log.i(Log.TAG, "Still photo process error: " + e.getMessage());
+                photoDone.set(true);
+                mCameraPhtotingLock.notifyLock();
             } finally {
                 if (img != null) img.close();
             }
@@ -880,9 +967,19 @@ public class Camera2Device extends Device {
             CaptureRequest.Builder captureBuilder =
                     mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
 
-            captureBuilder.addTarget(mImageReader.getSurface());
+            ImageReader targetReader = mStillImageReader != null ? mStillImageReader : mImageReader;
+            if (targetReader == null) {
+                photoDone.set(true);
+                mCameraPhtotingLock.notifyLock();
+                return;
+            }
+
+            captureBuilder.addTarget(targetReader.getSurface());
 
             captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
+            captureBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE);
+            captureBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
 
             captureBuilder.set(
                     CaptureRequest.CONTROL_AF_MODE,
@@ -919,15 +1016,9 @@ public class Camera2Device extends Device {
                                 }
                             }
 
-                            photoDone.set(true);
-                            mCameraPhtotingLock.notifyLock();
-
-                            unlockFocus();
+                            restorePreviewRepeatingAfterStillCapture();
                         }
                     };
-
-            mPreviewSession.stopRepeating();
-            mPreviewSession.abortCaptures();
 
             mPreviewSession.capture(
                     captureBuilder.build(),
@@ -938,8 +1029,24 @@ public class Camera2Device extends Device {
         } catch (Exception e) {
             Log.i(Log.TAG, "拍摄照片异常：" + e.getMessage());
 
+            restorePreviewRepeatingAfterStillCapture();
             photoDone.set(true);
             mCameraPhtotingLock.notifyLock();
+        }
+    }
+
+    private void restorePreviewRepeatingAfterStillCapture() {
+        try {
+            if (mPreviewSession == null || mPreviewRequestBuilder == null) {
+                return;
+            }
+            if (isRecording()) {
+                refreshLowNoiseRepeatingRequest(getVideoCodec(streamType), true);
+            } else if (isLiving() || enableLiveEncode) {
+                refreshLowNoiseRepeatingRequest(null, false);
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG, "Restore preview after still capture error: " + e.getMessage());
         }
     }
     ///
@@ -1090,6 +1197,7 @@ public class Camera2Device extends Device {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
             }
 
+            applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); /////
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             mState = STATE_WAITING_AF_LOCK;
@@ -1138,8 +1246,8 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]");
                 return;
             }
-//            closeImageReader();
-//            closeStillImageReader();
+            closeImageReader();
+            closeStillImageReader();
             mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
@@ -1154,7 +1262,17 @@ public class Camera2Device extends Device {
 //            }
 
 //            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
-            mCameraDevice.createCaptureSession(Arrays.asList(mImageReader.getSurface()), new CameraCaptureSession.StateCallback() {
+            List<Surface> surfaces = new ArrayList<>();
+            surfaces.add(mImageReader.getSurface());
+            if (video) {
+                Point stillSize = getConfiguredPhotoResolution();
+                mStillImageReader = ImageReader.newInstance(stillSize.x, stillSize.y, ImageFormat.JPEG, 2);
+                mStillImageReader.setOnImageAvailableListener(mStillImageAvailableListener, mBackgroundHandler);
+                surfaces.add(mStillImageReader.getSurface());
+                Log.i(Log.TAG, "Add still JPEG output: " + stillSize.x + "x" + stillSize.y + ", camID = " + camID);
+            }
+
+            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     if (mCameraDevice == null) return;
@@ -1306,6 +1424,55 @@ public class Camera2Device extends Device {
                 return;
             }
             ///
+            CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
+            minFocusDist = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
+            if (minFocusDist > 0) {
+                Log.i(Log.TAG, "MIPI摄像头最小对焦距离为" + 1 / minFocusDist * 100 + "厘米");
+            }
+
+            mKeyAisAvailableModes = null;
+            mKeyAisResult = null;
+            mKeyAisRequestMode = null;
+
+            List<CameraCharacteristics.Key<?>> keyList = cameraCharacteristics.getKeys();
+            for (CameraCharacteristics.Key<?> key : keyList) {
+                if (key.getName().equals(AIS_AVAILABLE_MODES_KEY_NAME)) {
+                    mKeyAisAvailableModes = (CameraCharacteristics.Key<int[]>) key;
+                    Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME);
+                }
+            }
+
+            List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys();
+            for (CaptureResult.Key<?> resultKey : resultKeyList) {
+                if (resultKey.getName().equals(AIS_RESULT_MODE_KEY_NAME)) {
+                    mKeyAisResult = (CaptureResult.Key<int[]>) resultKey;
+                    Log.i(Log.TAG, "Found CaptureResult Key: " + AIS_RESULT_MODE_KEY_NAME);
+                }
+            }
+
+            List<CaptureRequest.Key<?>> requestKeyList = cameraCharacteristics.getAvailableCaptureRequestKeys();
+            for (CaptureRequest.Key<?> requestKey : requestKeyList) {
+                if (requestKey.getName().equals(AIS_REQUEST_MODE_KEY_NAME)) {
+                    mKeyAisRequestMode = (CaptureRequest.Key<int[]>) requestKey;
+                    Log.i(Log.TAG, "Found CaptureRequest Key: " + AIS_REQUEST_MODE_KEY_NAME);
+                }
+            }
+
+            if (mKeyAisAvailableModes != null) {
+                int[] availableModes = cameraCharacteristics.get(mKeyAisAvailableModes);
+                if (availableModes != null) {
+                    for (int mode : availableModes) {
+                        Log.i(Log.TAG, "Supported MFB Mode: " + mode);
+                    }
+                } else {
+                    Log.i(Log.TAG, "No available MFB modes.");
+                }
+            } else {
+                Log.i(Log.TAG, "MFB Key not found.");
+            }
+
+            streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
             startBackgroundThread();
             cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler);
             mCameraOpenCloseLock.waitLock(2500);
@@ -1581,6 +1748,7 @@ public class Camera2Device extends Device {
                 // 状态设置为录像
                 mState = STATE_VIDEO_RECORDING;
             }
+            refreshLowNoiseRepeatingRequest(vc, true);
             super.videoStart(stream, filename, duration, upload); /////
             String tmpfile = MainActivity.DATA_DIR + "record_" + id + ".mp4"; /////
 
@@ -1990,7 +2158,6 @@ public class Camera2Device extends Device {
         }
 
         this.streamType = stream;
-        setEnableLiveEncode(true); ///
 
         scheduledHandler.post(() -> {
             ///
@@ -2030,9 +2197,11 @@ public class Camera2Device extends Device {
 //                }
                 { // 直播要打包成rtp包进行发包
                     ensureMipiVideoEncoder(stream, true); /////
+                    refreshLowNoiseRepeatingRequest(null, false);
                     rtph264 = new RTPH264(ssrc);
                     mipiLivePpsSps = null;
                     mipiLiveFirstFrameTimestamp = 0;
+                    setEnableLiveEncode(true); ///
                 }
                 // 先开始播放，然后再对焦，提高后台出流时间
                 mOnShow = true;
@@ -2103,6 +2272,7 @@ public class Camera2Device extends Device {
                 return;
             }
 
+            applyLowNoiseCaptureRequestParameters(null, false);
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
 
             mPreviewRequestBuilder.set(
@@ -2148,19 +2318,25 @@ public class Camera2Device extends Device {
                 mFilePreset = preset;
                 ///
 
-                mResolution = getConfiguredPhotoResolution();
+                Point photoResolution = getConfiguredPhotoResolution();
 
                 ///
 //                if (!isLiving()){
 //                    createPreviewSession(mResolution.x, mResolution.y, false);
 //                }
 
-                if (mResolution == null) {
+                if (photoResolution == null) {
                     Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080"
                             + "，camID = " + camID);
-                    mResolution = new Point(1920, 1080);
+                    photoResolution = new Point(1920, 1080);
                 }
                 ///
+                boolean createdPhotoSession = false;
+                if (mPreviewSession == null) {
+                    mResolution = photoResolution;
+                    createPreviewSession(photoResolution.x, photoResolution.y, false);
+                    createdPhotoSession = mPreviewSession != null;
+                }
                 if (mPreviewSession == null) {
                     Log.i(Log.TAG, "创建预览会话失败");
 
@@ -2180,14 +2356,15 @@ public class Camera2Device extends Device {
                     closeBothCameraIfNoLive(); ///
                     return;
                 }
+                if (createdPhotoSession) {
+                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
+                }
 
                 {
                     ///
 //                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
-                    enableMfbBeforeCapture();
-                    SystemClock.sleep(500);
+                    captureStillPicture();
                     ///
-                    mState = STATE_PICTURE_TAKING;
                 }
 
                 // 等待拍照成功
