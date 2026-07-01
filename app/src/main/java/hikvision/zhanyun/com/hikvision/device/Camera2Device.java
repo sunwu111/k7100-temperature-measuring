@@ -1077,6 +1077,7 @@ public class Camera2Device extends Device {
     private static final int STATE_VIDEO_LIVING = 6;
     private int mState = STATE_PREVIEW;
     private volatile boolean previewReady;
+    private volatile boolean mPreviewSessionVideoMode = false;
 
     private CameraCaptureSession.CaptureCallback mCaptureCallback
             = new CameraCaptureSession.CaptureCallback() {
@@ -1264,6 +1265,7 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]");
                 return;
             }
+            mPreviewSessionVideoMode = false;
             closeImageReader();
             closeStillImageReader();
             mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3
@@ -1295,6 +1297,7 @@ public class Camera2Device extends Device {
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     if (mCameraDevice == null) return;
                     mPreviewSession = cameraCaptureSession;
+                    mPreviewSessionVideoMode = video;
                     mCameraOpenCloseLock.notifyLock();
                 }
 
@@ -1522,6 +1525,8 @@ public class Camera2Device extends Device {
             }
         } catch (Exception e) {
             mPreviewSession = null;
+        } finally {
+            mPreviewSessionVideoMode = false;
         }
         mPreviewRequestBuilder = null;
     }
@@ -1635,6 +1640,31 @@ public class Camera2Device extends Device {
             muxerEverStarted = false;
             avStartNs = 0;
         }
+    }
+
+    private boolean ensureVideoPreviewSession(Settings.VideoCodec vc, boolean isRecordVideo) {
+        if (mPreviewSession != null && mPreviewSessionVideoMode) {
+            return true;
+        }
+        if (mCameraDevice == null || vc == null || mResolution == null) {
+            return false;
+        }
+
+        closePreviewSession();
+        createPreviewSession(mResolution.x, mResolution.y, true);
+        if (mPreviewSession == null) {
+            Log.i(Log.TAG, "切换视频会话失败，PreviewSession 为空，camID = " + camID);
+            return false;
+        }
+
+        previewReady = true;
+        lockFocus(
+                10000,
+                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+                isRecordVideo,
+                isRecordVideo ? vc : null
+        );
+        return mPreviewSession != null && mPreviewSessionVideoMode;
     }
 
     private void resetMipiRecordStats() {
@@ -1785,6 +1815,13 @@ public class Camera2Device extends Device {
                         + "，camID = " + camID
                         + "，mCameraDevice = " + mCameraDevice
                         + "，mPreviewSession = " + mPreviewSession);
+                videoStarting = false;
+                return false;
+            }
+            if (!ensureVideoPreviewSession(vc, true)) {
+                Log.i(Log.TAG, "录像失败，无法切换到视频会话"
+                        + "，camID = " + camID
+                        + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
                 videoStarting = false;
                 return false;
             }
@@ -1962,11 +1999,25 @@ public class Camera2Device extends Device {
                     }
                     return false;
                 }
-                if (sDualStarting) {
-                    if (cb != null) {
-                        cb.openSucceed();
+                long waitEnd = SystemClock.uptimeMillis() + 15000;
+                while (sDualStarting) {
+                    long waitMs = waitEnd - SystemClock.uptimeMillis();
+                    if (waitMs <= 0) {
+                        break;
                     }
-                    return true;
+                    try {
+                        sDualCameraLock.wait(waitMs);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                if (sDualStarting) {
+                    Log.i(Log.TAG, "等待双路 Camera 打开超时");
+                    if (cb != null) {
+                        cb.openFailed(-1);
+                    }
+                    return false;
                 }
                 if (sDualStarted) {
                     if (cb != null) {
@@ -2100,6 +2151,7 @@ public class Camera2Device extends Device {
                 synchronized (sDualCameraLock) {
                     sDualStarting = false;
                     sDualStarted = result;
+                    sDualCameraLock.notifyAll();
                 }
             }
         }
@@ -2175,6 +2227,9 @@ public class Camera2Device extends Device {
         }
         mDualSessionStarting = true;
         try {
+            if (mPreviewSession != null && video && !mPreviewSessionVideoMode) {
+                closePreviewSession();
+            }
             if (mPreviewSession == null) {
                 createPreviewSession(width, height, video);
             }
@@ -2272,6 +2327,13 @@ public class Camera2Device extends Device {
 //                    Log.i(Log.TAG, "创建会话失败");
 //                    return;
 //                }
+                if (!ensureVideoPreviewSession(vc, false)) {
+                    Log.i(Log.TAG, "拉流失败，无法切换到视频会话"
+                            + "，camID = " + camID
+                            + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
+                    liveStarting = false;
+                    return;
+                }
                 { // 直播要打包成rtp包进行发包
                     ensureMipiVideoEncoder(stream, true); /////
                     refreshLowNoiseRepeatingRequest(null, false);
