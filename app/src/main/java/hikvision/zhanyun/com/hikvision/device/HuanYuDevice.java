@@ -1930,6 +1930,10 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         // 根据颜色模式选择对应的JSON配置
         Log.e(HuanyuDeviceLog, "v.color" + v.color);
+        if (!login()) {
+            Log.i(HuanyuDeviceLog, "Set photo params failed, login false");
+            return false;
+        }
         String mode = v.color == 1 ? photoDayJson() : photoNightJson();
 
         // 构建图像参数配置JSON
