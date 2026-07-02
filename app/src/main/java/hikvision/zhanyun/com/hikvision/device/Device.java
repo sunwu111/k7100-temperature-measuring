@@ -1912,7 +1912,7 @@ public abstract class Device {
             Log.i(Log.TAG, "开启电子透雾");
             bitmap = electronicFog(bitmap, isGray);
         }
-        if (cameraConfig.lowLight == 1) {
+        if (cameraConfig.lowLight == 1 && this.id != 1) {
             Log.i(Log.TAG, "开启亮度增强");
             bitmap = addBrightness(bitmap, avgBrightness);
         }
