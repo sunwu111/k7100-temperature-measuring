@@ -491,7 +491,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     //    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, spnZoomRatio, irOperator, irObjType, irObjFlag; ///////
     private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnDayAndNightMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///
     private ArrayAdapter<String> adapter;
-    private Button btnUp, btnBottom, btnLeft, btnRight, btnZoomin, btnZoomout, btnAddPreset, btnRemovePreset, btnEditPreset, btnAddCruise, btnRemoveCruise, btnEditCruise; /////
+    private Button btnUp, btnBottom, btnLeft, btnRight, btnZoomin, btnZoomout, btnFocusin, btnFocusout, btnAddPreset, btnRemovePreset, btnEditPreset, btnAddCruise, btnRemoveCruise, btnEditCruise; /////
     private TextView tvState;
     private TextView textVersion;
     private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio,TDptz; // cbBatOnly,     ///////
@@ -4712,6 +4712,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         btnRight = findViewById(R.id.btnRight);
         btnZoomin = findViewById(R.id.btnZoomin);
         btnZoomout = findViewById(R.id.btnZoomout);
+        btnFocusin = findViewById(R.id.btnFocusIn);
+        btnFocusout = findViewById(R.id.btnFocusOut);
         /////
         btnAddPreset = findViewById(R.id.btnAddPreset);
         btnRemovePreset = findViewById(R.id.btnRemovePreset);
@@ -4773,6 +4775,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         btnRight.setOnTouchListener(this);
         btnZoomin.setOnTouchListener(this);
         btnZoomout.setOnTouchListener(this);
+        btnFocusin.setOnTouchListener(this);
+        btnFocusout.setOnTouchListener(this);
         /////
         btnAddPreset.setOnTouchListener(this);
         btnRemovePreset.setOnTouchListener(this);
@@ -9251,6 +9255,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     break;
                 case R.id.btnZoomout:
                     dc.move(event.getAction() == ACTION_DOWN ? 58 : 48, 30);
+                    break;
+                case R.id.btnFocusIn:
+                    dc.move(event.getAction() == ACTION_DOWN ? 61 : 48, 30);
+                    break;
+                case R.id.btnFocusOut:
+                    dc.move(event.getAction() == ACTION_DOWN ? 62 : 48, 30);
                     break;
                 case R.id.btnAddPreset:
                     dc.move(9, selectPreset);

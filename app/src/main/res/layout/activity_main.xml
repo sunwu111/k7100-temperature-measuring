@@ -217,6 +217,24 @@
             app:layout_constraintStart_toEndOf="@+id/btnUp"
             app:layout_constraintTop_toTopOf="@+id/btnDown" />
 
+        <Button
+            android:id="@+id/btnFocusIn"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/focusin"
+            app:layout_constraintEnd_toStartOf="@+id/btnUp"
+            app:layout_constraintTop_toTopOf="@+id/btnUp" />
+
+        <Button
+            android:id="@+id/btnFocusOut"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_toRightOf="@+id/btnLeft"
+            android:background="@drawable/focusout"
+            app:layout_constraintEnd_toStartOf="@+id/btnUp"
+            app:layout_constraintTop_toTopOf="@+id/btnDown" />
+
         <Spinner
             android:id="@+id/cbType"
             android:layout_width="0dp"
