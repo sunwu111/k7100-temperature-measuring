@@ -302,7 +302,7 @@ public class Camera2Device extends Device {
                     }
 
                     byte[] liveData = null;
-                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0 && isLiving() && rtph264 != null) {
+                    if (isLiving() && rtph264 != null) {
                         ByteBuffer liveBuf = outputBuffer.duplicate();
                         liveBuf.position(bufferInfo.offset);
                         liveBuf.limit(bufferInfo.offset + bufferInfo.size);

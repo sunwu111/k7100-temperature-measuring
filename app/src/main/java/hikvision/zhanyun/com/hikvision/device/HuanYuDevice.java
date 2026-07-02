@@ -2046,7 +2046,7 @@ public class HuanYuDevice extends MyOnvifDevice {
 
         // 构建摄像头参数配置JSON
         String paramJson;
-        if (c.denoiseMode == 3) {
+        if (c.denoiseMode == 2) {
             photoConfig.contrast = 80;
             photoConfig.sharpness = 25;
             setPhotoParam(photoConfig);
