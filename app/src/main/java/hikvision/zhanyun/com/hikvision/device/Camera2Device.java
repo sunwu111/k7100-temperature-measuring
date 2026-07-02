@@ -2055,9 +2055,27 @@ public class Camera2Device extends Device {
                     return false;
                 }
                 Log.i(Log.TAG, "第 1 步：打开 camera1");
-                boolean ret1 = cam1.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                boolean ret1 = false;
                 Log.i(Log.TAG, "第 2 步：打开 camera0");
-                boolean ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                boolean ret0 = false;
+                for (int openAttempt = 1; openAttempt <= 3; openAttempt++) {
+                    Log.i(Log.TAG, "Dual camera open attempt = " + openAttempt);
+                    ret1 = cam1.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                    ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
+                    if (ret0 && ret1) {
+                        break;
+                    }
+                    Log.i(Log.TAG, "Dual camera open retry, camera0 = " + ret0
+                            + ", camera1 = " + ret1
+                            + ", attempt = " + openAttempt);
+                    if (ret0 && cam0 != null) {
+                        cam0.closeCamera();
+                    }
+                    if (ret1 && cam1 != null && cam1 != cam0) {
+                        cam1.closeCamera();
+                    }
+                    SystemClock.sleep(1200);
+                }
                 Log.i(Log.TAG, "双路 openSelfOnly 结果"
                         + "，camera0 = " + ret0
                         + "，camera1 = " + ret1);
