@@ -11154,7 +11154,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private static final int AUX5_CLOSE_ORDER = 18;
     private static final int AUX5_PARA = 5;
 
-    private static final int IDLE_LIMIT_SECONDS = 2 * 60;
+    private static final int IDLE_LIMIT_SECONDS = 2 * 60;  // test时间设置为2分钟，实际时间需要修改为10分钟
     private static final int IDLE_ADD_SECONDS = 60;
 
     private boolean aux5Open = true;
