@@ -3951,7 +3951,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 continue;
             }
 
-//            setSinglePhotoAlarm(i, item, "定时拍照_" + item.channel + "_" + item.preset);   // 现在都是全功能模式，这个就可以直接注释掉
+            setSinglePhotoAlarm(i, item, "定时拍照_" + item.channel + "_" + item.preset);   // 现在都是全功能模式，这个就可以直接注释掉
 
         }
 
@@ -4004,12 +4004,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         photoAlarms.put(requestCode, pendingIntent);
 
-        if (shouldSchedulePhotoWakeup(item)) {
-            wakeupTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
-                    PERIOD_DAY, index, "定时开启云台", item.channel);
-        } else {
-            Log.i(Log.TAG, "全工作模式工作时间内拍照，跳过提前唤醒闹钟：channel=" + item.channel + ", index=" + index);
-        }
+//        if (shouldSchedulePhotoWakeup(item)) {
+//            wakeupTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
+//                    PERIOD_DAY, index, "定时开启云台", item.channel);
+//        } else {
+//            Log.i(Log.TAG, "全工作模式工作时间内拍照，跳过提前唤醒闹钟：channel=" + item.channel + ", index=" + index);
+//        }
 
         alarmInitTask(String.format("%02d:%02d:%02d", item.hour, item.min, item.sec),
                 PERIOD_DAY, pendingIntent, alarmName);
