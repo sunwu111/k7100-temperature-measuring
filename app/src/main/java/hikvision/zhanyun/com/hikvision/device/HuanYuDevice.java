@@ -2497,32 +2497,6 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "          \"ratioShow\": 0,\n" +
                     "          \"sensitivity\": \"middle\"\n" +
                     "        },\n" +
-                    "        \"lightRegulation\": {\n" +
-                    "          \"backlight\": {\n" +
-                    "            \"custom\": {\n" +
-                    "              \"rect\": [\n" +
-                    "                339,\n" +
-                    "                336,\n" +
-                    "                294,\n" +
-                    "                312\n" +
-                    "              ]\n" +
-                    "            },\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"mode\": \"top\"\n" +
-                    "          },\n" +
-                    "          \"hlc\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"level\": 50\n" +
-                    "          },\n" +
-                    "          \"industrialStrobe\": {\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          },\n" +
-                    "          \"lightLevel\": 50,\n" +
-                    "          \"wideDynamic\": {\n" +
-                    "            \"level\": 5,\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          }\n" +
-                    "        },\n" +
                     "        \"imageEnhancement\": {\n" +
                     "          \"dehaze\": {\n" +
                     "            \"enable\": true,\n" +
@@ -2553,6 +2527,32 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"level\": 1,\n" +
                     "            \"levelVal\": 1,\n" +
                     "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
                     "          }\n" +
                     "        },\n" +
                     "        \"dayAndNight\": {\n" +
@@ -3134,7 +3134,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "    }\n" +
                     "  }\n" +
                     "}", session, id);
-        } else {
+        } else {        // 开启透雾，强光抑制关闭
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
@@ -3355,7 +3355,7 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
 
         boolean allSuccess = true;
-        String[] orderedKeys = new String[]{"exposure", "focus", "lightRegulation", "imageEnhancement", "whiteBalance", "dayAndNight"};
+        String[] orderedKeys = new String[]{"exposure", "focus",  "imageEnhancement", "lightRegulation", "whiteBalance", "dayAndNight"};
         for (String key : orderedKeys) {
             if (!auto.containsKey(key)) {
                 continue;
