@@ -1318,6 +1318,11 @@ public class Camera2Device extends Device {
             }, mBackgroundHandler);
             mCameraOpenCloseLock.waitLock(2500);
         } catch (Exception e) {
+            Log.i(Log.TAG, "create camera session exception: " + e.getMessage());
+            closePreviewSession();
+            closeImageReader();
+            closeStillImageReader();
+            mCameraOpenCloseLock.notifyLock();
 //            Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
 //            closePreviewSession();
 //            closeImageReader();
@@ -2397,6 +2402,13 @@ public class Camera2Device extends Device {
             mDualSessionStarted = true;
             return true;
         } catch (Exception e) {
+            Log.i(Log.TAG, "dual camera session exception: " + e.getMessage());
+            closePreviewSession();
+            closeImageReader();
+            closeStillImageReader();
+            if (!isLiving() && !isRecording() && !mCameraPhotoing) {
+                closeCamera();
+            }
             return false;
         } finally {
             mDualSessionStarting = false;

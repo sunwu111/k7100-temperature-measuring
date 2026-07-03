@@ -1668,7 +1668,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             intent.putExtra("preset", preset);
             intent.putExtra("filename", filename);
 //            intent.putExtra("captureType", captureType); ///////
-            sendBroadcast(intent);
+            Device dev = channels.get(String.valueOf(channel));
+            long retryDelayMs = dev != null && dev.isCamera() ? 4000 : 0;
+            utilsHandler.postDelayed(() -> sendBroadcast(intent), retryDelayMs);
         }
 
         @Override
