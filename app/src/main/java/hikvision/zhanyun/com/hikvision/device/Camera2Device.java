@@ -1522,15 +1522,35 @@ public class Camera2Device extends Device {
 
             startBackgroundThread();
             cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler);
-            mCameraOpenCloseLock.waitLock(2500);
+//            mCameraOpenCloseLock.waitLock(2500);
+
+
+            // 这个地方打开摄像头失败的话，不进行清理资源，会导致下一次打开失败，如果只等待2.5s就释放资源的话，2.5s时间太短，可能打不开摄像头就又关闭了
+//            boolean opened = mCameraOpenCloseLock.waitLock(2500);
+//            if (!opened || mCameraDevice == null) {
+//                Log.i(Log.TAG, "打开摄像头超时，清理后台线程和残留资源，camID = " + camID);
+//                closePreviewSession();
+//                closeImageReader();
+//                closeStillImageReader();
+//                stopBackgroundThread();
+//            }
 
             boolean opened = mCameraOpenCloseLock.waitLock(2500);
             if (!opened || mCameraDevice == null) {
-                Log.i(Log.TAG, "打开摄像头超时，清理后台线程和残留资源，camID = " + camID);
-                closePreviewSession();
-                closeImageReader();
-                closeStillImageReader();
-                stopBackgroundThread();
+                Log.i(Log.TAG, "打开摄像头等待超时，延迟确认，camID = " + camID);
+
+                if (mBackgroundHandler != null) {
+                    mBackgroundHandler.postDelayed(() -> {
+                        if (mCameraDevice == null && !isLiving() && !isRecording() && !mCameraPhotoing) {
+                            Log.i(Log.TAG, "打开摄像头延迟确认仍失败，清理资源，camID = " + camID);
+                            closePreviewSession();
+                            closeImageReader();
+                            closeStillImageReader();
+                            stopBackgroundThread();
+                            clearState(DevState.OPENING);
+                        }
+                    }, 3000);
+                }
             }
 
         } catch (Exception e) {
@@ -2048,6 +2068,15 @@ public class Camera2Device extends Device {
             synchronized (sDualCameraLock) {
                 cam0 = sCamera0Device;
                 cam1 = sCamera1Device;
+
+                Log.i(Log.TAG, "双路 Camera 对象检查"
+                        + "，cam0 = " + cam0
+                        + "，cam1 = " + cam1
+                        + "，camID = " + camID
+                        + "，sDualStarted = " + sDualStarted
+                        + "，sDualStarting = " + sDualStarting
+                        + "，sDualClosing = " + sDualClosing);
+
                 if (cam0 == null || cam1 == null) {
                     if (cb != null) {
                         cb.openFailed(-1);
