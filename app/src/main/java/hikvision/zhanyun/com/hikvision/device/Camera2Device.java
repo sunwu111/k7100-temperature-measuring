@@ -1318,11 +1318,11 @@ public class Camera2Device extends Device {
             }, mBackgroundHandler);
             mCameraOpenCloseLock.waitLock(2500);
         } catch (Exception e) {
-            Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
-            closePreviewSession();
-            closeImageReader();
-            closeStillImageReader();
-            mCameraOpenCloseLock.notifyLock();
+//            Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
+//            closePreviewSession();
+//            closeImageReader();
+//            closeStillImageReader();
+//            mCameraOpenCloseLock.notifyLock();
         }
     }
 
@@ -1891,12 +1891,12 @@ public class Camera2Device extends Device {
 
                 videoStarting = false;
 
-                if (!isLiving() && !mCameraPhotoing) {
-                    closePreviewSession();
-                    closeImageReader();
-                    closeStillImageReader();
-                    closeBothCameraIfNoLive();
-                }
+//                if (!isLiving() && !mCameraPhotoing) {
+//                    closePreviewSession();
+//                    closeImageReader();
+//                    closeStillImageReader();
+//                    closeBothCameraIfNoLive();
+//                }
 
                 return false;
             }
