@@ -1319,8 +1319,10 @@ public class Camera2Device extends Device {
             mCameraOpenCloseLock.waitLock(2500);
         } catch (Exception e) {
             Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
-            // 风险点：异常发生在 ImageReader 创建之后时，如果上层没有继续 closeCamera，
-            // 新建的 Surface 可能残留并影响下一次 createCaptureSession。
+            closePreviewSession();
+            closeImageReader();
+            closeStillImageReader();
+            mCameraOpenCloseLock.notifyLock();
         }
     }
 
@@ -1866,9 +1868,16 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "录像失败，无法切换到视频会话"
                         + "，camID = " + camID
                         + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
-                // 风险点：录像启动失败只复位 videoStarting。若切换 session 过程中遗留 ImageReader，
-                // 后续打开或拉流可能继续拿到失败状态。
+
                 videoStarting = false;
+
+                if (!isLiving() && !mCameraPhotoing) {
+                    closePreviewSession();
+                    closeImageReader();
+                    closeStillImageReader();
+                    closeBothCameraIfNoLive();
+                }
+
                 return false;
             }
             ///
