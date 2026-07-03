@@ -1306,11 +1306,21 @@ public class Camera2Device extends Device {
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                    try {
+                        cameraCaptureSession.close();
+                    } catch (Exception ignored) {
+                    }
+                    closePreviewSession();
+                    closeImageReader();
+                    closeStillImageReader();
+                    mCameraOpenCloseLock.notifyLock();
                 }
             }, mBackgroundHandler);
             mCameraOpenCloseLock.waitLock(2500);
         } catch (Exception e) {
             Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
+            // 风险点：异常发生在 ImageReader 创建之后时，如果上层没有继续 closeCamera，
+            // 新建的 Surface 可能残留并影响下一次 createCaptureSession。
         }
     }
 
@@ -1511,6 +1521,16 @@ public class Camera2Device extends Device {
             startBackgroundThread();
             cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler);
             mCameraOpenCloseLock.waitLock(2500);
+
+            boolean opened = mCameraOpenCloseLock.waitLock(2500);
+            if (!opened || mCameraDevice == null) {
+                Log.i(Log.TAG, "打开摄像头超时，清理后台线程和残留资源，camID = " + camID);
+                closePreviewSession();
+                closeImageReader();
+                closeStillImageReader();
+                stopBackgroundThread();
+            }
+
         } catch (Exception e) {
             Log.i(Log.TAG, String.format("打开摄像头%d异常：%s", camID, e.getMessage()));
         }
@@ -1846,6 +1866,8 @@ public class Camera2Device extends Device {
                 Log.i(Log.TAG, "录像失败，无法切换到视频会话"
                         + "，camID = " + camID
                         + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
+                // 风险点：录像启动失败只复位 videoStarting。若切换 session 过程中遗留 ImageReader，
+                // 后续打开或拉流可能继续拿到失败状态。
                 videoStarting = false;
                 return false;
             }
@@ -2056,7 +2078,11 @@ public class Camera2Device extends Device {
                         sDualStarting = false;
                         sDualCameraLock.notifyAll();
 
-                        closeBothCameraIfNoLive();
+                        if (!isLiving() && !isRecording() && !mCameraPhotoing && !liveStarting && !videoStarting) {
+                            closeCamera();
+                        } else {
+                            closeBothCameraIfNoLive();
+                        }
                     }
 
                     if (cb != null) {
@@ -2152,6 +2178,16 @@ public class Camera2Device extends Device {
                         + "，camera0 = " + session0
                         + "，camera1 = " + session1);
                 result = session0 && session1;
+
+                if (!result) {
+                    if (cam0 != null && !cam0.isLiving() && !cam0.isRecording() && !cam0.mCameraPhotoing) {
+                        cam0.closeCamera();
+                    }
+                    if (cam1 != null && cam1 != cam0 && !cam1.isLiving() && !cam1.isRecording() && !cam1.mCameraPhotoing) {
+                        cam1.closeCamera();
+                    }
+                }
+
                 if (cb != null) {
                     if (result) {
                         cb.openSucceed();
@@ -2183,9 +2219,15 @@ public class Camera2Device extends Device {
                 if (cb != null) cb.openSucceed();
                 return true;
             }
-            Log.i(Log.TAG, "摄像头状态为已打开，但 CameraDevice 为空，重新打开，camID = " + camID);
+
+            Log.i(Log.TAG, "摄像头状态异常，CameraDevice 为空，清理残留资源后重新打开，camID = " + camID);
+            closePreviewSession();
+            closeImageReader();
+            closeStillImageReader();
+            stopBackgroundThread();
             clearState(DevState.OPENING);
         }
+
         streamType = stream;
         openCamera();
         if (mCameraDevice == null) {
@@ -2377,7 +2419,16 @@ public class Camera2Device extends Device {
                     Log.i(Log.TAG, "拉流失败，无法切换到视频会话"
                             + "，camID = " + camID
                             + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
+
                     liveStarting = false;
+                    setEnableLiveEncode(false);
+
+                    if (!isRecording() && !mCameraPhotoing) {
+                        closePreviewSession();
+                        closeImageReader();
+                        closeStillImageReader();
+                        closeBothCameraIfNoLive();
+                    }
                     return;
                 }
                 // 先进入直播状态再刷新 repeating，避免首批视频帧被普通预览请求吞掉。
