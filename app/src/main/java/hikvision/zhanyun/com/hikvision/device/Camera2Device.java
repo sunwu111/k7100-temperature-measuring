@@ -2045,6 +2045,20 @@ public class Camera2Device extends Device {
                 }
                 if (sDualStarted) {
                     boolean sessionReady = startSessionForDualOpen(stream, video, isRecordVideo);
+
+                    if (!sessionReady) {
+                        Log.i(Log.TAG, "双路 Camera 已标记打开，但创建当前业务 session 失败，重置双路状态并尝试释放空闲资源"
+                                + "，camID = " + camID
+                                + "，video = " + video
+                                + "，isRecordVideo = " + isRecordVideo);
+
+                        sDualStarted = false;
+                        sDualStarting = false;
+                        sDualCameraLock.notifyAll();
+
+                        closeBothCameraIfNoLive();
+                    }
+
                     if (cb != null) {
                         if (sessionReady) {
                             cb.openSucceed();
@@ -2052,6 +2066,7 @@ public class Camera2Device extends Device {
                             cb.openFailed(-1);
                         }
                     }
+
                     return sessionReady;
                 }
                 sDualStarting = true;
