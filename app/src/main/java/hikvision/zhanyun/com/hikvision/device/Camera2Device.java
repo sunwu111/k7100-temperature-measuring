@@ -2317,7 +2317,10 @@ public class Camera2Device extends Device {
         return true;
     }
     private boolean startSessionForDualOpen(int stream, boolean video, boolean isRecordVideo) {
-        boolean useVideoSession = video || camID % 2 == 0;
+
+//        boolean useVideoSession = video || camID % 2 == 0;
+        boolean useVideoSession = video ;
+
         Settings.VideoCodec vc = getVideoCodec(stream);
         Point resolution = useVideoSession && vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
         if (resolution == null) {
