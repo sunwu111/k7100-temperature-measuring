@@ -269,9 +269,19 @@ public class Camera2Device extends Device {
             if (inputBufferIndex >= 0) {
                 ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
                 if (inputBuffer != null) {
+                    if (argbBytes.length > inputBuffer.capacity()) {
+                        Log.w(Log.TAG, "MIPI video encode skip oversize frame: "
+                                + bitmap.getWidth() + "x" + bitmap.getHeight()
+                                + ", bytes=" + argbBytes.length
+                                + ", capacity=" + inputBuffer.capacity());
+                        mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, System.nanoTime() / 1000, 0);
+                        return;
+                    }
                     inputBuffer.clear();
                     inputBuffer.put(argbBytes, 0, argbBytes.length);
                     mediaCodec.queueInputBuffer(inputBufferIndex, 0, argbBytes.length, System.nanoTime() / 1000, 0);
+                } else {
+                    Log.w(Log.TAG, "MIPI video encode input buffer is null");
                 }
             } else {
                 Log.w(Log.TAG, "MIPI video encode input error: " + inputBufferIndex);
@@ -377,13 +387,16 @@ public class Camera2Device extends Device {
     // 图像参数调节算法
     private Bitmap preProcessingPhoto(Bitmap previewBitmap) {
         try {
-            // 修改分辨率
-            if (mCameraPhotoing) {
-                mResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
-            } else if ((isLiving() && rtph264 != null) || isRecording()) { /////
+            Point targetResolution = null;
+            boolean useVideoResolution = (isLiving() && rtph264 != null) || isRecording() || enableLiveEncode;
+            if (useVideoResolution) { /////
 
 //                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
-                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(streamType)).resolution);
+                Settings.VideoCodec vc = codec.get(String.valueOf(streamType));
+                Point size = vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
+                if (size == null) {
+                    size = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+                }
 
 
                 ///
@@ -393,14 +406,19 @@ public class Camera2Device extends Device {
                 }
                 ///
                 mResolution = size;
+                targetResolution = size;
 //                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
 
+            } else if (mCameraPhotoing) {
+                targetResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+            } else {
+                targetResolution = mResolution;
             }
             ///
-            if (mResolution == null) {
-                mResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+            if (targetResolution == null) {
+                targetResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
             }
-            if (mResolution.x == previewBitmap.getWidth() && mResolution.y == previewBitmap.getHeight()) {
+            if (targetResolution.x == previewBitmap.getWidth() && targetResolution.y == previewBitmap.getHeight()) {
                 if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
                     return previewBitmap;
                 } else {
@@ -466,8 +484,8 @@ public class Camera2Device extends Device {
                     }
                 }
             } else {
-                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, mResolution.x, mResolution.y, true);
-//                Log.i(Log.TAG, "摄像头设置分辨率为" + mResolution.x + "x" + mResolution.y);
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, targetResolution.x, targetResolution.y, true);
+//                Log.i(Log.TAG, "摄像头设置分辨率为" + targetResolution.x + "x" + targetResolution.y);
                 if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
                     return scaledBitmap;
                 } else {
