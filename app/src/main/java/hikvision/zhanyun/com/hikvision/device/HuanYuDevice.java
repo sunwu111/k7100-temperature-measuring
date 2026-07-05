@@ -3218,7 +3218,7 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "          \"lightLevel\": 50,\n" +
                     "          \"wideDynamic\": {\n" +
                     "            \"level\": 10,\n" +
-                    "            \"mode\": \"open\"\n" +
+                    "            \"mode\": \"manual\"\n" +
                     "          }\n" +
                     "        },\n" +
                     "        \"imageEnhancement\": {\n" +

@@ -1056,7 +1056,7 @@ public class Camera2Device extends Device {
                                         Log.i(Log.TAG, "MFB Result Mode: " + mode);
                                     }
                                 } else {
-                                    Log.i(Log.TAG, "MFB Result Mode not available.");
+                                    Log.i(Log.TAG, "captureStillPicture::MFB Result Mode not available.");
                                 }
                             }
 
@@ -1242,8 +1242,8 @@ public class Camera2Device extends Device {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
             }
 
-            applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); /////
+            applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             mState = STATE_WAITING_AF_LOCK;
             mLockFocusTime = System.currentTimeMillis();
@@ -2363,7 +2363,7 @@ public class Camera2Device extends Device {
             resolution = new Point(1536, 864);
         }
         mResolution = resolution;
-        return startSessionAndRepeatingIfNeeded(
+        return startSessionAndRepeatingIfNeeded(    // 创建 Session 和启动预览
                 resolution.x,
                 resolution.y,
                 useVideoSession,
@@ -2393,7 +2393,7 @@ public class Camera2Device extends Device {
             if (mPreviewSession == null) {
                 return false;
             }
-            previewReady = true;
+            previewReady = true;   // 这句决定图像回调能否开始处理帧
             ///
             if (video) {
                 if (isReordVideo) {
@@ -2651,6 +2651,7 @@ public class Camera2Device extends Device {
                     }
                     ///
                     boolean createdPhotoSession = false;
+                    Log.e(Log.TAG,"takePhoto::mPreviewSession::"+mPreviewSession);
                     if (mPreviewSession == null) {
                         mResolution = photoResolution;
                         createPreviewSession(photoResolution.x, photoResolution.y, false);
