@@ -2361,32 +2361,6 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "          \"ratioShow\": 0,\n" +
                     "          \"sensitivity\": \"middle\"\n" +
                     "        },\n" +
-                    "        \"lightRegulation\": {\n" +
-                    "          \"backlight\": {\n" +
-                    "            \"custom\": {\n" +
-                    "              \"rect\": [\n" +
-                    "                339,\n" +
-                    "                336,\n" +
-                    "                294,\n" +
-                    "                312\n" +
-                    "              ]\n" +
-                    "            },\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"mode\": \"top\"\n" +
-                    "          },\n" +
-                    "          \"hlc\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"level\": 50\n" +
-                    "          },\n" +
-                    "          \"industrialStrobe\": {\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          },\n" +
-                    "          \"lightLevel\": 50,\n" +
-                    "          \"wideDynamic\": {\n" +
-                    "            \"level\": 5,\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          }\n" +
-                    "        },\n" +
                     "        \"imageEnhancement\": {\n" +
                     "          \"dehaze\": {\n" +
                     "            \"enable\": true,\n" +
@@ -2417,6 +2391,32 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "            \"level\": 1,\n" +
                     "            \"levelVal\": 1,\n" +
                     "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"left\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 100,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 5,\n" +
+                    "            \"mode\": \"close\"\n" +
                     "          }\n" +
                     "        },\n" +
                     "        \"dayAndNight\": {\n" +
