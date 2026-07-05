@@ -9674,7 +9674,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         Device.onOpenCallback callback = dev.new onOpenCallback() {
             @Override
             public void openSucceed() {
-
+                Log.e(Log.TAG,"openSucceed回调");
                 if (deviceConfig.toCheck) {
                     isIRPhotoing = true;
                     isVLPhotoing = true;

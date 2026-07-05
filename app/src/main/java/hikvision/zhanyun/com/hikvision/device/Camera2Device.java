@@ -2255,6 +2255,7 @@ public class Camera2Device extends Device {
 
                 if (cb != null) {
                     if (result) {
+                        Log.e(Log.TAG,"openSucceed");
                         cb.openSucceed();
                     } else {
                         cb.openFailed(-1);
@@ -2622,128 +2623,128 @@ public class Camera2Device extends Device {
         scheduledHandler.post(() -> {
             synchronized (sDualPhotoTaskLock) {
 
-            boolean notifyPhotoFailed = false;
-            try{
-                ///
-                mOnShow = show;
-
-                mCameraPhotoing = true;
-
-                takePhotoOnce.set(true);
-                photoDone.set(false);
-
-                mFileImage = filename;
-                mFilePreset = preset;
-                ///
-
-                Point photoResolution = getConfiguredPhotoResolution();
-
-                ///
-//                if (!isLiving()){
-//                    createPreviewSession(mResolution.x, mResolution.y, false);
-//                }
-
-                if (photoResolution == null) {
-                    Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080"
-                            + "，camID = " + camID);
-                    photoResolution = new Point(1920, 1080);
-                }
-                ///
-                boolean createdPhotoSession = false;
-                if (mPreviewSession == null) {
-                    mResolution = photoResolution;
-                    createPreviewSession(photoResolution.x, photoResolution.y, false);
-                    createdPhotoSession = mPreviewSession != null;
-                }
-                if (mPreviewSession == null) {
-                    Log.i(Log.TAG, "创建预览会话失败");
-
+                boolean notifyPhotoFailed = false;
+                try{
                     ///
-//                    //// 如果拍照失败，先释放资源，再重新申请
-//                    if (!isLiving() && !isRecording()) {
-//                        unlockFocus();
-//                        close();
-//                    }
-                    mCameraPhotoing = false;
-                    takePhotoOnce.set(false);
-                    photoDone.set(true);
-                    mCameraPhtotingLock.notifyLock();
+                    mOnShow = show;
+
+                    mCameraPhotoing = true;
+
+                    takePhotoOnce.set(true);
+                    photoDone.set(false);
+
+                    mFileImage = filename;
+                    mFilePreset = preset;
                     ///
 
-                    notifyPhotoFailed = true;
-                    return;
-                }
-                if (createdPhotoSession) {
-                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
-                }
-
-                {
-                    ///
-//                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
-                    captureStillPicture();
-                    ///
-                }
-
-                // 等待拍照成功
-                int timeoutSeconds = 60;
-                int timeoutMs = timeoutSeconds * 1000;
-                long start = System.currentTimeMillis();
-
-
-                while (!photoDone.get()) {
-                    long remain = timeoutMs - (System.currentTimeMillis() - start);
-                    if (remain <= 0) break;
-                    mCameraPhtotingLock.waitLock((int) remain);
-                }
-
-                if (!photoDone.get()) {
-                    Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
+                    Point photoResolution = getConfiguredPhotoResolution();
 
                     ///
-//                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
-//                    if (!isLiving() && !isRecording()) {
-//                        unlockFocus();
-//                        close();
-//                    }
-                    mCameraPhotoing = false;
-                    takePhotoOnce.set(false);
-                    photoDone.set(true);
-                    mCameraPhtotingLock.notifyLock();
-                    ///
-                    notifyPhotoFailed = true;
-                }
+    //                if (!isLiving()){
+    //                    createPreviewSession(mResolution.x, mResolution.y, false);
+    //                }
 
-            }catch (Exception e){
-                Log.e(Log.TAG, "拍照过程中发生异常"+e);
-                ///
-                mCameraPhotoing = false;
-                takePhotoOnce.set(false);
-                photoDone.set(true);
-                mCameraPhtotingLock.notifyLock();
-                ///
-                notifyPhotoFailed = true;
-            }finally {
-                ///
-//                if (!isLiving() && !isRecording()) {
-//                    unlockFocus();
-//                    close();
-//                }
-                ///
-                mCameraPhotoing = false;
-                ///
-                takePhotoOnce.set(false);
-                synchronized (sDualCameraLock) {
-                    if (sDualPhotoTaskCount > 0) {
-                        sDualPhotoTaskCount--;
+                    if (photoResolution == null) {
+                        Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080"
+                                + "，camID = " + camID);
+                        photoResolution = new Point(1920, 1080);
                     }
+                    ///
+                    boolean createdPhotoSession = false;
+                    if (mPreviewSession == null) {
+                        mResolution = photoResolution;
+                        createPreviewSession(photoResolution.x, photoResolution.y, false);
+                        createdPhotoSession = mPreviewSession != null;
+                    }
+                    if (mPreviewSession == null) {
+                        Log.i(Log.TAG, "创建预览会话失败");
+
+                        ///
+    //                    //// 如果拍照失败，先释放资源，再重新申请
+    //                    if (!isLiving() && !isRecording()) {
+    //                        unlockFocus();
+    //                        close();
+    //                    }
+                        mCameraPhotoing = false;
+                        takePhotoOnce.set(false);
+                        photoDone.set(true);
+                        mCameraPhtotingLock.notifyLock();
+                        ///
+
+                        notifyPhotoFailed = true;
+                        return;
+                    }
+                    if (createdPhotoSession) {
+                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
+                    }
+
+                    {
+                        ///
+    //                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
+                        captureStillPicture();
+                        ///
+                    }
+
+                    // 等待拍照成功
+                    int timeoutSeconds = 60;
+                    int timeoutMs = timeoutSeconds * 1000;
+                    long start = System.currentTimeMillis();
+
+
+                    while (!photoDone.get()) {
+                        long remain = timeoutMs - (System.currentTimeMillis() - start);
+                        if (remain <= 0) break;
+                        mCameraPhtotingLock.waitLock((int) remain);
+                    }
+
+                    if (!photoDone.get()) {
+                        Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
+
+                        ///
+    //                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
+    //                    if (!isLiving() && !isRecording()) {
+    //                        unlockFocus();
+    //                        close();
+    //                    }
+                        mCameraPhotoing = false;
+                        takePhotoOnce.set(false);
+                        photoDone.set(true);
+                        mCameraPhtotingLock.notifyLock();
+                        ///
+                        notifyPhotoFailed = true;
+                    }
+
+                }catch (Exception e){
+                    Log.e(Log.TAG, "拍照过程中发生异常"+e);
+                    ///
+                    mCameraPhotoing = false;
+                    takePhotoOnce.set(false);
+                    photoDone.set(true);
+                    mCameraPhtotingLock.notifyLock();
+                    ///
+                    notifyPhotoFailed = true;
+                }finally {
+                    ///
+    //                if (!isLiving() && !isRecording()) {
+    //                    unlockFocus();
+    //                    close();
+    //                }
+                    ///
+                    mCameraPhotoing = false;
+                    ///
+                    takePhotoOnce.set(false);
+                    synchronized (sDualCameraLock) {
+                        if (sDualPhotoTaskCount > 0) {
+                            sDualPhotoTaskCount--;
+                        }
+                    }
+                    closeBothCameraIfNoLive();
+                    if (notifyPhotoFailed && controllerCallback != null) {
+                        Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID);
+                        controllerCallback.onPhotoFailed(id, preset, filename);
+                    }
+                    ///
                 }
-                closeBothCameraIfNoLive();
-                if (notifyPhotoFailed && controllerCallback != null) {
-                    Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID);
-                    controllerCallback.onPhotoFailed(id, preset, filename);
-                }
-                ///
-            }
             }
         });
         return true;
