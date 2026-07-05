@@ -638,44 +638,44 @@ public class HuanYuDevice extends MyOnvifDevice {
         }
 
         rtspPlaybackClient = new RtspClient(server, 554, user, password, resource, new RtspClientCallback() {
-                    @Override
-                    public void onPacket(int channel, byte[] packet, int len) {
+            @Override
+            public void onPacket(int channel, byte[] packet, int len) {
 
-                        // 旧session直接丢弃
-                        if (currentSession != playbackSession.get()) {
-                            return;
-                        }
+                // 旧session直接丢弃
+                if (currentSession != playbackSession.get()) {
+                    return;
+                }
 
-                        if (channel != 0) {
-                            return;
-                        }
+                if (channel != 0) {
+                    return;
+                }
 
-                        if (packet == null || len <= 12) {
-                            return;
-                        }
+                if (packet == null || len <= 12) {
+                    return;
+                }
 
-                        try {
-                            final byte[] data = new byte[len];
-                            System.arraycopy(packet, 0, data, 0, len);
-                            data[8] = (byte) (ssrc >> 24);
-                            data[9] = (byte) (ssrc >> 16);
-                            data[10] = (byte) (ssrc >> 8);
-                            data[11] = (byte) (ssrc);
+                try {
+                    final byte[] data = new byte[len];
+                    System.arraycopy(packet, 0, data, 0, len);
+                    data[8] = (byte) (ssrc >> 24);
+                    data[9] = (byte) (ssrc >> 16);
+                    data[10] = (byte) (ssrc >> 8);
+                    data[11] = (byte) (ssrc);
 
-                            onVideoFrame(data);
+                    onVideoFrame(data);
 
-                        } catch (Exception e) {
-                            Log.e(HuanyuDeviceLog, "回放RTP异常:" + e.getMessage());
-                        }
-                    }
+                } catch (Exception e) {
+                    Log.e(HuanyuDeviceLog, "回放RTP异常:" + e.getMessage());
+                }
+            }
 
-                    @Override
-                    public void onResponse(
-                            List<String> headers,
-                            byte[] body) {
+            @Override
+            public void onResponse(
+                    List<String> headers,
+                    byte[] body) {
 
-                    }
-                });
+            }
+        });
 
         if (!rtspPlaybackClient.start(useAudio)) {
             Log.e(HuanyuDeviceLog, "回放启动失败");
@@ -2052,6 +2052,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 0;
             codec.get("0").bps = 128;
+            codec.get("0").smooth = 100;
+            codec.get("0").resolution = 7;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -2188,6 +2190,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -2324,6 +2328,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -2460,7 +2466,9 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
-            setCodec(codec.get("1"));
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
+            setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
                     "  \"id\": %d,\n" +
@@ -2596,6 +2604,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -2732,6 +2742,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -2868,6 +2880,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -3004,6 +3018,8 @@ public class HuanYuDevice extends MyOnvifDevice {
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -3134,12 +3150,152 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "    }\n" +
                     "  }\n" +
                     "}", session, id);
-        } else {        // 开启透雾，强光抑制关闭
+        } else if (c.wideDynamic == 1) {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
             setPhotoParam(photoConfig);
             codec.get("0").vbr = 1;
             codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
+            setCodec(codec.get("0"));
+            paramJson = String.format("{\n" +
+                    "  \"session\": %d,\n" +
+                    "  \"id\": %d,\n" +
+                    "  \"call\": {\n" +
+                    "    \"service\": \"videoIn\",\n" +
+                    "    \"method\": \"setConfig\"\n" +
+                    "  },\n" +
+                    "  \"params\": {\n" +
+                    "    \"channel\": 0,\n" +
+                    "    \"table\": {\n" +
+                    "      \"scene\": \"auto\",\n" +
+                    "      \"auto\": {\n" +
+                    "        \"exposure\": {\n" +
+                    "          \"gain\": 0,\n" +
+                    "          \"gainLimit\": 100,\n" +
+                    "          \"iris\": 100,\n" +
+                    "          \"irisMax\": 100,\n" +
+                    "          \"irisMin\": 0,\n" +
+                    "          \"lowLightLimit\": {\n" +
+                    "            \"level\": 4,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"mode\": \"auto\",\n" +
+                    "          \"shutter\": \"1/25\",\n" +
+                    "          \"shutterMax\": \"1/25\",\n" +
+                    "          \"shutterMin\": \"1/100000\"\n" +
+                    "        },\n" +
+                    "        \"focus\": {\n" +
+                    "          \"alg\": \"classical\",\n" +
+                    "          \"initializeLens\": 1,\n" +
+                    "          \"minFocusLength\": \"3.0m\",\n" +
+                    "          \"mode\": \"semiautomatic\",\n" +
+                    "          \"ratioLimit\": 42,\n" +
+                    "          \"ratioShow\": 0,\n" +
+                    "          \"sensitivity\": \"middle\"\n" +
+                    "        },\n" +
+                    "        \"lightRegulation\": {\n" +
+                    "          \"backlight\": {\n" +
+                    "            \"custom\": {\n" +
+                    "              \"rect\": [\n" +
+                    "                339,\n" +
+                    "                336,\n" +
+                    "                294,\n" +
+                    "                312\n" +
+                    "              ]\n" +
+                    "            },\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"mode\": \"top\"\n" +
+                    "          },\n" +
+                    "          \"hlc\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"industrialStrobe\": {\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"lightLevel\": 50,\n" +
+                    "          \"wideDynamic\": {\n" +
+                    "            \"level\": 10,\n" +
+                    "            \"mode\": \"open\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"imageEnhancement\": {\n" +
+                    "          \"dehaze\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 80,\n" +
+                    "            \"mode\": \"close\"\n" +
+                    "          },\n" +
+                    "          \"denoise\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"mode\": \"normal\",\n" +
+                    "            \"normal\": {\n" +
+                    "              \"level\": 50\n" +
+                    "            },\n" +
+                    "            \"triDim\": {\n" +
+                    "              \"spectralLevel\": 50,\n" +
+                    "              \"temporalLevel\": 50\n" +
+                    "            }\n" +
+                    "          },\n" +
+                    "          \"gyroStabilization\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 1\n" +
+                    "          },\n" +
+                    "          \"heatWave\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"level\": 50\n" +
+                    "          },\n" +
+                    "          \"imageStabilization\": {\n" +
+                    "            \"enable\": true,\n" +
+                    "            \"level\": 1,\n" +
+                    "            \"levelVal\": 1,\n" +
+                    "            \"mode\": 1\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        \"dayAndNight\": {\n" +
+                    "          \"alarm\": {\n" +
+                    "            \"actionType\": \"day\"\n" +
+                    "          },\n" +
+                    "          \"auto\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"mode\": \"day\",\n" +
+                    "          \"photosensitive\": {\n" +
+                    "            \"sensitivity\": 4\n" +
+                    "          },\n" +
+                    "          \"smartIR\": {\n" +
+                    "            \"enable\": false,\n" +
+                    "            \"manual\": {\n" +
+                    "              \"distanceLevel\": 50\n" +
+                    "            },\n" +
+                    "            \"mode\": \"auto\"\n" +
+                    "          },\n" +
+                    "          \"timing\": {\n" +
+                    "            \"beginTime\": {\n" +
+                    "              \"hour\": 7,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            },\n" +
+                    "            \"endTime\": {\n" +
+                    "              \"hour\": 18,\n" +
+                    "              \"min\": 0,\n" +
+                    "              \"second\": 0\n" +
+                    "            }\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", session, id);
+        } else {
+            photoConfig.contrast = 50;
+            photoConfig.sharpness = 50;
+            setPhotoParam(photoConfig);
+            codec.get("0").vbr = 1;
+            codec.get("0").bps = 1024;
+            codec.get("0").smooth = 50;
+            codec.get("0").resolution = 8;
             setCodec(codec.get("0"));
             paramJson = String.format("{\n" +
                     "  \"session\": %d,\n" +
@@ -5238,8 +5394,8 @@ public class HuanYuDevice extends MyOnvifDevice {
 
 
     /*
-    * {"session":1342517504,"id":2,"call":{"service":"videoIn","method":"setConfig"},"params":{"channel":0,"table":{"scene":"auto","auto":{"videoColor":{"brightness":100,"contrast":50,"hue":50,"saturation":31,"sharpness":45}}}}}
-    * */
+     * {"session":1342517504,"id":2,"call":{"service":"videoIn","method":"setConfig"},"params":{"channel":0,"table":{"scene":"auto","auto":{"videoColor":{"brightness":100,"contrast":50,"hue":50,"saturation":31,"sharpness":45}}}}}
+     * */
 
 
 

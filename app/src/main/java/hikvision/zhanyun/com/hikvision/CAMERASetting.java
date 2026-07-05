@@ -12,6 +12,7 @@ public class CAMERASetting {
         public byte strongLightSup = 0;  // 强光抑制开关：0:关闭，1:开启  默认关闭
         public byte electronicFog = 0;  // 电子透雾开关：0:关闭，1:开启  默认关闭
         public byte lowLight = 0;  // 低照度开关：0:关闭，1:开启  默认关闭
+        public byte wideDynamic = 0;  // 宽动态开关：0:关闭，1:开启  默认关闭 ///
         public byte videoLoss = 0;  // 视频丢失告警开关：0:关闭，1:开启  默认关闭
         public byte videoBlock = 0;  // 视频遮挡告警开关：0:关闭，1:开启  默认关闭
         public byte videoOutFocus = 0;  // 视频失焦告警开关：0:关闭，1:开启  默认关闭
@@ -24,8 +25,8 @@ public class CAMERASetting {
         public byte videoNoiseAlert = 0;  // 视频噪点异常：0:正常，1:异常  默认正常 /////
 
         public String toString() {
-            return String.format("降噪模式:%d 增益控制:%d 聚焦模式:%d 日夜模式:%d 背光补偿开关:%d 强光抑制开关:%d 电子透雾开关:%d 低照度开关:%d 视频丢失告警:%d 遮挡告警:%d 失焦告警:%d 花屏告警:%d 噪点告警:%d", /////
-                    denoiseMode, gainControl, focusMode, dayAndNightMode, backLightCom, strongLightSup, electronicFog, lowLight, videoLoss, videoBlock, videoOutFocus, videoScreenDist, videoNoise); /////
+            return String.format("降噪模式:%d 增益控制:%d 聚焦模式:%d 日夜模式:%d 背光补偿开关:%d 强光抑制开关:%d 电子透雾开关:%d 低照度开关:%d 宽动态开关:%d 视频丢失告警:%d 遮挡告警:%d 失焦告警:%d 花屏告警:%d 噪点告警:%d", /////
+                    denoiseMode, gainControl, focusMode, dayAndNightMode, backLightCom, strongLightSup, electronicFog, lowLight, wideDynamic, videoLoss, videoBlock, videoOutFocus, videoScreenDist, videoNoise); /////
         }
     }
 
