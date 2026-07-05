@@ -2222,6 +2222,10 @@ public class Camera2Device extends Device {
                     if (ret1 && cam1 != null && cam1 != cam0 && !keepCam1) {
                         cam1.closeCamera();
                     }
+                    if (cb != null) {
+                        Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，回调 openFailed，camID = " + camID);
+                        cb.openFailed(-1);
+                    }
                     return false;
                 }
                 boolean activeCamera0 = camID % 2 == 0;
@@ -2618,6 +2622,7 @@ public class Camera2Device extends Device {
         scheduledHandler.post(() -> {
             synchronized (sDualPhotoTaskLock) {
 
+            boolean notifyPhotoFailed = false;
             try{
                 ///
                 mOnShow = show;
@@ -2665,8 +2670,7 @@ public class Camera2Device extends Device {
                     mCameraPhtotingLock.notifyLock();
                     ///
 
-                    controllerCallback.onPhotoFailed(id, preset, filename);
-                    closeBothCameraIfNoLive(); ///
+                    notifyPhotoFailed = true;
                     return;
                 }
                 if (createdPhotoSession) {
@@ -2706,7 +2710,7 @@ public class Camera2Device extends Device {
                     photoDone.set(true);
                     mCameraPhtotingLock.notifyLock();
                     ///
-                    controllerCallback.onPhotoFailed(id, preset, filename);
+                    notifyPhotoFailed = true;
                 }
 
             }catch (Exception e){
@@ -2717,7 +2721,7 @@ public class Camera2Device extends Device {
                 photoDone.set(true);
                 mCameraPhtotingLock.notifyLock();
                 ///
-                controllerCallback.onPhotoFailed(id, preset, filename);
+                notifyPhotoFailed = true;
             }finally {
                 ///
 //                if (!isLiving() && !isRecording()) {
@@ -2734,6 +2738,10 @@ public class Camera2Device extends Device {
                     }
                 }
                 closeBothCameraIfNoLive();
+                if (notifyPhotoFailed && controllerCallback != null) {
+                    Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID);
+                    controllerCallback.onPhotoFailed(id, preset, filename);
+                }
                 ///
             }
             }
