@@ -1833,28 +1833,30 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Scalar meanScalar = Core.mean(grayMat);
             float avgBrightness = (float) meanScalar.val[0];
             Log.i(Log.TAG, "图像当前亮度为" + avgBrightness);
-//            Log.e(Log.TAG,"isNightMode::" + isNightMode);
+            Log.e(Log.TAG,"isNightMode::" + isNightMode);
 //            if (!isNightMode && avgBrightness < 100) {
-            if (!isNightMode && avgBrightness < 130) {
+            if (!isNightMode && avgBrightness < 90) {
                 isNightMode = true;
-                cameraConfig.dayAndNightMode = 2;
                 new Thread(() -> {
+                    PhotoConfig photoConfig = new PhotoConfig();
+                    photoConfig.color = 0;
                     try {
                         Device dev = channels.get("1");
-                        dev.setDayAndNight(cameraConfig);  // 改成设置图片为彩色或黑白
+                        dev.setPhotoParam(photoConfig);  // 改成设置图片为彩色或黑白
                     } catch (Exception e) {
                         Log.i(Log.TAG, "机芯设置夜晚模式失败");
                     }
                 }).start();
                 return;
             }
-            if (isNightMode && avgBrightness > 150) {
+            if (isNightMode && avgBrightness > 100) {
                 isNightMode = false;
-                cameraConfig.dayAndNightMode = 0;
                 new Thread(() -> {
+                    PhotoConfig photoConfig = new PhotoConfig();
+                    photoConfig.color = 1;
                     try {
                         Device dev = channels.get("1");
-                        dev.setDayAndNight(cameraConfig);
+                        dev.setPhotoParam(photoConfig);
                     } catch (Exception e) {
                         Log.i(Log.TAG, "机芯设置白天模式失败");
                     }
@@ -3024,7 +3026,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
 
-        SystemSettings.sleepAfter(this, 15);
+//        SystemSettings.sleepAfter(this, 15);
+        SystemSettings.sleepAfter(this, 864000);
 
 
 //        SystemSettings.airplaneOff(this); ///
