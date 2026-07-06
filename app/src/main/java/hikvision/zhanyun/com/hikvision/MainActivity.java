@@ -125,6 +125,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.format.Time;
 import android.view.MotionEvent;
+import android.view.PixelCopy;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
@@ -151,6 +152,10 @@ import com.zhjinrui.batcom.RS485Impl;
 
 import org.json.JSONException;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
+import org.opencv.core.Mat;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -1790,6 +1795,87 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         }
 
 
+//        private void decodeH264(byte[] data) {
+//            try {
+//                byte[] frame = rtph264.decode(data, data.length);
+//                if (frame == null) return;
+//
+//                int inputBufferIndex = mediaDecoder.dequeueInputBuffer(0);
+//                if (inputBufferIndex >= 0) {  // 当输入缓冲区有效时，就是>=0
+//                    ByteBuffer inputBuffer = mediaDecoder.getInputBuffer(inputBufferIndex);
+//                    inputBuffer.put(frame, 0, frame.length);
+//                    mediaDecoder.queueInputBuffer(inputBufferIndex, 0, frame.length, System.nanoTime() / 1000, 0);
+//                } else {
+//                    Log.w(Log.TAG, "解码缓冲区不足");
+//                }
+//
+//                int outputBufferIndex = mediaDecoder.dequeueOutputBuffer(bufferInfo, 0);  // 拿到输出缓冲区的索引
+//                if (outputBufferIndex >= 0) {
+//                    mediaDecoder.releaseOutputBuffer(outputBufferIndex, true);
+//                }
+//            } catch (Exception e) {
+//                Log.i(Log.TAG, "解码异常：" + e);
+//                releaseDecoder();
+//            }
+//        }
+
+
+        ///
+        private boolean isNightMode = false;
+        private long lastBrightnessTime = 0;
+        private final Handler pixelCopyHandler = new Handler(Looper.getMainLooper());
+        private void handleBrightnessBitmap(CAMERASetting.CameraConfig cameraConfig, Bitmap bitmap) {
+            // 计算当前图像的平均亮度
+            Mat mat = new Mat();
+            org.opencv.android.Utils.bitmapToMat(bitmap, mat);
+            Mat grayMat = new Mat();
+            Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_BGRA2GRAY);
+            Scalar meanScalar = Core.mean(grayMat);
+            float avgBrightness = (float) meanScalar.val[0];
+            Log.i(Log.TAG, "图像当前亮度为" + avgBrightness);
+            Log.e(Log.TAG,"isNightMode::" + isNightMode);
+            if (!isNightMode && avgBrightness < 100) {
+//            if (!isNightMode && avgBrightness < 130) {
+                isNightMode = true;
+                cameraConfig.dayAndNightMode = 2;
+                new Thread(() -> {
+                    try {
+                        Device dev = channels.get("1");
+                        dev.setDayAndNight(cameraConfig);  // 改成设置图片为彩色或黑白
+                    } catch (Exception e) {
+                        Log.i(Log.TAG, "机芯设置夜晚模式失败");
+                    }
+                }).start();
+                return;
+            }
+            if (isNightMode && avgBrightness > 150) {
+                isNightMode = false;
+                cameraConfig.dayAndNightMode = 0;
+                new Thread(() -> {
+                    try {
+                        Device dev = channels.get("1");
+                        dev.setDayAndNight(cameraConfig);
+                    } catch (Exception e) {
+                        Log.i(Log.TAG, "机芯设置白天模式失败");
+                    }
+                }).start();
+            }
+        }
+
+
+        private void checkBrightness(CAMERASetting.CameraConfig cameraConfig) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+            if (System.currentTimeMillis() - lastBrightnessTime < 1000) return;
+            lastBrightnessTime = System.currentTimeMillis();
+
+            Bitmap bitmap = Bitmap.createBitmap(160, 90, Bitmap.Config.ARGB_8888);
+            PixelCopy.request(surfaceView, bitmap, result -> {
+                if (result == PixelCopy.SUCCESS) handleBrightnessBitmap(cameraConfig, bitmap);
+                bitmap.recycle();
+            }, pixelCopyHandler);
+        }
+        ///
+
         private void decodeH264(byte[] data) {
             try {
                 byte[] frame = rtph264.decode(data, data.length);
@@ -1807,12 +1893,22 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 int outputBufferIndex = mediaDecoder.dequeueOutputBuffer(bufferInfo, 0);  // 拿到输出缓冲区的索引
                 if (outputBufferIndex >= 0) {
                     mediaDecoder.releaseOutputBuffer(outputBufferIndex, true);
+                    ///
+                    CAMERASetting.CameraConfig cameraConfig = cAMERASetting.cameraConfig.get("1");
+                    byte dayAndNightMode = cameraConfig.dayAndNightMode;
+
+//                    Log.e(Log.TAG,"dayAndNightMode:"+dayAndNightMode);
+                    if (dayAndNightMode == 1) {
+                        checkBrightness(cameraConfig);
+                    }
+                    ///
                 }
             } catch (Exception e) {
                 Log.i(Log.TAG, "解码异常：" + e);
                 releaseDecoder();
             }
         }
+
 
 
         @RequiresApi(api = Build.VERSION_CODES.N)

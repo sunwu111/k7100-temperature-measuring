@@ -81,6 +81,8 @@ public class HuanYuDevice extends MyOnvifDevice {
     private List<String> diyOsd = new ArrayList<>();
     private List<String> osdToArray = new ArrayList<>();
 
+    private int dayAndNightModeTemp = 1;
+
 
     // TODO 注意：这个设备当中的查询和设置的channel均设置为0才有正确结果
     // TODO 如果发现返回为false，并且session为0，大概念为没有登录机芯，出现前面的问题，建议在具体函数使用的时候加上login()
@@ -3012,144 +3014,6 @@ public class HuanYuDevice extends MyOnvifDevice {
                     "    }\n" +
                     "  }\n" +
                     "}", session, id);
-        } else if (c.dayAndNightMode == 1) {
-            photoConfig.contrast = 50;
-            photoConfig.sharpness = 50;
-            setPhotoParam(photoConfig);
-            codec.get("0").vbr = 1;
-            codec.get("0").bps = 1024;
-            codec.get("0").smooth = 50;
-            codec.get("0").resolution = 8;
-            setCodec(codec.get("0"));
-            paramJson = String.format("{\n" +
-                    "  \"session\": %d,\n" +
-                    "  \"id\": %d,\n" +
-                    "  \"call\": {\n" +
-                    "    \"service\": \"videoIn\",\n" +
-                    "    \"method\": \"setConfig\"\n" +
-                    "  },\n" +
-                    "  \"params\": {\n" +
-                    "    \"channel\": 0,\n" +
-                    "    \"table\": {\n" +
-                    "      \"scene\": \"auto\",\n" +
-                    "      \"auto\": {\n" +
-                    "        \"exposure\": {\n" +
-                    "          \"gain\": 0,\n" +
-                    "          \"gainLimit\": 100,\n" +
-                    "          \"iris\": 100,\n" +
-                    "          \"irisMax\": 100,\n" +
-                    "          \"irisMin\": 0,\n" +
-                    "          \"lowLightLimit\": {\n" +
-                    "            \"level\": 4,\n" +
-                    "            \"mode\": \"open\"\n" +
-                    "          },\n" +
-                    "          \"mode\": \"manual\",\n" +
-                    "          \"shutter\": \"1/25\",\n" +
-                    "          \"shutterMax\": \"1/25\",\n" +
-                    "          \"shutterMin\": \"1/100000\"\n" +
-                    "        },\n" +
-                    "        \"focus\": {\n" +
-                    "          \"alg\": \"classical\",\n" +
-                    "          \"initializeLens\": 1,\n" +
-                    "          \"minFocusLength\": \"3.0m\",\n" +
-                    "          \"mode\": \"manual\",\n" +
-                    "          \"ratioLimit\": 42,\n" +
-                    "          \"ratioShow\": 0,\n" +
-                    "          \"sensitivity\": \"middle\"\n" +
-                    "        },\n" +
-                    "        \"lightRegulation\": {\n" +
-                    "          \"backlight\": {\n" +
-                    "            \"custom\": {\n" +
-                    "              \"rect\": [\n" +
-                    "                339,\n" +
-                    "                336,\n" +
-                    "                294,\n" +
-                    "                312\n" +
-                    "              ]\n" +
-                    "            },\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"mode\": \"top\"\n" +
-                    "          },\n" +
-                    "          \"hlc\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"level\": 50\n" +
-                    "          },\n" +
-                    "          \"industrialStrobe\": {\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          },\n" +
-                    "          \"lightLevel\": 50,\n" +
-                    "          \"wideDynamic\": {\n" +
-                    "            \"level\": 5,\n" +
-                    "            \"mode\": \"close\"\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"imageEnhancement\": {\n" +
-                    "          \"dehaze\": {\n" +
-                    "            \"enable\": true,\n" +
-                    "            \"level\": 80,\n" +
-                    "            \"mode\": \"open\"\n" +
-                    "          },\n" +
-                    "          \"denoise\": {\n" +
-                    "            \"enable\": true,\n" +
-                    "            \"mode\": \"normal\",\n" +
-                    "            \"normal\": {\n" +
-                    "              \"level\": 50\n" +
-                    "            },\n" +
-                    "            \"triDim\": {\n" +
-                    "              \"spectralLevel\": 50,\n" +
-                    "              \"temporalLevel\": 50\n" +
-                    "            }\n" +
-                    "          },\n" +
-                    "          \"gyroStabilization\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"level\": 1\n" +
-                    "          },\n" +
-                    "          \"heatWave\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"level\": 50\n" +
-                    "          },\n" +
-                    "          \"imageStabilization\": {\n" +
-                    "            \"enable\": true,\n" +
-                    "            \"level\": 1,\n" +
-                    "            \"levelVal\": 1,\n" +
-                    "            \"mode\": 1\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"dayAndNight\": {\n" +
-                    "          \"alarm\": {\n" +
-                    "            \"actionType\": \"day\"\n" +
-                    "          },\n" +
-                    "          \"auto\": {\n" +
-                    "            \"sensitivity\": 4\n" +
-                    "          },\n" +
-                    "          \"mode\": \"photosensitive\",\n" +
-                    "          \"photosensitive\": {\n" +
-                    "            \"sensitivity\": 4\n" +
-                    "          },\n" +
-                    "          \"smartIR\": {\n" +
-                    "            \"enable\": false,\n" +
-                    "            \"manual\": {\n" +
-                    "              \"distanceLevel\": 50\n" +
-                    "            },\n" +
-                    "            \"mode\": \"auto\"\n" +
-                    "          },\n" +
-                    "          \"timing\": {\n" +
-                    "            \"beginTime\": {\n" +
-                    "              \"hour\": 7,\n" +
-                    "              \"min\": 0,\n" +
-                    "              \"second\": 0\n" +
-                    "            },\n" +
-                    "            \"endTime\": {\n" +
-                    "              \"hour\": 18,\n" +
-                    "              \"min\": 0,\n" +
-                    "              \"second\": 0\n" +
-                    "            }\n" +
-                    "          }\n" +
-                    "        }\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", session, id);
         } else if (c.wideDynamic == 1) {
             photoConfig.contrast = 50;
             photoConfig.sharpness = 50;
@@ -4128,12 +3992,10 @@ public class HuanYuDevice extends MyOnvifDevice {
 
             Response response = http_request(url, paramJson);
 
-
             if (response == null) {
                 Log.e(HuanyuDeviceLog, "login::response is null");
                 return false;
             }
-
 
             // 标记两个响应的处理结果
             boolean isResponseSuccess = false;
@@ -4174,6 +4036,108 @@ public class HuanYuDevice extends MyOnvifDevice {
     }
     ///
 
+    public boolean setDayAndNight(CAMERASetting.CameraConfig c) {
+
+        String dayNightMode;
+
+        if (c.dayAndNightMode == 0) {
+            dayAndNightModeTemp = 0;
+            dayNightMode = "day";
+        } else if (c.dayAndNightMode == 1) {
+            dayAndNightModeTemp = 1 ;
+            dayNightMode = "auto";
+        } else if (c.dayAndNightMode == 2) {
+            dayAndNightModeTemp = 2;
+            dayNightMode = "night";
+        } else {
+            dayAndNightModeTemp = 1;
+            dayNightMode = "auto"; // 默认自动/光敏
+        }
+
+        String para = String.format("{\n" +
+                "  \"session\": %d,\n" +
+                "  \"id\": %d,\n" +
+                "  \"call\": {\n" +
+                "    \"service\": \"videoIn\",\n" +
+                "    \"method\": \"setConfig\"\n" +
+                "  },\n" +
+                "  \"params\": {\n" +
+                "    \"channel\": 0,\n" +
+                "    \"table\": {\n" +
+                "      \"scene\": \"auto\",\n" +
+                "      \"auto\": {\n" +
+                "        \"dayAndNight\": {\n" +
+                "          \"alarm\": {\n" +
+                "            \"actionType\": \"day\"\n" +
+                "          },\n" +
+                "          \"auto\": {\n" +
+                "            \"sensitivity\": 4\n" +
+                "          },\n" +
+                "          \"mode\": \"%s\",\n" +
+                "          \"photosensitive\": {\n" +
+                "            \"sensitivity\": 4\n" +
+                "          },\n" +
+                "          \"smartIR\": {\n" +
+                "            \"enable\": false,\n" +
+                "            \"manual\": {\n" +
+                "              \"distanceLevel\": 50\n" +
+                "            },\n" +
+                "            \"mode\": \"auto\"\n" +
+                "          },\n" +
+                "          \"timing\": {\n" +
+                "            \"beginTime\": {\n" +
+                "              \"hour\": 7,\n" +
+                "              \"min\": 0,\n" +
+                "              \"second\": 0\n" +
+                "            },\n" +
+                "            \"endTime\": {\n" +
+                "              \"hour\": 18,\n" +
+                "              \"min\": 0,\n" +
+                "              \"second\": 0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}",session,id,dayNightMode);
+
+        Log.e(Log.TAG,para);
+
+        Response response = http_request(url,para);
+
+        if (response == null || !response.isSuccessful()) {
+            Log.e(HuanyuDeviceLog, "设置失败");
+            return false;
+        }
+
+        try {
+            String responseBody = response.body().string();
+            Log.d(HuanyuDeviceLog, "设置图像参数返回结果: " + responseBody);
+
+            JSONObject responseJson = JSONObject.parseObject(responseBody);
+            if (responseJson == null) {
+                Log.e(HuanyuDeviceLog, "responseJson解析为null");
+                return false;
+            }
+
+            if (!responseJson.containsKey("result")) {
+                Log.e(HuanyuDeviceLog, "响应中未找到result字段");
+                return false;
+            }
+
+            return responseJson.getBoolean("result");
+
+        } catch (IOException e) {
+            Log.e(HuanyuDeviceLog, "读取响应体失败: " + e.getMessage());
+        } catch (JSONException e) {
+            Log.e(HuanyuDeviceLog, "解析JSON失败: " + e.getMessage());
+        }
+
+        return false;
+
+    }
+
     // 查询视频参数配置
     private boolean sendCameraParamRequests(String paramJson) {
         JSONObject requestJson;
@@ -4209,9 +4173,12 @@ public class HuanYuDevice extends MyOnvifDevice {
             JSONObject splitAuto = new JSONObject();
             splitAuto.put(key, auto.get(key));
             String splitParamJson = buildVideoInSetConfigJson(splitAuto);
+            Response response = null ;
 
-//            Log.e(HuanyuDeviceLog, "camera param request[" + key + "]::" + splitParamJson);
-            Response response = http_request(url, splitParamJson);
+            if (!(dayAndNightModeTemp == 1 && key.equals(dayAndNight))){
+                response = http_request(url, splitParamJson);
+            }
+
             if (response == null) {
                 Log.e(HuanyuDeviceLog, "camera param response[" + key + "] is null");
                 allSuccess = false;

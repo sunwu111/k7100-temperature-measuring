@@ -1143,6 +1143,13 @@ public abstract class Device {
         this.cameraConfig = config;
         return true;
     }
+
+    public boolean setDayAndNight(CAMERASetting.CameraConfig config) {
+        this.cameraConfig = config;
+        return true;
+    }
+
+
     ///
 
 

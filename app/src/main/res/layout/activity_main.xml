@@ -11,16 +11,28 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+<!--        <SurfaceView-->
+<!--            android:id="@+id/svVideo"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="208dp"-->
+<!--            tools:ignore="MissingConstraints" />-->
+
+<!--        <SurfaceView-->
+<!--            android:id="@+id/svDraw"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="208dp"-->
+<!--            tools:ignore="MissingConstraints" />-->
+
         <SurfaceView
             android:id="@+id/svVideo"
             android:layout_width="match_parent"
-            android:layout_height="208dp"
+            android:layout_height="736dp"
             tools:ignore="MissingConstraints" />
 
         <SurfaceView
             android:id="@+id/svDraw"
             android:layout_width="match_parent"
-            android:layout_height="208dp"
+            android:layout_height="736dp"
             tools:ignore="MissingConstraints" />
 
         <Spinner
@@ -1347,6 +1359,7 @@
             android:text="降噪方式"
             app:layout_constraintEnd_toStartOf="@+id/spnDenoiseMode"
             app:layout_constraintTop_toTopOf="@+id/spnDenoiseMode" />
+
 
         <Spinner
             android:id="@+id/spnDenoiseMode"
