@@ -1293,11 +1293,57 @@
             app:layout_constraintTop_toBottomOf="@+id/spnBitRateType" />
 
         <TextView
-            android:id="@+id/textView38"
+            android:id="@+id/tvIFrame"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
             android:layout_marginTop="8dp"
+            android:text="I帧间隔"
+            app:layout_constraintEnd_toStartOf="@+id/etIFrame"
+            app:layout_constraintTop_toTopOf="@+id/etIFrame" />
+
+        <EditText
+            android:id="@+id/etIFrame"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ems="10"
+            android:hint="1-200 帧可调"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/spnChargeController"
+            app:layout_constraintTop_toTopOf="@+id/etFrame" />
+
+        <TextView
+            android:id="@+id/tvBitRate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="4dp"
+            android:text="码率"
+            app:layout_constraintEnd_toStartOf="@+id/etBitRate"
+            app:layout_constraintBottom_toBottomOf="@+id/etBitRate"
+            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+
+        <EditText
+            android:id="@+id/etBitRate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="码率多级可调"
+            android:inputType="textUri"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
+            app:layout_constraintStart_toStartOf="@+id/irObjFlag"
+            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+
+        <TextView
+            android:id="@+id/textView38"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="4dp"
             android:text="降噪方式"
             app:layout_constraintEnd_toStartOf="@+id/spnDenoiseMode"
             app:layout_constraintTop_toTopOf="@+id/spnDenoiseMode" />
@@ -1311,17 +1357,18 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="1.0"
             app:layout_constraintStart_toStartOf="@+id/spnChargeController"
-            app:layout_constraintTop_toTopOf="@+id/spnGainControl" />
+            app:layout_constraintTop_toTopOf="@+id/spnDayAndNightMode" />
 
         <TextView
             android:id="@+id/tvGainControl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
             android:text="增益控制"
             app:layout_constraintBottom_toBottomOf="@+id/spnGainControl"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+            app:layout_constraintTop_toBottomOf="@+id/etBitRate" />
 
         <Spinner
             android:id="@+id/spnGainControl"
@@ -1332,14 +1379,14 @@
             app:layout_constraintEnd_toEndOf="@+id/irObjFlag"
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/irObjFlag"
-            app:layout_constraintTop_toBottomOf="@+id/etFrame" />
+            app:layout_constraintTop_toBottomOf="@+id/etBitRate" />
 
         <TextView
             android:id="@+id/tvFocusMode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="4dp"
             android:text="聚焦模式"
             app:layout_constraintEnd_toStartOf="@+id/spnFocusMode"
             app:layout_constraintTop_toTopOf="@+id/spnFocusMode" />
@@ -1353,13 +1400,14 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="1.0"
             app:layout_constraintStart_toStartOf="@+id/spnChargeController"
-            app:layout_constraintTop_toTopOf="@+id/etFrame" />
+            app:layout_constraintTop_toTopOf="@+id/spnGainControl" />
 
         <TextView
             android:id="@+id/tvDayAndNightMode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
             android:text="日夜模式"
             app:layout_constraintBottom_toBottomOf="@+id/spnDayAndNightMode"
             app:layout_constraintStart_toStartOf="parent"
@@ -1398,7 +1446,16 @@
             android:id="@+id/cbElectronicFog"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:text="@string/electronicFog"
+            app:layout_constraintStart_toStartOf="@+id/tvStreamType"
+            app:layout_constraintTop_toBottomOf="@+id/tvIFrame" />
+
+        <CheckBox
+            android:id="@+id/cbWideDynamic"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/wideDynamic"
             app:layout_constraintStart_toEndOf="@+id/cbStrongLightSup"
             app:layout_constraintTop_toTopOf="@+id/cbStrongLightSup" />
 
@@ -1407,8 +1464,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:text="@string/lowLight"
-            app:layout_constraintStart_toEndOf="@+id/cbElectronicFog"
-            app:layout_constraintTop_toTopOf="@+id/cbElectronicFog" />
+            app:layout_constraintStart_toEndOf="@+id/cbWideDynamic"
+            app:layout_constraintTop_toTopOf="@+id/cbWideDynamic" />
 
         <CheckBox
             android:id="@+id/cbVideoLoss"
@@ -1616,20 +1673,20 @@
             app:layout_constraintTop_toBottomOf="@+id/cbAIAccTest" />
 
         <TextView
-            android:id="@+id/tvZoomRatio"
+            android:id="@+id/tvRatioLimit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
             android:layout_marginTop="8dp"
-            android:text="变焦倍数"
-            app:layout_constraintEnd_toStartOf="@+id/spnZoomRatio"
-            app:layout_constraintTop_toTopOf="@+id/spnZoomRatio" />
+            android:text="倍率限制"
+            app:layout_constraintEnd_toStartOf="@+id/spnRatioLimit"
+            app:layout_constraintTop_toTopOf="@+id/spnRatioLimit" />
 
         <Spinner
-            android:id="@+id/spnZoomRatio"
+            android:id="@+id/spnRatioLimit"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:entries="@array/zoomRatio"
+            android:entries="@array/ratioLimit"
             android:dropDownHeight="200dp"
             app:layout_constraintStart_toStartOf="@+id/spnBitRateType"
             app:layout_constraintEnd_toEndOf="@+id/spnBitRateType"

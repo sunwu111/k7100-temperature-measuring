@@ -489,13 +489,13 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     private Map<Integer, PendingIntent> checkLineAlarms = new HashMap<>();   // 定时巡检闹钟
     private SurfaceView surfaceView, surfaceDraw;
     //    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnCruise, spnResolution, spnZoomRatio, irOperator, irObjType, irObjFlag; ///////
-    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnDayAndNightMode, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///
+    private Spinner spnChannels, spnAI, spnWidgetsAI, cbType, spnPopCamera, spnAeroDevice, spnChargeController, spnMainBoarder, spnPreset, spnBitRateType, spnStreamType, spnDenoiseMode, spnGainControl, spnFocusMode, spnDayAndNightMode, spnRatioLimit, spnCruise, spnResolution, irOperator, irObjType, irObjFlag; ///
     private ArrayAdapter<String> adapter;
     private Button btnUp, btnBottom, btnLeft, btnRight, btnZoomin, btnZoomout, btnFocusin, btnFocusout, btnAddPreset, btnRemovePreset, btnEditPreset, btnAddCruise, btnRemoveCruise, btnEditCruise; /////
     private TextView tvState;
     private TextView textVersion;
-    private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio,TDptz; // cbBatOnly,     ///////
-    private EditText tbRotate, tvDVRUser, tvDVRPwd, tvDVRIP, tvDVRPort, tvID, tvServer, tvPort, tvCamID, etTraffic, etConfidence, etWidgetsConfidence, etFrame, etCruiseDuration, etCruiseSpeed, etPtzSpeed; //, etConfidence; /////
+    private CheckBox cbToCheck, cbPhotoCheck, cbBackLightCom, cbStrongLightSup, cbElectronicFog, cbLowLight, cbWideDynamic, cbVideoLoss, cbVideoBlock, cbVideoOutFocus, cbVideoScreenDist, cbAIAccTest, switchAudio,TDptz; // cbBatOnly,     ///////
+    private EditText tbRotate, tvDVRUser, tvDVRPwd, tvDVRIP, tvDVRPort, tvID, tvServer, tvPort, tvCamID, etTraffic, etConfidence, etWidgetsConfidence, etFrame, etIFrame, etBitRate, etCruiseDuration, etCruiseSpeed, etPtzSpeed; //, etConfidence; /////
     private EditText irTempAdj, irObjEmi, irObjDistance, irTempReflect, irTempEnv, irHumiEnv, irRegionDistance, irRegionEmi, irAngle, irHorDisplacement, irVerDisplacement, irShutterInt; /////
     ////////
     private Spinner irVideoMode, irFocalLen, irResolution;
@@ -4586,15 +4586,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnBitRateType.setSelection(settings.videoCodecs.get("1:0").vbr);  // 用通道一主码流的
         spnStreamType.setSelection(settings.videoCodecs.get("1:0").streamType);  // 用通道一主码流的
         etFrame.setText(String.valueOf(settings.videoCodecs.get("1:0").frame));  // 用通道一主码流的
+        etIFrame.setText(String.valueOf(settings.videoCodecs.get("1:0").iFrame));  // 用通道一主码流的 ///
+        etBitRate.setText(String.valueOf(settings.videoCodecs.get("1:0").bps));  // 用通道一主码流的 ///
         spnResolution.setSelection(settings.photoConfig.get("1").size);  // 用通道一的
         spnDenoiseMode.setSelection(cAMERASetting.cameraConfig.get("1").denoiseMode);  // 用通道一的
         spnGainControl.setSelection(cAMERASetting.cameraConfig.get("1").gainControl);  // 用通道一的
         spnFocusMode.setSelection(cAMERASetting.cameraConfig.get("1").focusMode);  // 用通道一的
         spnDayAndNightMode.setSelection(cAMERASetting.cameraConfig.get("1").dayAndNightMode);  // 用通道一的 ///
+        spnRatioLimit.setSelection(cAMERASetting.cameraConfig.get("1").ratioLimit);  // 用通道一的 ///
         cbBackLightCom.setChecked(cAMERASetting.cameraConfig.get("1").backLightCom == 1);  // 用通道一的
         cbStrongLightSup.setChecked(cAMERASetting.cameraConfig.get("1").strongLightSup == 1);  // 用通道一的
         cbElectronicFog.setChecked(cAMERASetting.cameraConfig.get("1").electronicFog == 1);  // 用通道一的
-        cbLowLight.setChecked(cAMERASetting.cameraConfig.get("1").lowLight == 1);  // 用通道一的
+        cbLowLight.setChecked(cAMERASetting.cameraConfig.get("1").lowLight == 1);  // 用通道一的 ///
+        cbWideDynamic.setChecked(cAMERASetting.cameraConfig.get("1").wideDynamic == 1);  // 用通道一的
         cbVideoLoss.setChecked(cAMERASetting.cameraConfig.get("1").videoLoss == 1);  // 用通道一的
         cbVideoBlock.setChecked(cAMERASetting.cameraConfig.get("1").videoBlock == 1);  // 用通道一的
         cbVideoOutFocus.setChecked(cAMERASetting.cameraConfig.get("1").videoOutFocus == 1);  // 用通道一的
@@ -4685,15 +4689,19 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     spnBitRateType.setSelection(settings.videoCodecs.get(cfg.id + ":" + spnStreamType.getSelectedItemPosition()).vbr);
                     spnStreamType.setSelection(settings.videoCodecs.get(cfg.id + ":" + spnStreamType.getSelectedItemPosition()).streamType);
                     etFrame.setText(String.valueOf(settings.videoCodecs.get(cfg.id + ":" + spnStreamType.getSelectedItemPosition()).frame));
+                    etIFrame.setText(String.valueOf(settings.videoCodecs.get(cfg.id + ":" + spnStreamType.getSelectedItemPosition()).iFrame)); ///
+                    etBitRate.setText(String.valueOf(settings.videoCodecs.get(cfg.id + ":" + spnStreamType.getSelectedItemPosition()).bps)); ///
                     spnResolution.setSelection(settings.photoConfig.get(String.valueOf(cfg.id)).size);
                     spnDenoiseMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).denoiseMode);
                     spnGainControl.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).gainControl);
                     spnFocusMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).focusMode);
                     spnDayAndNightMode.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).dayAndNightMode); ///
+                    spnRatioLimit.setSelection(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).ratioLimit); ///
                     cbBackLightCom.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).backLightCom == 1);
                     cbStrongLightSup.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).strongLightSup == 1);
                     cbElectronicFog.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).electronicFog == 1);
                     cbLowLight.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).lowLight == 1);
+                    cbWideDynamic.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).wideDynamic == 1); ///
                     cbVideoLoss.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).videoLoss == 1);
                     cbVideoBlock.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).videoBlock == 1);
                     cbVideoOutFocus.setChecked(cAMERASetting.cameraConfig.get(String.valueOf(cfg.id)).videoOutFocus == 1);
@@ -4755,11 +4763,14 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         spnBitRateType = findViewById(R.id.spnBitRateType);
         spnStreamType = findViewById(R.id.spnStreamType);
         etFrame = findViewById(R.id.etFrame);
+        etIFrame = findViewById(R.id.etIFrame); ///
+        etBitRate = findViewById(R.id.etBitRate); ///
         spnResolution = findViewById(R.id.spnResolution);
         spnDenoiseMode = findViewById(R.id.spnDenoiseMode);
         spnGainControl = findViewById(R.id.spnGainControl);
         spnFocusMode = findViewById(R.id.spnFocusMode);
         spnDayAndNightMode = findViewById(R.id.spnDayAndNightMode); ///
+        spnRatioLimit = findViewById(R.id.spnRatioLimit); ///
         cbVideoLoss = findViewById(R.id.cbVideoLoss);
         cbVideoBlock = findViewById(R.id.cbVideoBlock);
         cbVideoOutFocus = findViewById(R.id.cbVideoOutFocus);
@@ -4768,6 +4779,7 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         cbStrongLightSup = findViewById(R.id.cbStrongLightSup);
         cbElectronicFog = findViewById(R.id.cbElectronicFog);
         cbLowLight = findViewById(R.id.cbLowLight);
+        cbWideDynamic = findViewById(R.id.cbWideDynamic); ///
 //        spnZoomRatio = findViewById(R.id.spnZoomRatio);
         /////
 
@@ -5267,6 +5279,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             videoCodec.vbr = (byte) spnBitRateType.getSelectedItemPosition();
             videoCodec.streamType = (byte) spnStreamType.getSelectedItemPosition();
             videoCodec.frame = Integer.valueOf(etFrame.getText().toString().trim());
+            videoCodec.iFrame = Integer.valueOf(etIFrame.getText().toString().trim()); ///
+            videoCodec.bps = Short.valueOf(etBitRate.getText().toString().trim()); ///
             settings.videoCodecs.put(chanIdx + 1 + ":" + spnStreamType.getSelectedItemPosition(), videoCodec);
             PhotoConfig photoConfig = settings.photoConfig.get(String.valueOf(chanIdx + 1));
             photoConfig.size = (byte) spnResolution.getSelectedItemPosition();
@@ -5289,10 +5303,12 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).gainControl = (byte) spnGainControl.getSelectedItemPosition();
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).focusMode = (byte) spnFocusMode.getSelectedItemPosition();
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).dayAndNightMode = (byte) spnDayAndNightMode.getSelectedItemPosition(); ///
+            cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).ratioLimit = (byte) spnRatioLimit.getSelectedItemPosition(); ///
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).backLightCom = (byte) (cbBackLightCom.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).strongLightSup = (byte) (cbStrongLightSup.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).electronicFog = (byte) (cbElectronicFog.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).lowLight = (byte) (cbLowLight.isChecked() ? 1 : 0);
+            cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).wideDynamic = (byte) (cbWideDynamic.isChecked() ? 1 : 0); ///
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoLoss = (byte) (cbVideoLoss.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoBlock = (byte) (cbVideoBlock.isChecked() ? 1 : 0);
             cAMERASetting.cameraConfig.get(String.valueOf(chanIdx + 1)).videoOutFocus = (byte) (cbVideoOutFocus.isChecked() ? 1 : 0);

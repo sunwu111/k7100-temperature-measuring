@@ -678,7 +678,7 @@
         <item>关闭</item>
         <item>2D降噪</item>
         <item>3D降噪</item>
-        <item>智能降噪</item>
+        <item>AI降噪</item>
     </string-array>
     <string-array name="bainControl">
         <item>手动</item>
@@ -974,10 +974,12 @@
         <item>3200x2400</item>
         <item>4224x3136</item>
     </string-array>
-    <string-array name="zoomRatio">
-        <item>1</item>
-        <item>10</item>
-        <item>20</item>
-        <item>40</item>
+    <string-array name="ratioLimit">
+        <item>42</item>
+        <item>84</item>
+        <item>168</item>
+        <item>336</item>
+        <item>504</item>
+        <item>672</item>
     </string-array>
 </resources>
