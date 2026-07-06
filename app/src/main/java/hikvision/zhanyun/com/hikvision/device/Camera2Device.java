@@ -683,6 +683,17 @@ public class Camera2Device extends Device {
         return dst;
     }
 
+    private static Bitmap rotate90ClockwiseWithCanvas(Bitmap src) {
+        Bitmap dst = Bitmap.createBitmap(src.getHeight(), src.getWidth(), src.getConfig() != null ? src.getConfig() : Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(dst);
+        c.save();
+        c.translate(src.getHeight(), 0f);
+        c.rotate(90f);
+        c.drawBitmap(src, 0f, 0f, null);
+        c.restore();
+        return dst;
+    }
+
     private void saveCapturedPhoto(Bitmap bitmap) {
         if (bitmap == null) {
             return;
@@ -786,8 +797,9 @@ public class Camera2Device extends Device {
                     postEncodeFrame(finalPreviewBitmap);
                 }
                 ///
-                if (mOnShow && controllerCallback != null ) {
-                    controllerCallback.onFrame(previewBitmap); /////
+                if (mOnShow && controllerCallback != null && previewBitmap != null ) {
+                    Bitmap localPreviewBitmap = rotate90ClockwiseWithCanvas(previewBitmap);
+                    controllerCallback.onFrame(localPreviewBitmap); /////
                 }
             } catch (Exception e) {
                 Log.i(Log.TAG, "图片处理异常：" + e.getMessage());

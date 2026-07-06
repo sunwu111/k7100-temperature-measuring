@@ -1833,9 +1833,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
             Scalar meanScalar = Core.mean(grayMat);
             float avgBrightness = (float) meanScalar.val[0];
             Log.i(Log.TAG, "图像当前亮度为" + avgBrightness);
-            Log.e(Log.TAG,"isNightMode::" + isNightMode);
-            if (!isNightMode && avgBrightness < 100) {
-//            if (!isNightMode && avgBrightness < 130) {
+//            Log.e(Log.TAG,"isNightMode::" + isNightMode);
+//            if (!isNightMode && avgBrightness < 100) {
+            if (!isNightMode && avgBrightness < 130) {
                 isNightMode = true;
                 cameraConfig.dayAndNightMode = 2;
                 new Thread(() -> {
@@ -7509,6 +7509,10 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
     }
 
     private void initDecoder(int w, int h) {
+        initDecoder(w, h, 0);
+    }
+
+    private void initDecoder(int w, int h, int rotationDegrees) {
         if (surfaceView == null) return;
 
         try {
@@ -7524,6 +7528,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                 h = 2160;
             }  // ？？？
             MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
+            if (rotationDegrees != 0) {
+                mediaFormat.setInteger("rotation-degrees", rotationDegrees);
+            }
 
             Surface surface = surfaceView.getHolder().getSurface();
 
@@ -8285,17 +8292,18 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                     }
                     ////////
                     Settings.VideoCodec vc = dev.codec.get(String.valueOf(streamType));
+                    int localPreviewRotationDegrees = dev.type == DEVICE_DVR_HUANYU ? 90 : 0;
 
                     if (vc != null) {
                         Point size = Settings.VideoCodec.getResolution(vc.resolution);
-                        initDecoder(size.x, size.y);
+                        initDecoder(size.x, size.y, localPreviewRotationDegrees);
                     } else {
                         /////
                         if (dev.isDVR()) {
                             if (dev.isUSB()) {
-                                initDecoder(704, 576);
+                                initDecoder(704, 576, localPreviewRotationDegrees);
                             } else {
-                                initDecoder(1920, 1080);
+                                initDecoder(1920, 1080, localPreviewRotationDegrees);
                             }
                         }
                         /////
