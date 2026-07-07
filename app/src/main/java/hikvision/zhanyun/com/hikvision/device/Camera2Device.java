@@ -68,182 +68,182 @@ import hikvision.zhanyun.com.hikvision.utils.Log;
 import hikvision.zhanyun.com.hikvision.utils.MipiSwitch;
 import lyh.Utils;
 
-public class Camera2Device extends Device {
-    private final int camID;
-    private final Context mContext;
-    private final int mMainBoard;  // 0: 旧xy6762板 1： 新xy6762板
-    private boolean mCameraPhotoing = false;
-    private Handler mBackgroundHandler;
-    private HandlerThread mBackgroundThread;
-    private CameraDevice mCameraDevice;
-    private ImageReader mImageReader;
-    private ImageReader mStillImageReader;
-    private CaptureRequest.Builder mPreviewRequestBuilder;
-    private CameraCaptureSession mPreviewSession;
-    private final CameraMulthreadLock mCameraOpenCloseLock = new CameraMulthreadLock();
-    private final CameraMulthreadLock mCameraPhtotingLock = new CameraMulthreadLock();
-    private final CameraMulthreadLock mCameraFocusLock = new CameraMulthreadLock();
-    private String mFileImage;
-    private int mFilePreset;
-    private Point mResolution;
-    private long mLockFocusTime = 0;  // 记录AF和AE开始时间，超时强制退出
-    private final static HandlerThread scheduledThread = new HandlerThread("摄像机拍照线程");
-    private static Handler scheduledHandler;
+public class Camera2Device extends Device { // 成员：保存运行状态
+    private final int camID; // 成员：保存运行状态
+    private final Context mContext; // 成员：保存运行状态
+    private final int mMainBoard;  // 0: 旧xy6762板 1： 新xy6762板；成员：保存运行状态
+    private boolean mCameraPhotoing = false; // 状态：当前正在抓拍
+    private Handler mBackgroundHandler; // 线程：承接Camera2回调
+    private HandlerThread mBackgroundThread; // Android：串行消息线程
+    private CameraDevice mCameraDevice; // Camera2：已打开的相机句柄
+    private ImageReader mImageReader; // Camera2：接收预览/抓拍帧
+    private ImageReader mStillImageReader; // Camera2：独立静态图输出
+    private CaptureRequest.Builder mPreviewRequestBuilder; // Camera2：构建下一次请求参数
+    private CameraCaptureSession mPreviewSession; // Camera2：向HAL提交请求的会话
+    private final CameraMulthreadLock mCameraOpenCloseLock = new CameraMulthreadLock(); // 成员：保存运行状态
+    private final CameraMulthreadLock mCameraPhtotingLock = new CameraMulthreadLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
+    private final CameraMulthreadLock mCameraFocusLock = new CameraMulthreadLock(); // 同步：lockFocus等待，AF/AE回调唤醒
+    private String mFileImage; // 成员：保存运行状态
+    private int mFilePreset; // 成员：保存运行状态
+    private Point mResolution; // 成员：保存运行状态
+    private long mLockFocusTime = 0;  // 记录AF和AE开始时间，超时强制退出；成员：保存运行状态
+    private final static HandlerThread scheduledThread = new HandlerThread("摄像机拍照线程"); // Android：串行消息线程
+    private static Handler scheduledHandler; // Android：串行消息线程
     /////
-    private static final String AIS_AVAILABLE_MODES_KEY_NAME = "com.mediatek.mfnrfeature.availablemfbmodes";
-    private static final String AIS_REQUEST_MODE_KEY_NAME = "com.mediatek.mfnrfeature.mfbmode";
-    private static final String AIS_RESULT_MODE_KEY_NAME = "com.mediatek.mfnrfeature.mfbresult";
-    private CameraCharacteristics.Key<int[]> mKeyAisAvailableModes;
-    private CaptureResult.Key<int[]> mKeyAisResult;
-    private CaptureRequest.Key<int[]> mKeyAisRequestMode;
-    private final static HandlerThread mCameraParamThread = new HandlerThread("摄像机异步更新参数线程");
-    private static Handler mCameraParamHandler;
-    private float minFocusDist;
-    private int rotate;
-    private boolean useAudio;
-    private final Object mipiStreamLock = new Object();
-    private byte[] mipiLivePpsSps;
-    private long mipiLiveFirstFrameTimestamp = 0;
-    private volatile long mipiRecordSamplesWritten = 0;
-    private volatile long mipiRecordBytesWritten = 0;
-    private volatile long mipiRecordKeyFramesWritten = 0;
+    private static final String AIS_AVAILABLE_MODES_KEY_NAME = "com.mediatek.mfnrfeature.availablemfbmodes"; // 成员：保存运行状态
+    private static final String AIS_REQUEST_MODE_KEY_NAME = "com.mediatek.mfnrfeature.mfbmode"; // 成员：保存运行状态
+    private static final String AIS_RESULT_MODE_KEY_NAME = "com.mediatek.mfnrfeature.mfbresult"; // 成员：保存运行状态
+    private CameraCharacteristics.Key<int[]> mKeyAisAvailableModes; // 成员：保存运行状态
+    private CaptureResult.Key<int[]> mKeyAisResult; // Camera2：HAL返回帧元数据
+    private CaptureRequest.Key<int[]> mKeyAisRequestMode; // Camera2：发送给HAL的请求
+    private final static HandlerThread mCameraParamThread = new HandlerThread("摄像机异步更新参数线程"); // Android：串行消息线程
+    private static Handler mCameraParamHandler; // 线程：异步刷新请求参数
+    private float minFocusDist; // 成员：保存运行状态
+    private int rotate; // 成员：保存运行状态
+    private boolean useAudio; // 成员：保存运行状态
+    private final Object mipiStreamLock = new Object(); // 成员：保存运行状态
+    private byte[] mipiLivePpsSps; // 成员：保存运行状态
+    private long mipiLiveFirstFrameTimestamp = 0; // 成员：保存运行状态
+    private volatile long mipiRecordSamplesWritten = 0; // 成员：保存运行状态
+    private volatile long mipiRecordBytesWritten = 0; // 成员：保存运行状态
+    private volatile long mipiRecordKeyFramesWritten = 0; // 成员：保存运行状态
     /////
 
 
     /// sunwu
-    private final AtomicBoolean takePhotoOnce = new AtomicBoolean(false);   // 防止在拉流的时候拍照会被执行多次
-    private final AtomicBoolean photoDone = new AtomicBoolean(false);       // 拍照已经成功，但等待方不知道  如果没有这个变量，在一次拍照成功后，设备还在等待拍照任务，会导致拍照失败再次拍照，其实已经成功。
+    private final AtomicBoolean takePhotoOnce = new AtomicBoolean(false);   // 防止在拉流的时候拍照会被执行多次；同步：只允许一帧完成本次抓拍
+    private final AtomicBoolean photoDone = new AtomicBoolean(false);       // 拍照已经成功，但等待方不知道  如果没有这个变量，在一次拍照成功后，设备还在等待拍照任务，会导致拍照失败再次拍照，其实已经成功。；条件：takePhoto等它变true
 
-    private final AtomicBoolean videoEncodePending = new AtomicBoolean(false);
+    private final AtomicBoolean videoEncodePending = new AtomicBoolean(false); // 成员：保存运行状态
 
     ///
-    private static final Object sDualCameraLock = new Object();
-    private static final Object sDualPhotoTaskLock = new Object();
+    private static final Object sDualCameraLock = new Object(); // 同步：保护双MIPI共享状态
+    private static final Object sDualPhotoTaskLock = new Object(); // 同步：串行化双路拍照任务
 
-    private static Camera2Device sCamera0Device;
-    private static Camera2Device sCamera1Device;
+    private static Camera2Device sCamera0Device; // 成员：保存运行状态
+    private static Camera2Device sCamera1Device; // 成员：保存运行状态
 
-    private static boolean sDualStarting = false;
-    private static boolean sDualStarted = false;
-    private static boolean sDualClosing = false;
-    private static int sDualPhotoTaskCount = 0;
+    private static boolean sDualStarting = false; // 成员：保存运行状态
+    private static boolean sDualStarted = false; // 成员：保存运行状态
+    private static boolean sDualClosing = false; // 成员：保存运行状态
+    private static int sDualPhotoTaskCount = 0; // 同步：统计未完成拍照任务
 
-    private static final boolean ALWAYS_OPEN_BOTH_MIPI = true;
+    private static final boolean ALWAYS_OPEN_BOTH_MIPI = true; // 成员：保存运行状态
 
-    private boolean mDualSessionStarted = false;
-    private boolean mDualSessionStarting = false;
+    private boolean mDualSessionStarted = false; // 成员：保存运行状态
+    private boolean mDualSessionStarting = false; // 成员：保存运行状态
     ///
 
-    public Camera2Device(int ID, Context context, int camID, int board, int rotate, boolean useAudio) { /////
+    public Camera2Device(int ID, Context context, int camID, int board, int rotate, boolean useAudio) { /////；成员：保存运行状态
         super(ID, context, useAudio); /////
-        this.camID = camID;
-        this.mContext = context;
-        this.mMainBoard = board;
-        this.drawOSD = true;
-        this.rotate = rotate; /////
-        this.useAudio = useAudio; /////
+        this.camID = camID; // 赋值：更新状态
+        this.mContext = context; // 赋值：更新状态
+        this.mMainBoard = board; // 赋值：更新状态
+        this.drawOSD = true; // 赋值：更新状态
+        this.rotate = rotate; /////；赋值：更新状态
+        this.useAudio = useAudio; /////；赋值：更新状态
 
-        if (!scheduledThread.isAlive()) {
-            scheduledThread.start();
-            scheduledHandler = new Handler(scheduledThread.getLooper());
+        if (!scheduledThread.isAlive()) { // 条件：按运行状态分支
+            scheduledThread.start(); // 调用：执行下一步
+            scheduledHandler = new Handler(scheduledThread.getLooper()); // Android：串行消息线程
         }
-        if (!mCameraParamThread.isAlive()) { /////
-            mCameraParamThread.start(); /////
-            mCameraParamHandler = new Handler(mCameraParamThread.getLooper()); /////
+        if (!mCameraParamThread.isAlive()) { /////；条件：按运行状态分支
+            mCameraParamThread.start(); /////；调用：执行下一步
+            mCameraParamHandler = new Handler(mCameraParamThread.getLooper()); /////；线程：异步刷新请求参数
         } /////
         registerDualCameraInstance(); ///
     }
 
     ///
-    private void registerDualCameraInstance() {
-        synchronized (sDualCameraLock) {
-            int realCamId = camID % 2;
+    private void registerDualCameraInstance() { // 入口：方法定义
+        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+            int realCamId = camID % 2; // 赋值：更新状态
 
-            if (realCamId == 0) {
-                sCamera0Device = this;
+            if (realCamId == 0) { // 条件：按运行状态分支
+                sCamera0Device = this; // 赋值：更新状态
             } else {
-                sCamera1Device = this;
+                sCamera1Device = this; // 赋值：更新状态
             }
 
-            Log.i(Log.TAG, "注册双路 MIPI 对象"
-                    + "，camID = " + camID
-                    + "，realCamId = " + realCamId
-                    + "，this = " + this
-                    + "，sCamera0Device = " + sCamera0Device
-                    + "，sCamera1Device = " + sCamera1Device);
+            Log.i(Log.TAG, "注册双路 MIPI 对象" // 日志：记录相机状态
+                    + "，camID = " + camID // 赋值：更新状态
+                    + "，realCamId = " + realCamId // 赋值：更新状态
+                    + "，this = " + this // 赋值：更新状态
+                    + "，sCamera0Device = " + sCamera0Device // 赋值：更新状态
+                    + "，sCamera1Device = " + sCamera1Device); // 赋值：更新状态
         }
     }
     ///
 
-    private class CameraMulthreadLock {
-        private class Locker {
-            private Boolean unlocked = false;
+    private class CameraMulthreadLock { // 成员：保存运行状态
+        private class Locker { // 成员：保存运行状态
+            private Boolean unlocked = false; // 成员：保存运行状态
         }
 
-        private Locker locker = new Locker();
+        private Locker locker = new Locker(); // 成员：保存运行状态
 
-        public boolean waitLock(int milisecond) {
-            try {
-                synchronized (locker) {
-                    locker.unlocked = false;
-                    locker.wait(milisecond);
+        public boolean waitLock(int milisecond) { // 同步：等待唤醒或超时
+            try { // 异常：保护相机/IO调用
+                synchronized (locker) { // 同步：互斥访问共享状态
+                    locker.unlocked = false; // 赋值：更新状态
+                    locker.wait(milisecond); // 同步：等待唤醒或超时
                 }
             } catch (Exception e) {
-                Log.i(Log.TAG, "加锁异常：" + e.getMessage());
+                Log.i(Log.TAG, "加锁异常：" + e.getMessage()); // 日志：记录相机状态
             }
-            return locker.unlocked;
+            return locker.unlocked; // 返回：结束当前方法
         }
 
-        public void notifyLock() {
-            try {
-                synchronized (locker) {
-                    locker.unlocked = true;
-                    locker.notify();
+        public void notifyLock() { // 同步：唤醒等待线程
+            try { // 异常：保护相机/IO调用
+                synchronized (locker) { // 同步：互斥访问共享状态
+                    locker.unlocked = true; // 赋值：更新状态
+                    locker.notify(); // 同步：唤醒等待线程
                 }
             } catch (Exception e) {
-                Log.i(Log.TAG, "解锁异常：" + e.getMessage());
+                Log.i(Log.TAG, "解锁异常：" + e.getMessage()); // 日志：记录相机状态
             }
         }
     }
 
     @Override
-    public void setSceneName(int presetNo, String name) {
+    public void setSceneName(int presetNo, String name) { // 入口：方法定义
     }
 
     @Override
-    protected void doSampleData(ByteBuffer outputBuffer, MediaCodec.BufferInfo bufferInfo, int outIndex) { /////
+    protected void doSampleData(ByteBuffer outputBuffer, MediaCodec.BufferInfo bufferInfo, int outIndex) { /////；Android：视频编码/封装
 //        if (isRecording() && !pausing && mediaMuxer != null)
 //            mediaMuxer.writeSampleData(trackIndex, outputBuffer, bufferInfo);
         /////
-        try {
-            if (isRecording() && !pausing && mediaMuxer != null) {
-                if (outIndex >= 0) {
-                    if (videoTrackIndex < 0 && mediaCodec != null) {
-                        MediaFormat mediaFormat = mediaCodec.getOutputFormat();
-                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+        try { // 异常：保护相机/IO调用
+            if (isRecording() && !pausing && mediaMuxer != null) { // 条件：按运行状态分支
+                if (outIndex >= 0) { // 条件：按运行状态分支
+                    if (videoTrackIndex < 0 && mediaCodec != null) { // 条件：按运行状态分支
+                        MediaFormat mediaFormat = mediaCodec.getOutputFormat(); // Android：视频编码/封装
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat); // 赋值：更新状态
                         tryStartMipiMuxer();
                     }
-                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                        return;
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) { // Android：视频编码/封装
+                        return; // 返回：结束当前方法
                     }
-                    if (muxerStarted && bufferInfo.size > 0) {
-                        ByteBuffer outBuf = mediaCodec.getOutputBuffer(outIndex);
-                        if (outBuf != null) {
-                            ByteBuffer recordBuf = outBuf.duplicate();
-                            recordBuf.position(bufferInfo.offset);
-                            recordBuf.limit(bufferInfo.offset + bufferInfo.size);
+                    if (muxerStarted && bufferInfo.size > 0) { // 条件：按运行状态分支
+                        ByteBuffer outBuf = mediaCodec.getOutputBuffer(outIndex); // 赋值：更新状态
+                        if (outBuf != null) { // 条件：按运行状态分支
+                            ByteBuffer recordBuf = outBuf.duplicate(); // 赋值：更新状态
+                            recordBuf.position(bufferInfo.offset); // 调用：执行下一步
+                            recordBuf.limit(bufferInfo.offset + bufferInfo.size); // 调用：执行下一步
 
-                            long ptsUs = bufferInfo.presentationTimeUs;
-                            long nowUs = (avStartNs != 0) ? ((System.nanoTime() - avStartNs) / 1000) : ptsUs;
-                            if (ptsUs > nowUs + 5_000_000L) ptsUs = nowUs;
-                            if (ptsUs <= lastVideoPtsUs) ptsUs = lastVideoPtsUs + 1;
-                            lastVideoPtsUs = ptsUs;
-                            bufferInfo.presentationTimeUs = ptsUs;
+                            long ptsUs = bufferInfo.presentationTimeUs; // 赋值：更新状态
+                            long nowUs = (avStartNs != 0) ? ((System.nanoTime() - avStartNs) / 1000) : ptsUs; // 赋值：更新状态
+                            if (ptsUs > nowUs + 5_000_000L) ptsUs = nowUs; // 条件：按运行状态分支
+                            if (ptsUs <= lastVideoPtsUs) ptsUs = lastVideoPtsUs + 1; // 条件：按运行状态分支
+                            lastVideoPtsUs = ptsUs; // 赋值：更新状态
+                            bufferInfo.presentationTimeUs = ptsUs; // 赋值：更新状态
 
-                            mediaMuxer.writeSampleData(videoTrackIndex, recordBuf, bufferInfo); /////
+                            mediaMuxer.writeSampleData(videoTrackIndex, recordBuf, bufferInfo); /////；调用：执行下一步
                             mipiRecordSamplesWritten++;
                             mipiRecordBytesWritten += bufferInfo.size;
-                            if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+                            if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) { // Android：视频编码/封装
                                 mipiRecordKeyFramesWritten++;
                             }
                         }
@@ -251,181 +251,181 @@ public class Camera2Device extends Device {
                 }
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "MIPI摄像头录制视频文件异常：" + e);
+            Log.i(Log.TAG, "MIPI摄像头录制视频文件异常：" + e); // 日志：记录相机状态
         }
         /////
     }
 
     @Override
-    protected void encode(Bitmap bitmap) {
-        if (mediaCodec == null || bitmap == null) return;
+    protected void encode(Bitmap bitmap) { // Android：图像解码/绘制
+        if (mediaCodec == null || bitmap == null) return; // 条件：按运行状态分支
 
-        try {
-            ByteBuffer encodeBuffer = ByteBuffer.allocate(bitmap.getByteCount());
-            bitmap.copyPixelsToBuffer(encodeBuffer);
-            byte[] argbBytes = encodeBuffer.array();
+        try { // 异常：保护相机/IO调用
+            ByteBuffer encodeBuffer = ByteBuffer.allocate(bitmap.getByteCount()); // 赋值：更新状态
+            bitmap.copyPixelsToBuffer(encodeBuffer); // 调用：执行下一步
+            byte[] argbBytes = encodeBuffer.array(); // 赋值：更新状态
 
-            int inputBufferIndex = mediaCodec.dequeueInputBuffer(0);
-            if (inputBufferIndex >= 0) {
-                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
-                if (inputBuffer != null) {
-                    if (argbBytes.length > inputBuffer.capacity()) {
-                        Log.w(Log.TAG, "MIPI video encode skip oversize frame: "
-                                + bitmap.getWidth() + "x" + bitmap.getHeight()
-                                + ", bytes=" + argbBytes.length
-                                + ", capacity=" + inputBuffer.capacity());
-                        mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, System.nanoTime() / 1000, 0);
-                        return;
+            int inputBufferIndex = mediaCodec.dequeueInputBuffer(0); // 赋值：更新状态
+            if (inputBufferIndex >= 0) { // 条件：按运行状态分支
+                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex); // 赋值：更新状态
+                if (inputBuffer != null) { // 条件：按运行状态分支
+                    if (argbBytes.length > inputBuffer.capacity()) { // 条件：按运行状态分支
+                        Log.w(Log.TAG, "MIPI video encode skip oversize frame: " // 日志：记录相机状态
+                                + bitmap.getWidth() + "x" + bitmap.getHeight() // 调用：执行下一步
+                                + ", bytes=" + argbBytes.length // 赋值：更新状态
+                                + ", capacity=" + inputBuffer.capacity()); // 赋值：更新状态
+                        mediaCodec.queueInputBuffer(inputBufferIndex, 0, 0, System.nanoTime() / 1000, 0); // 调用：执行下一步
+                        return; // 返回：结束当前方法
                     }
-                    inputBuffer.clear();
-                    inputBuffer.put(argbBytes, 0, argbBytes.length);
-                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, argbBytes.length, System.nanoTime() / 1000, 0);
+                    inputBuffer.clear(); // 调用：执行下一步
+                    inputBuffer.put(argbBytes, 0, argbBytes.length); // 调用：执行下一步
+                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, argbBytes.length, System.nanoTime() / 1000, 0); // 调用：执行下一步
                 } else {
-                    Log.w(Log.TAG, "MIPI video encode input buffer is null");
+                    Log.w(Log.TAG, "MIPI video encode input buffer is null"); // 日志：记录相机状态
                 }
             } else {
-                Log.w(Log.TAG, "MIPI video encode input error: " + inputBufferIndex);
+                Log.w(Log.TAG, "MIPI video encode input error: " + inputBufferIndex); // 日志：记录相机状态
             }
 
-            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-            for (int drainCount = 0; drainCount < 16; drainCount++) {
-                int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0);
-                if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo(); // Android：视频编码/封装
+            for (int drainCount = 0; drainCount < 16; drainCount++) { // 循环：遍历数据
+                int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 0); // 赋值：更新状态
+                if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) { // Android：视频编码/封装
                     break;
                 }
-                if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) {
-                        MediaFormat mediaFormat = mediaCodec.getOutputFormat();
-                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat);
+                if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) { // Android：视频编码/封装
+                    if (isRecording() && mediaMuxer != null && videoTrackIndex < 0) { // 条件：按运行状态分支
+                        MediaFormat mediaFormat = mediaCodec.getOutputFormat(); // Android：视频编码/封装
+                        videoTrackIndex = mediaMuxer.addTrack(mediaFormat); // 赋值：更新状态
                         tryStartMipiMuxer();
                     }
-                    Log.w(Log.TAG, "MIPI video encode format changed: " + mediaCodec.getOutputFormat());
+                    Log.w(Log.TAG, "MIPI video encode format changed: " + mediaCodec.getOutputFormat()); // 日志：记录相机状态
                     continue;
                 }
-                if (outputBufferIndex < 0) {
+                if (outputBufferIndex < 0) { // 条件：按运行状态分支
                     continue;
                 }
-                try {
-                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
-                    if (outputBuffer == null || bufferInfo.size <= 0) {
+                try { // 异常：保护相机/IO调用
+                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex); // 赋值：更新状态
+                    if (outputBuffer == null || bufferInfo.size <= 0) { // 条件：按运行状态分支
                         continue;
                     }
 
-                    byte[] liveData = null;
-                    if (isLiving() && rtph264 != null) {
-                        ByteBuffer liveBuf = outputBuffer.duplicate();
-                        liveBuf.position(bufferInfo.offset);
-                        liveBuf.limit(bufferInfo.offset + bufferInfo.size);
-                        liveData = new byte[bufferInfo.size];
-                        liveBuf.get(liveData);
+                    byte[] liveData = null; // 赋值：更新状态
+                    if (isLiving() && rtph264 != null) { // 条件：按运行状态分支
+                        ByteBuffer liveBuf = outputBuffer.duplicate(); // 赋值：更新状态
+                        liveBuf.position(bufferInfo.offset); // 调用：执行下一步
+                        liveBuf.limit(bufferInfo.offset + bufferInfo.size); // 调用：执行下一步
+                        liveData = new byte[bufferInfo.size]; // 赋值：更新状态
+                        liveBuf.get(liveData); // 调用：执行下一步
                     }
 
-                    if (isRecording()) {
+                    if (isRecording()) { // 条件：按运行状态分支
                         doSampleData(outputBuffer, bufferInfo, outputBufferIndex);
                     }
 
-                    if (liveData != null) {
+                    if (liveData != null) { // 条件：按运行状态分支
                         sendMipiLiveEncodedFrame(liveData, bufferInfo.presentationTimeUs);
                     }
                 } finally {
-                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false); // 调用：执行下一步
                 }
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "MIPI video encode error: " + e.getMessage());
+            Log.i(Log.TAG, "MIPI video encode error: " + e.getMessage()); // 日志：记录相机状态
         }
     }
 
-    private void sendMipiLiveEncodedFrame(byte[] outData, long presentationTimeUs) {
-        if (controllerCallback == null || rtph264 == null || outData == null || outData.length < 5) return;
+    private void sendMipiLiveEncodedFrame(byte[] outData, long presentationTimeUs) { // 入口：方法定义
+        if (controllerCallback == null || rtph264 == null || outData == null || outData.length < 5) return; // 条件：按运行状态分支
 
-        try {
-            if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1) {
-                int type = outData[4] & 0x1F;
-                if (type == 7) {
-                    mipiLivePpsSps = outData;
-                    return;
+        try { // 异常：保护相机/IO调用
+            if (outData[0] == 0 && outData[1] == 0 && outData[2] == 0 && outData[3] == 1) { // 条件：按运行状态分支
+                int type = outData[4] & 0x1F; // 赋值：更新状态
+                if (type == 7) { // 条件：按运行状态分支
+                    mipiLivePpsSps = outData; // 赋值：更新状态
+                    return; // 返回：结束当前方法
                 } else if (type == 5 && mipiLivePpsSps != null) {
-                    byte[] iframeData = new byte[mipiLivePpsSps.length + outData.length];
-                    System.arraycopy(mipiLivePpsSps, 0, iframeData, 0, mipiLivePpsSps.length);
-                    System.arraycopy(outData, 0, iframeData, mipiLivePpsSps.length, outData.length);
-                    outData = iframeData;
+                    byte[] iframeData = new byte[mipiLivePpsSps.length + outData.length]; // 赋值：更新状态
+                    System.arraycopy(mipiLivePpsSps, 0, iframeData, 0, mipiLivePpsSps.length); // 调用：执行下一步
+                    System.arraycopy(outData, 0, iframeData, mipiLivePpsSps.length, outData.length); // 调用：执行下一步
+                    outData = iframeData; // 赋值：更新状态
                 }
             }
 
-            long timestamp = presentationTimeUs / 1000 * 90;
-            if (mipiLiveFirstFrameTimestamp == 0) {
-                mipiLiveFirstFrameTimestamp = timestamp;
+            long timestamp = presentationTimeUs / 1000 * 90; // 赋值：更新状态
+            if (mipiLiveFirstFrameTimestamp == 0) { // 条件：按运行状态分支
+                mipiLiveFirstFrameTimestamp = timestamp; // 赋值：更新状态
             }
-            rtph264.timestamp = timestamp - mipiLiveFirstFrameTimestamp;
-            byte[][] rtps = rtph264.encode(outData, 96, 0);
-            if (rtps != null) {
-                for (byte[] pack : rtps) {
-                    controllerCallback.onFrame(Camera2Device.this, pack);
+            rtph264.timestamp = timestamp - mipiLiveFirstFrameTimestamp; // 赋值：更新状态
+            byte[][] rtps = rtph264.encode(outData, 96, 0); // 赋值：更新状态
+            if (rtps != null) { // 条件：按运行状态分支
+                for (byte[] pack : rtps) { // 循环：遍历数据
+                    controllerCallback.onFrame(Camera2Device.this, pack); // 调用：执行下一步
                 }
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "MIPI live RTP packet error: " + e);
+            Log.i(Log.TAG, "MIPI live RTP packet error: " + e); // 日志：记录相机状态
         }
     }
 
-    private Bitmap imageDecode(Image image) {
-        switch (image.getFormat()) {
-            case ImageFormat.JPEG:
-                ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                byte[] bytes = new byte[buffer.capacity()];
-                buffer.get(bytes);
-                return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null).copy(Bitmap.Config.ARGB_8888, true);
-            case ImageFormat.YUV_420_888:
+    private Bitmap imageDecode(Image image) { // Android：底层图像buffer
+        switch (image.getFormat()) { // 分支：按状态选择路径
+            case ImageFormat.JPEG: // 分支：状态处理入口
+                ByteBuffer buffer = image.getPlanes()[0].getBuffer(); // 赋值：更新状态
+                byte[] bytes = new byte[buffer.capacity()]; // 赋值：更新状态
+                buffer.get(bytes); // 调用：执行下一步
+                return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null).copy(Bitmap.Config.ARGB_8888, true); // Android：图像解码/绘制
+            case ImageFormat.YUV_420_888: // 分支：状态处理入口
                 //bitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
-                return YUV_420_888_toRGB(image);
+                return YUV_420_888_toRGB(image); // 返回：结束当前方法
         }
-        return null;
+        return null; // 返回：结束当前方法
     }
 
     /////
     // 图像参数调节算法
-    private Bitmap preProcessingPhoto(Bitmap previewBitmap) {
-        try {
-            Point targetResolution = null;
-            boolean useVideoResolution = (isLiving() && rtph264 != null) || isRecording() || enableLiveEncode;
-            if (useVideoResolution) { /////
+    private Bitmap preProcessingPhoto(Bitmap previewBitmap) { // Android：图像解码/绘制
+        try { // 异常：保护相机/IO调用
+            Point targetResolution = null; // 赋值：更新状态
+            boolean useVideoResolution = (isLiving() && rtph264 != null) || isRecording() || enableLiveEncode; // 赋值：更新状态
+            if (useVideoResolution) { /////；条件：按运行状态分支
 
 //                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
-                Settings.VideoCodec vc = codec.get(String.valueOf(streamType));
-                Point size = vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
-                if (size == null) {
-                    size = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+                Settings.VideoCodec vc = codec.get(String.valueOf(streamType)); // 赋值：更新状态
+                Point size = vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null; // 赋值：更新状态
+                if (size == null) { // 条件：按运行状态分支
+                    size = new Point(previewBitmap.getWidth(), previewBitmap.getHeight()); // 赋值：更新状态
                 }
 
 
                 ///
                 // 由于分辨率大于1536x864无法拉流，因此设置最大的分辨率为1536x864
-                if (size.x > 1536 || size.y > 864) {
-                    size = new Point(1536, 864);
+                if (size.x > 1536 || size.y > 864) { // 条件：按运行状态分支
+                    size = new Point(1536, 864); // 赋值：更新状态
                 }
                 ///
-                mResolution = size;
-                targetResolution = size;
+                mResolution = size; // 赋值：更新状态
+                targetResolution = size; // 赋值：更新状态
 //                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
 
             } else if (mCameraPhotoing) {
-                targetResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+                targetResolution = Settings.PhotoConfig.getImageSize(photoConfig.size); // 赋值：更新状态
             } else {
-                targetResolution = mResolution;
+                targetResolution = mResolution; // 赋值：更新状态
             }
             ///
-            if (targetResolution == null) {
-                targetResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+            if (targetResolution == null) { // 条件：按运行状态分支
+                targetResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight()); // 赋值：更新状态
             }
-            if (targetResolution.x == previewBitmap.getWidth() && targetResolution.y == previewBitmap.getHeight()) {
-                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
-                    return previewBitmap;
+            if (targetResolution.x == previewBitmap.getWidth() && targetResolution.y == previewBitmap.getHeight()) { // 条件：按运行状态分支
+                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) { // 条件：按运行状态分支
+                    return previewBitmap; // 返回：结束当前方法
                 } else {
-                    Bitmap outputBitmap = Bitmap.createBitmap(previewBitmap.getWidth(), previewBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////
-                    Canvas canvas = new Canvas(outputBitmap);
-                    Paint paint = new Paint();
-                    ColorMatrix colorMatrix = new ColorMatrix();
+                    Bitmap outputBitmap = Bitmap.createBitmap(previewBitmap.getWidth(), previewBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
+                    Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
+                    Paint paint = new Paint(); // 赋值：更新状态
+                    ColorMatrix colorMatrix = new ColorMatrix(); // 赋值：更新状态
 //                // 是否灰度化
 //                if (photoConfig.color == 0) {
 //                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
@@ -440,59 +440,59 @@ public class Camera2Device extends Device {
 //                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
 //                }
 
-                    if (photoConfig.brightness != 50) {
+                    if (photoConfig.brightness != 50) { // 条件：按运行状态分支
                         // 映射亮度 (1~100 → -128~128)
-                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f; // 赋值：更新状态
                         // 调整亮度
-                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{ // 赋值：更新状态
                                 1, 0, 0, 0, brightnessValue,
                                 0, 1, 0, 0, brightnessValue,
                                 0, 0, 1, 0, brightnessValue,
                                 0, 0, 0, 1, 0
                         });
-                        colorMatrix.postConcat(brightnessMatrix);
+                        colorMatrix.postConcat(brightnessMatrix); // 调用：执行下一步
                     }
-                    if (photoConfig.contrast != 50) {
+                    if (photoConfig.contrast != 50) { // 条件：按运行状态分支
                         // 映射对比度 (1~100 → 0.5~2.0)
-                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99); // 赋值：更新状态
                         // 调整对比度
-                        float translate = (1 - contrastValue) * 128;
-                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                        float translate = (1 - contrastValue) * 128; // 赋值：更新状态
+                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{ // 赋值：更新状态
                                 contrastValue, 0, 0, 0, translate,
                                 0, contrastValue, 0, 0, translate,
                                 0, 0, contrastValue, 0, translate,
                                 0, 0, 0, 1, 0
                         });
-                        colorMatrix.postConcat(contrastMatrix);
+                        colorMatrix.postConcat(contrastMatrix); // 调用：执行下一步
                     }
-                    if (photoConfig.saturation != 50) {
+                    if (photoConfig.saturation != 50) { // 条件：按运行状态分支
                         // 映射饱和度 (1~100 → 0.0~2.0)
-                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99); // 赋值：更新状态
                         // 调整饱和度
-                        ColorMatrix saturationMatrix = new ColorMatrix();
-                        saturationMatrix.setSaturation(saturationValue);
-                        if (MainActivity.DEBUG) {
-                            colorMatrix.postConcat(saturationMatrix);
+                        ColorMatrix saturationMatrix = new ColorMatrix(); // 赋值：更新状态
+                        saturationMatrix.setSaturation(saturationValue); // 调用：执行下一步
+                        if (MainActivity.DEBUG) { // 条件：按运行状态分支
+                            colorMatrix.postConcat(saturationMatrix); // 调用：执行下一步
                         }
                         // 组合所有矩阵
-                        paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-                        canvas.drawBitmap(previewBitmap, 0, 0, paint);
+                        paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix)); // 调用：执行下一步
+                        canvas.drawBitmap(previewBitmap, 0, 0, paint); // 调用：执行下一步
                         //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
                         //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
                         //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
-                        return outputBitmap;
+                        return outputBitmap; // 返回：结束当前方法
                     }
                 }
             } else {
-                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, targetResolution.x, targetResolution.y, true);
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, targetResolution.x, targetResolution.y, true); // Android：图像解码/绘制
 //                Log.i(Log.TAG, "摄像头设置分辨率为" + targetResolution.x + "x" + targetResolution.y);
-                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
-                    return scaledBitmap;
+                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) { // 条件：按运行状态分支
+                    return scaledBitmap; // 返回：结束当前方法
                 } else {
-                    Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////
-                    Canvas canvas = new Canvas(outputBitmap);
-                    Paint paint = new Paint();
-                    ColorMatrix colorMatrix = new ColorMatrix();
+                    Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
+                    Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
+                    Paint paint = new Paint(); // 赋值：更新状态
+                    ColorMatrix colorMatrix = new ColorMatrix(); // 赋值：更新状态
 //                // 是否灰度化
 //                if (photoConfig.color == 0) {
 //                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
@@ -507,242 +507,242 @@ public class Camera2Device extends Device {
 //                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
 //                }
 
-                    if (photoConfig.brightness != 50) {
+                    if (photoConfig.brightness != 50) { // 条件：按运行状态分支
                         // 映射亮度 (1~100 → -128~128)
-                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f; // 赋值：更新状态
                         // 调整亮度
-                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{ // 赋值：更新状态
                                 1, 0, 0, 0, brightnessValue,
                                 0, 1, 0, 0, brightnessValue,
                                 0, 0, 1, 0, brightnessValue,
                                 0, 0, 0, 1, 0
                         });
-                        colorMatrix.postConcat(brightnessMatrix);
+                        colorMatrix.postConcat(brightnessMatrix); // 调用：执行下一步
                     }
-                    if (photoConfig.contrast != 50) {
+                    if (photoConfig.contrast != 50) { // 条件：按运行状态分支
                         // 映射对比度 (1~100 → 0.5~2.0)
-                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99); // 赋值：更新状态
                         // 调整对比度
-                        float translate = (1 - contrastValue) * 128;
-                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                        float translate = (1 - contrastValue) * 128; // 赋值：更新状态
+                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{ // 赋值：更新状态
                                 contrastValue, 0, 0, 0, translate,
                                 0, contrastValue, 0, 0, translate,
                                 0, 0, contrastValue, 0, translate,
                                 0, 0, 0, 1, 0
                         });
-                        colorMatrix.postConcat(contrastMatrix);
+                        colorMatrix.postConcat(contrastMatrix); // 调用：执行下一步
                     }
-                    if (photoConfig.saturation != 50) {
+                    if (photoConfig.saturation != 50) { // 条件：按运行状态分支
                         // 映射饱和度 (1~100 → 0.0~2.0)
-                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99); // 赋值：更新状态
                         // 调整饱和度
-                        ColorMatrix saturationMatrix = new ColorMatrix();
-                        saturationMatrix.setSaturation(saturationValue);
-                        colorMatrix.postConcat(saturationMatrix);
+                        ColorMatrix saturationMatrix = new ColorMatrix(); // 赋值：更新状态
+                        saturationMatrix.setSaturation(saturationValue); // 调用：执行下一步
+                        colorMatrix.postConcat(saturationMatrix); // 调用：执行下一步
                     }
                     // 组合所有矩阵
-                    paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-                    canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+                    paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix)); // 调用：执行下一步
+                    canvas.drawBitmap(scaledBitmap, 0, 0, paint); // 调用：执行下一步
                     //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
                     //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
                     //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
-                    return outputBitmap;
+                    return outputBitmap; // 返回：结束当前方法
                 }
             }
             ///
         } catch (Exception e) {
-            Log.i(Log.TAG, "摄像头设置图像参数异常：" + e);
-            return previewBitmap;
+            Log.i(Log.TAG, "摄像头设置图像参数异常：" + e); // 日志：记录相机状态
+            return previewBitmap; // 返回：结束当前方法
         }
 
-        return previewBitmap;
+        return previewBitmap; // 返回：结束当前方法
     }
 
-    private void updateCaptureRequestParameters() {
-        try {
+    private void updateCaptureRequestParameters() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
             // 降噪模式
-            if (cameraConfig.denoiseMode == 0) {
+            if (cameraConfig.denoiseMode == 0) { // 条件：按运行状态分支
                 //Log.i(Log.TAG, "MIPI摄像头关闭降噪");
             } else if (cameraConfig.denoiseMode == 1) {
                 //Log.i(Log.TAG, "MIPI摄像头开启2D降噪");
             } else if (cameraConfig.denoiseMode == 2) {
                 //Log.i(Log.TAG, "MIPI摄像头开启3D降噪");
             }
-            if (cameraConfig.denoiseMode <= 2) {
-                mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode);
+            if (cameraConfig.denoiseMode <= 2) { // 条件：按运行状态分支
+                mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode); // Camera2：构建下一次请求参数
             }
             // 增益控制
-            if (cameraConfig.gainControl == 0) {
+            if (cameraConfig.gainControl == 0) { // 条件：按运行状态分支
                 //Log.i(Log.TAG, "MIPI摄像头手动增益");
             } else {
                 //Log.i(Log.TAG, "MIPI摄像头自动增益");
             }
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl); // Camera2：构建下一次请求参数
             // 背光补偿
-            if (cameraConfig.backLightCom == 1) {
+            if (cameraConfig.backLightCom == 1) { // 条件：按运行状态分支
                 //Log.i(Log.TAG, "MIPI摄像头开启背光补偿");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值；Camera2：构建下一次请求参数
             // 强光抑制
             } else if (cameraConfig.strongLightSup == 1) {
                 //Log.i(Log.TAG, "MIPI摄像头开启强光抑制");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值；Camera2：构建下一次请求参数
             } else {
                 //Log.i(Log.TAG, "MIPI摄像头关闭背光补偿与强光抑制");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);  // 亮度补偿值
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);  // 亮度补偿值；Camera2：构建下一次请求参数
             }
             // 聚焦模式
-            if (cameraConfig.focusMode == 0) {
+            if (cameraConfig.focusMode == 0) { // 条件：按运行状态分支
                 //Log.i(Log.TAG, "MIPI摄像头半自动对焦");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO); // Camera2：构建下一次请求参数
             } else if (cameraConfig.focusMode == 1) {
                 //Log.i(Log.TAG, "MIPI摄像头全自动对焦");
-                if (mCameraPhotoing) {
-                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                if (mCameraPhotoing) { // 状态：当前正在抓拍
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE); // Camera2：构建下一次请求参数
                 } else {
-                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO); // Camera2：构建下一次请求参数
                 }
             } else {
                 //Log.i(Log.TAG, "MIPI摄像头手动对焦");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF); // Camera2：构建下一次请求参数
             }
             // 是否灰度化
-            if (photoConfig.color == 0) {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩
+            if (photoConfig.color == 0) { // 条件：按运行状态分支
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩；Camera2：构建下一次请求参数
             }
             // 更新请求
             applyLowNoiseCaptureRequestParameters(isRecording() ? getVideoCodec(streamType) : null, isRecording());
-            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：持续提交预览请求
         } catch (Exception e) {
-            Log.e(Log.TAG, "更新CaptureRequest参数失败: " + e.getMessage());
+            Log.e(Log.TAG, "更新CaptureRequest参数失败: " + e.getMessage()); // Camera2：发送给HAL的请求
         }
     }
 
-    private void applyLowNoiseCaptureRequestParameters(Settings.VideoCodec vc, boolean isRecordVideo) {
-        if (mPreviewRequestBuilder == null) {
-            return;
+    private void applyLowNoiseCaptureRequestParameters(Settings.VideoCodec vc, boolean isRecordVideo) { // 入口：方法定义
+        if (mPreviewRequestBuilder == null) { // Camera2：构建下一次请求参数
+            return; // 返回：结束当前方法
         }
-        applyLowNoiseCaptureRequestParameters(mPreviewRequestBuilder, vc, isRecordVideo);
+        applyLowNoiseCaptureRequestParameters(mPreviewRequestBuilder, vc, isRecordVideo); // Camera2：构建下一次请求参数
     }
 
-    private void applyLowNoiseCaptureRequestParameters(CaptureRequest.Builder builder, Settings.VideoCodec vc, boolean isRecordVideo) {
-        if (builder == null) {
-            return;
+    private void applyLowNoiseCaptureRequestParameters(CaptureRequest.Builder builder, Settings.VideoCodec vc, boolean isRecordVideo) { // Camera2：发送给HAL的请求
+        if (builder == null) { // 条件：按运行状态分支
+            return; // 返回：结束当前方法
         }
-        int denoiseMode = CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY;
-        if (cameraConfig != null && cameraConfig.denoiseMode >= 0 && cameraConfig.denoiseMode <= 2) {
-            denoiseMode = cameraConfig.denoiseMode;
+        int denoiseMode = CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY; // Camera2：发送给HAL的请求
+        if (cameraConfig != null && cameraConfig.denoiseMode >= 0 && cameraConfig.denoiseMode <= 2) { // 条件：按运行状态分支
+            denoiseMode = cameraConfig.denoiseMode; // 赋值：更新状态
         }
-        builder.set(CaptureRequest.NOISE_REDUCTION_MODE, denoiseMode);
+        builder.set(CaptureRequest.NOISE_REDUCTION_MODE, denoiseMode); // Camera2：发送给HAL的请求
 
-        if (isRecordVideo && vc != null && vc.frame > 0) {
-            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));
+        if (isRecordVideo && vc != null && vc.frame > 0) { // 条件：按运行状态分支
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame)); // Camera2：限制帧率范围
         } else {
-            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10)); // Camera2：限制帧率范围
         }
 
-        if (mKeyAisRequestMode != null) {
-            builder.set(mKeyAisRequestMode, new int[]{2});
+        if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
+            builder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
         }
     }
 
-    private void refreshLowNoiseRepeatingRequest(Settings.VideoCodec vc, boolean isRecordVideo) {
-        try {
-            if (mPreviewSession == null || mPreviewRequestBuilder == null) {
-                return;
+    private void refreshLowNoiseRepeatingRequest(Settings.VideoCodec vc, boolean isRecordVideo) { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mPreviewSession == null || mPreviewRequestBuilder == null) { // Camera2：构建下一次请求参数
+                return; // 返回：结束当前方法
             }
             applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);
-            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：持续提交预览请求
         } catch (Exception e) {
-            Log.e(Log.TAG, "Refresh low-noise CaptureRequest failed: " + e.getMessage());
+            Log.e(Log.TAG, "Refresh low-noise CaptureRequest failed: " + e.getMessage()); // Camera2：发送给HAL的请求
         }
     }
 
-    private static Bitmap rotate180WithCanvas(Bitmap src) {
-        Bitmap dst = Bitmap.createBitmap(src.getWidth(), src.getHeight(), src.getConfig() != null ? src.getConfig() : Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(dst);
-        c.save();
-        c.rotate(180f, src.getWidth() / 2f, src.getHeight() / 2f);
-        c.drawBitmap(src, 0f, 0f, null);  // 关键：把原图画到旋转后的画布上
-        c.restore();
-        return dst;
+    private static Bitmap rotate180WithCanvas(Bitmap src) { // Android：图像解码/绘制
+        Bitmap dst = Bitmap.createBitmap(src.getWidth(), src.getHeight(), src.getConfig() != null ? src.getConfig() : Bitmap.Config.ARGB_8888); // Android：图像解码/绘制
+        Canvas c = new Canvas(dst); // Android：图像解码/绘制
+        c.save(); // 调用：执行下一步
+        c.rotate(180f, src.getWidth() / 2f, src.getHeight() / 2f); // 调用：执行下一步
+        c.drawBitmap(src, 0f, 0f, null);  // 关键：把原图画到旋转后的画布上；调用：执行下一步
+        c.restore(); // 调用：执行下一步
+        return dst; // 返回：结束当前方法
     }
 
-        private static Bitmap rotate90ClockwiseWithCanvas(Bitmap src) {
-        Bitmap dst = Bitmap.createBitmap(src.getHeight(), src.getWidth(), src.getConfig() != null ? src.getConfig() : Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(dst);
-        c.save();
-        c.translate(src.getHeight(), 0f);
-        c.rotate(90f);
-        c.drawBitmap(src, 0f, 0f, null);
-        c.restore();
-        return dst;
+        private static Bitmap rotate90ClockwiseWithCanvas(Bitmap src) { // Android：图像解码/绘制
+        Bitmap dst = Bitmap.createBitmap(src.getHeight(), src.getWidth(), src.getConfig() != null ? src.getConfig() : Bitmap.Config.ARGB_8888); // Android：图像解码/绘制
+        Canvas c = new Canvas(dst); // Android：图像解码/绘制
+        c.save(); // 调用：执行下一步
+        c.translate(src.getHeight(), 0f); // 调用：执行下一步
+        c.rotate(90f); // 调用：执行下一步
+        c.drawBitmap(src, 0f, 0f, null); // 调用：执行下一步
+        c.restore(); // 调用：执行下一步
+        return dst; // 返回：结束当前方法
     }
 
-    private void saveCapturedPhoto(Bitmap bitmap) {
-        if (bitmap == null) {
-            return;
+    private void saveCapturedPhoto(Bitmap bitmap) { // Android：图像解码/绘制
+        if (bitmap == null) { // 条件：按运行状态分支
+            return; // 返回：结束当前方法
         }
-        Log.i(Log.TAG, "抓拍图片分辨率：" + bitmap.getWidth() + "x" + bitmap.getHeight());
+        Log.i(Log.TAG, "抓拍图片分辨率：" + bitmap.getWidth() + "x" + bitmap.getHeight()); // 日志：记录相机状态
 
-        bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true);
+        bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true); // 赋值：更新状态
         //drawMetrics(bitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
         drawWatermark(bitmap, id, streamType, true); // 先AI识别再画OSD //////
 
-        Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100);
-        if (NettyUtils.isTakePhoto()) {
+        Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100); // 调用：执行下一步
+        if (NettyUtils.isTakePhoto()) { // 条件：按运行状态分支
             toolTakePhoto(bitmap);
-            NettyUtils.setTakePhoto(false);
+            NettyUtils.setTakePhoto(false); // 调用：执行下一步
         }
-        if (controllerCallback != null) {
-            procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
+        if (controllerCallback != null) { // 条件：按运行状态分支
+            procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage)); // 调用：执行下一步
         }
-        Runnable done = () -> {
-            photoDone.set(true);
-            mCameraPhtotingLock.notifyLock();
+        Runnable done = () -> { // 赋值：更新状态
+            photoDone.set(true); // 条件：takePhoto等它变true
+            mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
         };
-        if (mBackgroundHandler != null) {
-            mBackgroundHandler.postDelayed(done, 1500);
-            return;
+        if (mBackgroundHandler != null) { // 线程：承接Camera2回调
+            mBackgroundHandler.postDelayed(done, 1500); // 线程：承接Camera2回调
+            return; // 返回：结束当前方法
         }
-        SystemClock.sleep(1500);
-        done.run();
+        SystemClock.sleep(1500); // 阻塞：当前线程睡眠
+        done.run(); // 调用：执行下一步
     }
 
 
     // 直播和拍照回调函数  拉流的时候可以拍照，需要结合takephoto函数
-    private void postEncodeFrame(Bitmap bitmap) {
-        if (bitmap == null || procVideoHandler == null) {
-            return;
+    private void postEncodeFrame(Bitmap bitmap) { // Android：图像解码/绘制
+        if (bitmap == null || procVideoHandler == null) { // 条件：按运行状态分支
+            return; // 返回：结束当前方法
         }
-        if (!videoEncodePending.compareAndSet(false, true)) {
-            return;
+        if (!videoEncodePending.compareAndSet(false, true)) { // 条件：按运行状态分支
+            return; // 返回：结束当前方法
         }
-        procVideoHandler.post(() -> {
-            try {
+        procVideoHandler.post(() -> { // 调用：执行下一步
+            try { // 异常：保护相机/IO调用
                 encode(bitmap);
             } finally {
-                videoEncodePending.set(false);
+                videoEncodePending.set(false); // 调用：执行下一步
             }
         });
     }
 
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() { // Android：相机帧队列
         @Override
-        public void onImageAvailable(ImageReader reader) {
-            Image img = reader.acquireLatestImage();
-            try {
-                if (img == null || !previewReady) return;
+        public void onImageAvailable(ImageReader reader) { // 回调：ImageReader有新帧
+            Image img = reader.acquireLatestImage(); // ImageReader：取最新帧
+            try { // 异常：保护相机/IO调用
+                if (img == null || !previewReady) return; // 条件：会话可出帧后才处理Image
 
-                mCameraParamHandler.post(() -> updateCaptureRequestParameters());
+                mCameraParamHandler.post(() -> updateCaptureRequestParameters()); // 线程：异步刷新请求参数
 
-                Bitmap previewBitmap = imageDecode(img);
+                Bitmap previewBitmap = imageDecode(img); // Android：图像解码/绘制
 
-                if (rotate == 1) {
-                    previewBitmap = rotate180WithCanvas(previewBitmap);
+                if (rotate == 1) { // 条件：按运行状态分支
+                    previewBitmap = rotate180WithCanvas(previewBitmap); // 赋值：更新状态
                 }
-                previewBitmap = preProcessingPhoto(previewBitmap);
+                previewBitmap = preProcessingPhoto(previewBitmap); // 赋值：更新状态
 
-                if (mCameraPhotoing && mStillImageReader == null && takePhotoOnce.compareAndSet(true, false)) {
+                if (mCameraPhotoing && mStillImageReader == null && takePhotoOnce.compareAndSet(true, false)) { // 同步：只允许一帧完成本次抓拍
                     saveCapturedPhoto(previewBitmap);
 
                 } else if ((isLiving() && rtph264 != null) || isRecording()) {
@@ -751,65 +751,65 @@ public class Camera2Device extends Device {
 
                     drawWatermark(previewBitmap, id, streamType, false); // 先AI识别再画OSD //////
 
-                    Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题
+                    Bitmap finalPreviewBitmap = previewBitmap; // 这里可以解决OSD闪烁的问题；Android：图像解码/绘制
                     postEncodeFrame(finalPreviewBitmap);
                 ///
                 } else if (enableLiveEncode) {
-                    if (mResolution == null) {
-                        Log.i(Log.TAG, "直播帧跳过，mResolution 为空" + "，camID = " + camID);
-                        return;
+                    if (mResolution == null) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "直播帧跳过，mResolution 为空" + "，camID = " + camID); // 日志：记录相机状态
+                        return; // 返回：结束当前方法
                     }
-                    if (rtph264 == null) {
-                        Log.i(Log.TAG, "直播帧跳过，rtph264 为空" + "，isLiving = " + isLiving());
-                        return;
+                    if (rtph264 == null) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "直播帧跳过，rtph264 为空" + "，isLiving = " + isLiving()); // 日志：记录相机状态
+                        return; // 返回：结束当前方法
                     }
                     drawWatermark(previewBitmap, id, streamType, false);  // 先AI识别再画OSD
-                    Bitmap finalPreviewBitmap = previewBitmap;  // 这里可以解决OSD闪烁的问题
+                    Bitmap finalPreviewBitmap = previewBitmap;  // 这里可以解决OSD闪烁的问题；Android：图像解码/绘制
                     postEncodeFrame(finalPreviewBitmap);
                 }
                 ///
-                if (mOnShow && controllerCallback != null && previewBitmap != null ) {
-                    Bitmap localPreviewBitmap = rotate90ClockwiseWithCanvas(previewBitmap);
-                    controllerCallback.onFrame(localPreviewBitmap); /////
+                if (mOnShow && controllerCallback != null && previewBitmap != null ) { // 条件：按运行状态分支
+                    Bitmap localPreviewBitmap = rotate90ClockwiseWithCanvas(previewBitmap); // Android：图像解码/绘制
+                    controllerCallback.onFrame(localPreviewBitmap); /////；调用：执行下一步
                 }
             } catch (Exception e) {
-                Log.i(Log.TAG, "图片处理异常：" + e.getMessage());
+                Log.i(Log.TAG, "图片处理异常：" + e.getMessage()); // 日志：记录相机状态
             } finally {
-                if (img != null) img.close();
+                if (img != null) img.close(); // Image：释放底层buffer
             }
         }
     };
 
-    private final ImageReader.OnImageAvailableListener mStillImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+    private final ImageReader.OnImageAvailableListener mStillImageAvailableListener = new ImageReader.OnImageAvailableListener() { // Android：相机帧队列
         @Override
-        public void onImageAvailable(ImageReader reader) {
-            Image img = reader.acquireLatestImage();
-            try {
-                if (img == null || !mCameraPhotoing) {
-                    return;
+        public void onImageAvailable(ImageReader reader) { // 回调：ImageReader有新帧
+            Image img = reader.acquireLatestImage(); // ImageReader：取最新帧
+            try { // 异常：保护相机/IO调用
+                if (img == null || !mCameraPhotoing) { // 状态：当前正在抓拍
+                    return; // 返回：结束当前方法
                 }
-                if (!takePhotoOnce.compareAndSet(true, false)) {
-                    return;
+                if (!takePhotoOnce.compareAndSet(true, false)) { // 同步：只允许一帧完成本次抓拍
+                    return; // 返回：结束当前方法
                 }
-                Bitmap bitmap = imageDecode(img);
-                if (bitmap == null) {
-                    Log.i(Log.TAG, "Still photo decode failed, camID = " + camID);
-                    photoDone.set(true);
-                    mCameraPhtotingLock.notifyLock();
-                    return;
+                Bitmap bitmap = imageDecode(img); // Android：图像解码/绘制
+                if (bitmap == null) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "Still photo decode failed, camID = " + camID); // 日志：记录相机状态
+                    photoDone.set(true); // 条件：takePhoto等它变true
+                    mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
+                    return; // 返回：结束当前方法
                 }
-                if (rotate == 1) {
-                    bitmap = rotate180WithCanvas(bitmap);
+                if (rotate == 1) { // 条件：按运行状态分支
+                    bitmap = rotate180WithCanvas(bitmap); // 赋值：更新状态
                 }
-                bitmap = preProcessingPhoto(bitmap);
-                Log.i(Log.TAG, "Still photo resolution: " + bitmap.getWidth() + "x" + bitmap.getHeight() + ", camID = " + camID);
+                bitmap = preProcessingPhoto(bitmap); // 赋值：更新状态
+                Log.i(Log.TAG, "Still photo resolution: " + bitmap.getWidth() + "x" + bitmap.getHeight() + ", camID = " + camID); // 日志：记录相机状态
                 saveCapturedPhoto(bitmap);
             } catch (Exception e) {
-                Log.i(Log.TAG, "Still photo process error: " + e.getMessage());
-                photoDone.set(true);
-                mCameraPhtotingLock.notifyLock();
+                Log.i(Log.TAG, "Still photo process error: " + e.getMessage()); // 日志：记录相机状态
+                photoDone.set(true); // 条件：takePhoto等它变true
+                mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
             } finally {
-                if (img != null) img.close();
+                if (img != null) img.close(); // Image：释放底层buffer
             }
         }
     };
@@ -982,93 +982,93 @@ public class Camera2Device extends Device {
 //            };
 
 
-    private void toolTakePhoto(Bitmap previewBitmap) {
-        try {
-            byte[] picByte = ImageUtils.bitmap2Bytes(NettyUtils.matrixBitmap(previewBitmap, 0.5f));
-            Log.i(Log.TAG, picByte.length + "");
+    private void toolTakePhoto(Bitmap previewBitmap) { // Android：图像解码/绘制
+        try { // 异常：保护相机/IO调用
+            byte[] picByte = ImageUtils.bitmap2Bytes(NettyUtils.matrixBitmap(previewBitmap, 0.5f)); // 赋值：更新状态
+            Log.i(Log.TAG, picByte.length + ""); // 日志：记录相机状态
 
-            CommonResponseEntity commonResponseEntity = new CommonResponseEntity();
-            commonResponseEntity.type = (Constant.TAKE_PHOTO);
-            commonResponseEntity.content = ("图片");
-            commonResponseEntity.picByte = (picByte);
+            CommonResponseEntity commonResponseEntity = new CommonResponseEntity(); // 赋值：更新状态
+            commonResponseEntity.type = (Constant.TAKE_PHOTO); // 赋值：更新状态
+            commonResponseEntity.content = ("图片"); // 赋值：更新状态
+            commonResponseEntity.picByte = (picByte); // 赋值：更新状态
 
-            NettyTcpServer.getInstance().sendMsgToServer(commonResponseEntity,
+            NettyTcpServer.getInstance().sendMsgToServer(commonResponseEntity, // 调用：执行下一步
                     future -> {
-                        if (future.isSuccess()) {
-                            Log.i(Log.TAG, "Write auth successful");
+                        if (future.isSuccess()) { // 条件：按运行状态分支
+                            Log.i(Log.TAG, "Write auth successful"); // 日志：记录相机状态
                         } else {
-                            Log.i(Log.TAG, "Write auth error");
+                            Log.i(Log.TAG, "Write auth error"); // 日志：记录相机状态
                         }
                     });
         } catch (Exception e) {
-            Log.i(Log.TAG, e.getMessage());
+            Log.i(Log.TAG, e.getMessage()); // 日志：记录相机状态
         }
     }
 
 
-    private void captureContinuousPictures() {
-        try {
+    private void captureContinuousPictures() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
             // 锁定AE调节，否则录像或视频画面在特定光线条件下会不停闪烁
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true); // Camera2：锁定自动曝光
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO); // Camera2：构建下一次请求参数
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：持续提交预览请求
         } catch (Exception e) {
-            Log.i(Log.TAG, "视频预览异常：" + e.getMessage());
+            Log.i(Log.TAG, "视频预览异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
 
     ///
-    private void captureStillPicture() {
-        try {
-            CaptureRequest.Builder captureBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+    private void captureStillPicture() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            CaptureRequest.Builder captureBuilder = // Camera2：发送给HAL的请求
+                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE); // Camera2：创建请求模板
 
-            ImageReader targetReader = mStillImageReader != null ? mStillImageReader : mImageReader;
-            if (targetReader == null) {
-                photoDone.set(true);
-                mCameraPhtotingLock.notifyLock();
-                return;
+            ImageReader targetReader = mStillImageReader != null ? mStillImageReader : mImageReader; // Camera2：接收预览/抓拍帧
+            if (targetReader == null) { // 条件：按运行状态分支
+                photoDone.set(true); // 条件：takePhoto等它变true
+                mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
+                return; // 返回：结束当前方法
             }
 
-            captureBuilder.addTarget(targetReader.getSurface());
+            captureBuilder.addTarget(targetReader.getSurface()); // Camera2：绑定输出Surface
 
-            captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
-            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
-            captureBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE);
-            captureBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+            captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true); // Camera2：锁定自动曝光
+            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100); // Camera2：设置JPEG质量
+            captureBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE); // Camera2：声明抓拍意图
+            captureBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY); // Camera2：发送给HAL的请求
 
-            captureBuilder.set(
-                    CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+            captureBuilder.set( // 调用：执行下一步
+                    CaptureRequest.CONTROL_AF_MODE, // Camera2：发送给HAL的请求
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE // Camera2：发送给HAL的请求
             );
 
-            captureBuilder.set(
-                    CaptureRequest.CONTROL_AF_TRIGGER,
+            captureBuilder.set( // 调用：执行下一步
+                    CaptureRequest.CONTROL_AF_TRIGGER, // Camera2：触发自动对焦
                     CameraMetadata.CONTROL_AF_TRIGGER_IDLE
             );
 
-            if (mKeyAisRequestMode != null) {
-                captureBuilder.set(mKeyAisRequestMode, new int[]{2});
+            if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
+                captureBuilder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
             }
 
-            CameraCaptureSession.CaptureCallback captureCallback =
-                    new CameraCaptureSession.CaptureCallback() {
+            CameraCaptureSession.CaptureCallback captureCallback = // Camera2：输出会话
+                    new CameraCaptureSession.CaptureCallback() { // Camera2：输出会话
                         @Override
-                        public void onCaptureCompleted(
-                                @NonNull CameraCaptureSession session,
-                                @NonNull CaptureRequest request,
-                                @NonNull TotalCaptureResult result) {
+                        public void onCaptureCompleted( // 回调：单次请求完成
+                                @NonNull CameraCaptureSession session, // Camera2：输出会话
+                                @NonNull CaptureRequest request, // Camera2：发送给HAL的请求
+                                @NonNull TotalCaptureResult result) { // Camera2：HAL返回帧元数据
 
-                            Log.i(Log.TAG, "拍摄照片成功");
+                            Log.i(Log.TAG, "拍摄照片成功"); // 日志：记录相机状态
 
-                            if (mKeyAisResult != null) {
-                                int[] resultModes = result.get(mKeyAisResult);
-                                if (resultModes != null) {
-                                    for (int mode : resultModes) {
-                                        Log.i(Log.TAG, "MFB Result Mode: " + mode);
+                            if (mKeyAisResult != null) { // 条件：按运行状态分支
+                                int[] resultModes = result.get(mKeyAisResult); // 赋值：更新状态
+                                if (resultModes != null) { // 条件：按运行状态分支
+                                    for (int mode : resultModes) { // 循环：遍历数据
+                                        Log.i(Log.TAG, "MFB Result Mode: " + mode); // 日志：记录相机状态
                                     }
                                 } else {
-                                    Log.i(Log.TAG, "captureStillPicture::MFB Result Mode not available.");
+                                    Log.i(Log.TAG, "captureStillPicture::MFB Result Mode not available."); // 日志：记录相机状态
                                 }
                             }
 
@@ -1076,114 +1076,114 @@ public class Camera2Device extends Device {
                         }
                     };
 
-            mPreviewSession.capture(
-                    captureBuilder.build(),
+            mPreviewSession.capture( // Camera2：提交单次请求
+                    captureBuilder.build(), // Camera2：生成不可变请求
                     captureCallback,
-                    mBackgroundHandler
+                    mBackgroundHandler // 线程：承接Camera2回调
             );
 
         } catch (Exception e) {
-            Log.i(Log.TAG, "拍摄照片异常：" + e.getMessage());
+            Log.i(Log.TAG, "拍摄照片异常：" + e.getMessage()); // 日志：记录相机状态
 
             restorePreviewRepeatingAfterStillCapture();
-            photoDone.set(true);
-            mCameraPhtotingLock.notifyLock();
+            photoDone.set(true); // 条件：takePhoto等它变true
+            mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
         }
     }
 
-    private void restorePreviewRepeatingAfterStillCapture() {
-        try {
-            if (mPreviewSession == null || mPreviewRequestBuilder == null) {
-                return;
+    private void restorePreviewRepeatingAfterStillCapture() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mPreviewSession == null || mPreviewRequestBuilder == null) { // Camera2：构建下一次请求参数
+                return; // 返回：结束当前方法
             }
-            if (isRecording()) {
+            if (isRecording()) { // 条件：按运行状态分支
                 refreshLowNoiseRepeatingRequest(getVideoCodec(streamType), true);
             } else if (isLiving() || enableLiveEncode) {
                 refreshLowNoiseRepeatingRequest(null, false);
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "Restore preview after still capture error: " + e.getMessage());
+            Log.i(Log.TAG, "Restore preview after still capture error: " + e.getMessage()); // 日志：记录相机状态
         }
     }
     ///
 
-    private static final int STATE_PREVIEW = 0;
-    private static final int STATE_WAITING_AF_LOCK = 1;
-    private static final int STATE_WAITING_AE_LOCKING = 3;
-    private static final int STATE_PICTURE_TAKING = 4;
-    private static final int STATE_VIDEO_RECORDING = 5;
-    private static final int STATE_VIDEO_LIVING = 6;
-    private int mState = STATE_PREVIEW;
-    private volatile boolean previewReady;
-    private volatile boolean mPreviewSessionVideoMode = false;
+    private static final int STATE_PREVIEW = 0; // 状态机：AF/AE/抓拍/视频流转
+    private static final int STATE_WAITING_AF_LOCK = 1; // 状态机：AF/AE/抓拍/视频流转
+    private static final int STATE_WAITING_AE_LOCKING = 3; // 状态机：AF/AE/抓拍/视频流转
+    private static final int STATE_PICTURE_TAKING = 4; // 状态机：AF/AE/抓拍/视频流转
+    private static final int STATE_VIDEO_RECORDING = 5; // 状态机：AF/AE/抓拍/视频流转
+    private static final int STATE_VIDEO_LIVING = 6; // 状态机：AF/AE/抓拍/视频流转
+    private int mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+    private volatile boolean previewReady; // 条件：会话可出帧后才处理Image
+    private volatile boolean mPreviewSessionVideoMode = false; // 成员：保存运行状态
 
-    private CameraCaptureSession.CaptureCallback mCaptureCallback
-            = new CameraCaptureSession.CaptureCallback() {
+    private CameraCaptureSession.CaptureCallback mCaptureCallback // 回调：推进AF/AE状态机
+            = new CameraCaptureSession.CaptureCallback() { // Camera2：输出会话
 
-        private void process(CaptureResult result) {
-            switch (mState) {
-                case STATE_PREVIEW:
+        private void process(CaptureResult result) { // Camera2：HAL返回帧元数据
+            switch (mState) { // 状态机：AF/AE/抓拍/视频流转
+                case STATE_PREVIEW: // 状态机：AF/AE/抓拍/视频流转
                     break;
-                case STATE_WAITING_AF_LOCK: {
-                    Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
-                    if (System.currentTimeMillis() - mLockFocusTime > 3 * 1000) {
-                        Log.i(Log.TAG, "对焦3秒超时，开始自动曝光");
+                case STATE_WAITING_AF_LOCK: { // 状态机：AF/AE/抓拍/视频流转
+                    Integer afState = result.get(CaptureResult.CONTROL_AF_STATE); // Camera2：HAL返回帧元数据
+                    if (System.currentTimeMillis() - mLockFocusTime > 3 * 1000) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "对焦3秒超时，开始自动曝光"); // 日志：记录相机状态
                         runPrecaptureSequence();
                     } else if (afState == null) { // 会有返回空的情况
 
                     } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ||
-                            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) {
-                        Log.i(Log.TAG, String.format("对焦%s，焦点锁定", CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ? "成功" : "失败"));
-                        Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                        if (aeState != null && aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
-                            Log.i(Log.TAG, "曝光结束，自动曝光很好");
-                            mState = STATE_PREVIEW;
-                            mCameraFocusLock.notifyLock();
+                            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) { // 状态机：AF/AE/抓拍/视频流转
+                        Log.i(Log.TAG, String.format("对焦%s，焦点锁定", CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ? "成功" : "失败")); // 状态机：AF/AE/抓拍/视频流转
+                        Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE); // Camera2：HAL返回帧元数据
+                        if (aeState != null && aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED) { // 状态机：AF/AE/抓拍/视频流转
+                            Log.i(Log.TAG, "曝光结束，自动曝光很好"); // 日志：记录相机状态
+                            mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                            mCameraFocusLock.notifyLock(); // 同步：lockFocus等待，AF/AE回调唤醒
                         } else {
                             runPrecaptureSequence();
                         }
                     }
                     break;
                 }
-                case STATE_WAITING_AE_LOCKING: {
-                    Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                    if (System.currentTimeMillis() - mLockFocusTime > 3 * 1000) {
-                        Log.i(Log.TAG, "曝光结束，自动曝光3秒超时");
-                        mState = STATE_PREVIEW;
-                        mCameraFocusLock.notifyLock();
+                case STATE_WAITING_AE_LOCKING: { // 状态机：AF/AE/抓拍/视频流转
+                    Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE); // Camera2：HAL返回帧元数据
+                    if (System.currentTimeMillis() - mLockFocusTime > 3 * 1000) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "曝光结束，自动曝光3秒超时"); // 日志：记录相机状态
+                        mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                        mCameraFocusLock.notifyLock(); // 同步：lockFocus等待，AF/AE回调唤醒
                     } else if (aeState == null) {
 
                     } else if (aeState == CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED) {
-                        Log.i(Log.TAG, "曝光结束，需要补光");
-                        mState = STATE_PREVIEW;
-                        mCameraFocusLock.notifyLock();
+                        Log.i(Log.TAG, "曝光结束，需要补光"); // 日志：记录相机状态
+                        mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                        mCameraFocusLock.notifyLock(); // 同步：lockFocus等待，AF/AE回调唤醒
                     } else if (aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED ||
-                            aeState == CaptureResult.CONTROL_AE_STATE_LOCKED) {
-                        Log.i(Log.TAG, "曝光结束，自动曝光很好");
-                        mState = STATE_PREVIEW;
-                        mCameraFocusLock.notifyLock();
+                            aeState == CaptureResult.CONTROL_AE_STATE_LOCKED) { // 状态机：AF/AE/抓拍/视频流转
+                        Log.i(Log.TAG, "曝光结束，自动曝光很好"); // 日志：记录相机状态
+                        mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                        mCameraFocusLock.notifyLock(); // 同步：lockFocus等待，AF/AE回调唤醒
                     }
                     break;
                 }
-                case STATE_PICTURE_TAKING:
+                case STATE_PICTURE_TAKING: // 状态机：AF/AE/抓拍/视频流转
                     captureStillPicture();
                     /////
-                    if (mKeyAisResult != null) {
-                        int[] resultModes = result.get(mKeyAisResult);
-                        if (resultModes != null) {
-                            for (int resMode : resultModes) {
-                                Log.i(Log.TAG, "MFB Result Mode: " + resMode);
+                    if (mKeyAisResult != null) { // 条件：按运行状态分支
+                        int[] resultModes = result.get(mKeyAisResult); // 赋值：更新状态
+                        if (resultModes != null) { // 条件：按运行状态分支
+                            for (int resMode : resultModes) { // 循环：遍历数据
+                                Log.i(Log.TAG, "MFB Result Mode: " + resMode); // 日志：记录相机状态
                             }
                         } else {
-                            Log.i(Log.TAG, "MFB Result Mode not available.");
+                            Log.i(Log.TAG, "MFB Result Mode not available."); // 日志：记录相机状态
                         }
                     }
                     /////
-                    mState = STATE_PREVIEW;
-                    previewReady = true;
+                    mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                    previewReady = true; // 条件：会话可出帧后才处理Image
                     break;
-                case STATE_VIDEO_LIVING:
-                case STATE_VIDEO_RECORDING:
+                case STATE_VIDEO_LIVING: // 状态机：AF/AE/抓拍/视频流转
+                case STATE_VIDEO_RECORDING: // 状态机：AF/AE/抓拍/视频流转
                     captureContinuousPictures();
 //                    /////
 //                    if (mKeyAisResult != null) {
@@ -1197,117 +1197,117 @@ public class Camera2Device extends Device {
 //                        }
 //                    }
 //                    /////
-                    mState = STATE_PREVIEW;
-                    previewReady = true;
+                    mState = STATE_PREVIEW; // 状态机：AF/AE/抓拍/视频流转
+                    previewReady = true; // 条件：会话可出帧后才处理Image
                     break;
             }
         }
 
         @Override
-        public void onCaptureProgressed(@NonNull CameraCaptureSession session,
-                                        @NonNull CaptureRequest request,
-                                        @NonNull CaptureResult partialResult) {
+        public void onCaptureProgressed(@NonNull CameraCaptureSession session, // Camera2：输出会话
+                                        @NonNull CaptureRequest request, // Camera2：发送给HAL的请求
+                                        @NonNull CaptureResult partialResult) { // Camera2：HAL返回帧元数据
             process(partialResult);
         }
 
         @Override
-        public void onCaptureCompleted(@NonNull CameraCaptureSession session,
-                                       @NonNull CaptureRequest request,
-                                       @NonNull TotalCaptureResult result) {
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, // 回调：单次请求完成
+                                       @NonNull CaptureRequest request, // Camera2：发送给HAL的请求
+                                       @NonNull TotalCaptureResult result) { // Camera2：HAL返回帧元数据
             process(result);
         }
     };
 
-    private void runPrecaptureSequence() {
-        try {
+    private void runPrecaptureSequence() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
             //Range<Integer> defaultFps = mPreviewRequestBuilder.get(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE);
             //Log.i(Log.TAG, "开始自动曝光,默认：" + defaultFps);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
-            mState = STATE_WAITING_AE_LOCKING;
-            mLockFocusTime = System.currentTimeMillis();
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START); // Camera2：触发预曝光
+            mState = STATE_WAITING_AE_LOCKING; // 状态机：AF/AE/抓拍/视频流转
+            mLockFocusTime = System.currentTimeMillis(); // 赋值：更新状态
             /////
             // 要先AF和AE，再进行多帧降噪，不然会AE失败！
-            if (mKeyAisRequestMode != null) {
-                mPreviewRequestBuilder.set(mKeyAisRequestMode, new int[]{2});
+            if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
+                mPreviewRequestBuilder.set(mKeyAisRequestMode, new int[]{2}); // Camera2：构建下一次请求参数
                 // 需要等待多帧降噪完成才能抓拍
-                if (mCameraPhotoing) {
-                    SystemClock.sleep(5000);
+                if (mCameraPhotoing) { // 状态：当前正在抓拍
+                    SystemClock.sleep(5000); // 阻塞：当前线程睡眠
                 }
             }
             /////
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：提交单次请求
         } catch (Exception e) {
-            Log.i(Log.TAG, "自动曝光异常：" + e.getMessage());
+            Log.i(Log.TAG, "自动曝光异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
 
-    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////
-        try {
+    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////；成员：保存运行状态
+        try { // 异常：保护相机/IO调用
             //Log.i(Log.TAG, "开始自动对焦");
-            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
+            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW); // Camera2：创建请求模板
+            mPreviewRequestBuilder.addTarget(mImageReader.getSurface()); // Camera2：绑定输出Surface
 
-            if (isRecordVideo){
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+            if (isRecordVideo){ // 条件：按运行状态分支
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
 
             }else {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
             }
 
             applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
-            mState = STATE_WAITING_AF_LOCK;
-            mLockFocusTime = System.currentTimeMillis();
-            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
-            mCameraFocusLock.waitLock(timeoutMilsec);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦；Camera2：构建下一次请求参数
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START); // Camera2：触发自动对焦
+            mState = STATE_WAITING_AF_LOCK; // 状态机：AF/AE/抓拍/视频流转
+            mLockFocusTime = System.currentTimeMillis(); // 赋值：更新状态
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：持续提交预览请求
+            mCameraFocusLock.waitLock(timeoutMilsec); // 同步：lockFocus等待，AF/AE回调唤醒
         } catch (Exception e) {
-            Log.i(Log.TAG, "对焦异常：" + e.getMessage());
+            Log.i(Log.TAG, "对焦异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
 
-    private void unlockFocus() {
-        try {
-            if (mPreviewRequestBuilder != null) {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+    private void unlockFocus() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mPreviewRequestBuilder != null) { // Camera2：构建下一次请求参数
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, // Camera2：触发自动对焦
                         CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "取消对焦异常：" + e.getMessage());
+            Log.i(Log.TAG, "取消对焦异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
 
-    private void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("CameraBackground");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    private void startBackgroundThread() { // 入口：方法定义
+        mBackgroundThread = new HandlerThread("CameraBackground"); // Android：串行消息线程
+        mBackgroundThread.start(); // 调用：执行下一步
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper()); // 线程：承接Camera2回调
     }
 
-    private void stopBackgroundThread() {
-        try {
-            if (mBackgroundThread != null) {
-                mBackgroundThread.quitSafely();
-                mBackgroundThread.join();
-                mBackgroundThread = null;
-                mBackgroundHandler = null;
+    private void stopBackgroundThread() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mBackgroundThread != null) { // 条件：按运行状态分支
+                mBackgroundThread.quitSafely(); // 调用：执行下一步
+                mBackgroundThread.join(); // 调用：执行下一步
+                mBackgroundThread = null; // 赋值：更新状态
+                mBackgroundHandler = null; // 线程：承接Camera2回调
             }
         } catch (Exception e) {
-            Log.i(Log.TAG, "摄像头线程退出异常：" + e.getMessage());
+            Log.i(Log.TAG, "摄像头线程退出异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
 
 
-    private void createPreviewSession(int width, int height, boolean video) {
-        try {
-            if (width <= 0 || height <= 0) {
-                Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]");
-                return;
+    private void createPreviewSession(int width, int height, boolean video) { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (width <= 0 || height <= 0) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "创建摄像头会话失败，无效的视频分辨率[" + width + ":" + height + "]"); // 日志：记录相机状态
+                return; // 返回：结束当前方法
             }
-            mPreviewSessionVideoMode = false;
+            mPreviewSessionVideoMode = false; // 赋值：更新状态
             closeImageReader();
             closeStillImageReader();
-            mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3
-            mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
+            mImageReader = ImageReader.newInstance(width, height, video ? ImageFormat.YUV_420_888 : ImageFormat.JPEG, 3);  // 3；ImageReader：创建帧输出队列
+            mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler); // ImageReader：注册帧回调
 
 //            List<Surface> surfaces = new ArrayList<>();
 //            surfaces.add(mImageReader.getSurface());
@@ -1320,39 +1320,39 @@ public class Camera2Device extends Device {
 //            }
 
 //            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
-            List<Surface> surfaces = new ArrayList<>();
-            surfaces.add(mImageReader.getSurface());
+            List<Surface> surfaces = new ArrayList<>(); // Android：Camera输出端
+            surfaces.add(mImageReader.getSurface()); // Camera2：接收预览/抓拍帧
             // Video sessions keep only the YUV output. Some MIPI sensors stop producing
             // frames when YUV and high-resolution JPEG outputs are active together.
 
-            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() { // Camera2：配置HAL输出流
                 @Override
-                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    if (mCameraDevice == null) return;
-                    mPreviewSession = cameraCaptureSession;
-                    mPreviewSessionVideoMode = video;
-                    mCameraOpenCloseLock.notifyLock();
+                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) { // 回调：Camera2会话已配置
+                    if (mCameraDevice == null) return; // Camera2：已打开的相机句柄
+                    mPreviewSession = cameraCaptureSession; // Camera2：向HAL提交请求的会话
+                    mPreviewSessionVideoMode = video; // 赋值：更新状态
+                    mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
                 }
 
                 @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    try {
-                        cameraCaptureSession.close();
+                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) { // 回调：Camera2会话配置失败
+                    try { // 异常：保护相机/IO调用
+                        cameraCaptureSession.close(); // 调用：执行下一步
                     } catch (Exception ignored) {
                     }
                     closePreviewSession();
                     closeImageReader();
                     closeStillImageReader();
-                    mCameraOpenCloseLock.notifyLock();
+                    mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
                 }
-            }, mBackgroundHandler);
-            mCameraOpenCloseLock.waitLock(2500);
+            }, mBackgroundHandler); // 线程：承接Camera2回调
+            mCameraOpenCloseLock.waitLock(2500); // 同步：等待唤醒或超时
         } catch (Exception e) {
-            Log.i(Log.TAG, "create camera session exception: " + e.getMessage());
+            Log.i(Log.TAG, "create camera session exception: " + e.getMessage()); // 日志：记录相机状态
             closePreviewSession();
             closeImageReader();
             closeStillImageReader();
-            mCameraOpenCloseLock.notifyLock();
+            mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
 //            Log.i(Log.TAG, "创建摄像头会话异常：" + e.getMessage());
 //            closePreviewSession();
 //            closeImageReader();
@@ -1362,38 +1362,38 @@ public class Camera2Device extends Device {
     }
 
 
-    CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
+    CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() { // Camera2：相机设备对象
         @Override
-        public void onOpened(@NonNull CameraDevice cameraDevice) {
-            mCameraDevice = cameraDevice;
-            mCameraOpenCloseLock.notifyLock();
+        public void onOpened(@NonNull CameraDevice cameraDevice) { // 回调：相机已打开
+            mCameraDevice = cameraDevice; // Camera2：已打开的相机句柄
+            mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
             //Log.i(Log.TAG, "打开摄像头" + camID +"成功");
         }
 
         @Override
-        public void onDisconnected(@NonNull CameraDevice cameraDevice) {
-            mCameraDevice = null;
-            previewReady = false;
-            mDualSessionStarted = false;
-            mDualSessionStarting = false;
+        public void onDisconnected(@NonNull CameraDevice cameraDevice) { // 回调：相机断开
+            mCameraDevice = null; // Camera2：已打开的相机句柄
+            previewReady = false; // 条件：会话可出帧后才处理Image
+            mDualSessionStarted = false; // 赋值：更新状态
+            mDualSessionStarting = false; // 赋值：更新状态
             closePreviewSession();
             clearState(DevState.OPENING);
-            mCameraOpenCloseLock.notifyLock();
-            cameraDevice.close();
-            Log.i(Log.TAG, "MIPI camera disconnected, camID = " + camID);
+            mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
+            cameraDevice.close(); // 调用：执行下一步
+            Log.i(Log.TAG, "MIPI camera disconnected, camID = " + camID); // 日志：记录相机状态
         }
 
         @Override
-        public void onError(@NonNull CameraDevice cameraDevice, int error) {
-            mCameraDevice = null;
-            previewReady = false;
-            mDualSessionStarted = false;
-            mDualSessionStarting = false;
+        public void onError(@NonNull CameraDevice cameraDevice, int error) { // 回调：相机错误
+            mCameraDevice = null; // Camera2：已打开的相机句柄
+            previewReady = false; // 条件：会话可出帧后才处理Image
+            mDualSessionStarted = false; // 赋值：更新状态
+            mDualSessionStarting = false; // 赋值：更新状态
             closePreviewSession();
             clearState(DevState.OPENING);
-            mCameraOpenCloseLock.notifyLock();
-            cameraDevice.close();
-            Log.i(Log.TAG, "打开摄像头失败，camID = " + camID + "，error=" + error);
+            mCameraOpenCloseLock.notifyLock(); // 同步：唤醒等待线程
+            cameraDevice.close(); // 调用：执行下一步
+            Log.i(Log.TAG, "打开摄像头失败，camID = " + camID + "，error=" + error); // 日志：记录相机状态
         }
     };
 
@@ -1415,19 +1415,19 @@ public class Camera2Device extends Device {
                 }
             });
         }*/
-    private StreamConfigurationMap streamConfigurationMap;
+    private StreamConfigurationMap streamConfigurationMap; // 成员：保存运行状态
 
-    protected void openCamera() {
-        try {
-            if (ContextCompat.checkSelfPermission(this.mContext, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                Log.i(Log.TAG, "摄像头打开没有权限");
-                return;
+    protected void openCamera() { // Camera2：异步打开相机
+        try { // 异常：保护相机/IO调用
+            if (ContextCompat.checkSelfPermission(this.mContext, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) { // Android：检查相机权限
+                Log.i(Log.TAG, "摄像头打开没有权限"); // 日志：记录相机状态
+                return; // 返回：结束当前方法
             }
-            CameraManager cameraManager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
-            int camId = camID % 2;
-            if (camId >= cameraManager.getCameraIdList().length) {
-                Log.i(Log.TAG, "摄像头" + camId + "超过支持的摄像头总数：" + cameraManager.getCameraIdList().length);
-                return;
+            CameraManager cameraManager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE); // Android：连接CameraService
+            int camId = camID % 2; // 赋值：更新状态
+            if (camId >= cameraManager.getCameraIdList().length) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "摄像头" + camId + "超过支持的摄像头总数：" + cameraManager.getCameraIdList().length); // 日志：记录相机状态
+                return; // 返回：结束当前方法
             }
 //            for (String camerID : cameraManager.getCameraIdList()) {
 //                if (!camerID.equals(Integer.toString(camId))) continue;
@@ -1499,64 +1499,64 @@ public class Camera2Device extends Device {
 //                mCameraOpenCloseLock.waitLock(2500);
 //                break;
 //            }
-            String cameraId = String.valueOf(camId); ///
+            String cameraId = String.valueOf(camId); ///；赋值：更新状态
 
             ///
-            if (mCameraDevice != null) {
-                return;
+            if (mCameraDevice != null) { // Camera2：已打开的相机句柄
+                return; // 返回：结束当前方法
             }
             ///
-            CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
-            minFocusDist = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
-            if (minFocusDist > 0) {
-                Log.i(Log.TAG, "MIPI摄像头最小对焦距离为" + 1 / minFocusDist * 100 + "厘米");
+            CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId); // 赋值：更新状态
+            minFocusDist = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE); // 赋值：更新状态
+            if (minFocusDist > 0) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "MIPI摄像头最小对焦距离为" + 1 / minFocusDist * 100 + "厘米"); // 日志：记录相机状态
             }
 
-            mKeyAisAvailableModes = null;
-            mKeyAisResult = null;
-            mKeyAisRequestMode = null;
+            mKeyAisAvailableModes = null; // 赋值：更新状态
+            mKeyAisResult = null; // 赋值：更新状态
+            mKeyAisRequestMode = null; // 赋值：更新状态
 
-            List<CameraCharacteristics.Key<?>> keyList = cameraCharacteristics.getKeys();
-            for (CameraCharacteristics.Key<?> key : keyList) {
-                if (key.getName().equals(AIS_AVAILABLE_MODES_KEY_NAME)) {
-                    mKeyAisAvailableModes = (CameraCharacteristics.Key<int[]>) key;
-                    Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME);
+            List<CameraCharacteristics.Key<?>> keyList = cameraCharacteristics.getKeys(); // 赋值：更新状态
+            for (CameraCharacteristics.Key<?> key : keyList) { // 循环：遍历数据
+                if (key.getName().equals(AIS_AVAILABLE_MODES_KEY_NAME)) { // 条件：按运行状态分支
+                    mKeyAisAvailableModes = (CameraCharacteristics.Key<int[]>) key; // 赋值：更新状态
+                    Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME); // 日志：记录相机状态
                 }
             }
 
-            List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys();
-            for (CaptureResult.Key<?> resultKey : resultKeyList) {
-                if (resultKey.getName().equals(AIS_RESULT_MODE_KEY_NAME)) {
-                    mKeyAisResult = (CaptureResult.Key<int[]>) resultKey;
-                    Log.i(Log.TAG, "Found CaptureResult Key: " + AIS_RESULT_MODE_KEY_NAME);
+            List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys(); // Camera2：HAL返回帧元数据
+            for (CaptureResult.Key<?> resultKey : resultKeyList) { // Camera2：HAL返回帧元数据
+                if (resultKey.getName().equals(AIS_RESULT_MODE_KEY_NAME)) { // 条件：按运行状态分支
+                    mKeyAisResult = (CaptureResult.Key<int[]>) resultKey; // Camera2：HAL返回帧元数据
+                    Log.i(Log.TAG, "Found CaptureResult Key: " + AIS_RESULT_MODE_KEY_NAME); // Camera2：HAL返回帧元数据
                 }
             }
 
-            List<CaptureRequest.Key<?>> requestKeyList = cameraCharacteristics.getAvailableCaptureRequestKeys();
-            for (CaptureRequest.Key<?> requestKey : requestKeyList) {
-                if (requestKey.getName().equals(AIS_REQUEST_MODE_KEY_NAME)) {
-                    mKeyAisRequestMode = (CaptureRequest.Key<int[]>) requestKey;
-                    Log.i(Log.TAG, "Found CaptureRequest Key: " + AIS_REQUEST_MODE_KEY_NAME);
+            List<CaptureRequest.Key<?>> requestKeyList = cameraCharacteristics.getAvailableCaptureRequestKeys(); // Camera2：发送给HAL的请求
+            for (CaptureRequest.Key<?> requestKey : requestKeyList) { // Camera2：发送给HAL的请求
+                if (requestKey.getName().equals(AIS_REQUEST_MODE_KEY_NAME)) { // 条件：按运行状态分支
+                    mKeyAisRequestMode = (CaptureRequest.Key<int[]>) requestKey; // Camera2：发送给HAL的请求
+                    Log.i(Log.TAG, "Found CaptureRequest Key: " + AIS_REQUEST_MODE_KEY_NAME); // Camera2：发送给HAL的请求
                 }
             }
 
-            if (mKeyAisAvailableModes != null) {
-                int[] availableModes = cameraCharacteristics.get(mKeyAisAvailableModes);
-                if (availableModes != null) {
-                    for (int mode : availableModes) {
-                        Log.i(Log.TAG, "Supported MFB Mode: " + mode);
+            if (mKeyAisAvailableModes != null) { // 条件：按运行状态分支
+                int[] availableModes = cameraCharacteristics.get(mKeyAisAvailableModes); // 赋值：更新状态
+                if (availableModes != null) { // 条件：按运行状态分支
+                    for (int mode : availableModes) { // 循环：遍历数据
+                        Log.i(Log.TAG, "Supported MFB Mode: " + mode); // 日志：记录相机状态
                     }
                 } else {
-                    Log.i(Log.TAG, "No available MFB modes.");
+                    Log.i(Log.TAG, "No available MFB modes."); // 日志：记录相机状态
                 }
             } else {
-                Log.i(Log.TAG, "MFB Key not found.");
+                Log.i(Log.TAG, "MFB Key not found."); // 日志：记录相机状态
             }
 
-            streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP); // 赋值：更新状态
 
             startBackgroundThread();
-            cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler);
+            cameraManager.openCamera(cameraId, mStateCallback, mBackgroundHandler); // Camera2：异步打开相机
 //            mCameraOpenCloseLock.waitLock(2500);
 
 
@@ -1570,14 +1570,14 @@ public class Camera2Device extends Device {
 //                stopBackgroundThread();
 //            }
 
-            boolean opened = mCameraOpenCloseLock.waitLock(2500);
-            if (!opened || mCameraDevice == null) {
-                Log.i(Log.TAG, "打开摄像头等待超时，延迟确认，camID = " + camID);
+            boolean opened = mCameraOpenCloseLock.waitLock(2500); // 同步：等待唤醒或超时
+            if (!opened || mCameraDevice == null) { // Camera2：已打开的相机句柄
+                Log.i(Log.TAG, "打开摄像头等待超时，延迟确认，camID = " + camID); // 日志：记录相机状态
 
-                if (mBackgroundHandler != null) {
-                    mBackgroundHandler.postDelayed(() -> {
-                        if (mCameraDevice == null && !isLiving() && !isRecording() && !mCameraPhotoing) {
-                            Log.i(Log.TAG, "打开摄像头延迟确认仍失败，清理资源，camID = " + camID);
+                if (mBackgroundHandler != null) { // 线程：承接Camera2回调
+                    mBackgroundHandler.postDelayed(() -> { // 线程：承接Camera2回调
+                        if (mCameraDevice == null && !isLiving() && !isRecording() && !mCameraPhotoing) { // 状态：当前正在抓拍
+                            Log.i(Log.TAG, "打开摄像头延迟确认仍失败，清理资源，camID = " + camID); // 日志：记录相机状态
                             closePreviewSession();
                             closeImageReader();
                             closeStillImageReader();
@@ -1589,7 +1589,7 @@ public class Camera2Device extends Device {
             }
 
         } catch (Exception e) {
-            Log.i(Log.TAG, String.format("打开摄像头%d异常：%s", camID, e.getMessage()));
+            Log.i(Log.TAG, String.format("打开摄像头%d异常：%s", camID, e.getMessage())); // 日志：记录相机状态
         }
     }
 
@@ -1600,216 +1600,216 @@ public class Camera2Device extends Device {
 //        }
 //    }
     ///
-    private void closePreviewSession() {
-        try {
-            if (mPreviewSession != null) {
-                try {
-                    mPreviewSession.stopRepeating();
+    private void closePreviewSession() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mPreviewSession != null) { // Camera2：向HAL提交请求的会话
+                try { // 异常：保护相机/IO调用
+                    mPreviewSession.stopRepeating(); // Camera2：向HAL提交请求的会话
                 } catch (Exception ignored) {
                 }
-                try {
-                    mPreviewSession.abortCaptures();
+                try { // 异常：保护相机/IO调用
+                    mPreviewSession.abortCaptures(); // Camera2：向HAL提交请求的会话
                 } catch (Exception ignored) {
                 }
-                mPreviewSession.close();
-                mPreviewSession = null;
+                mPreviewSession.close(); // Camera2：向HAL提交请求的会话
+                mPreviewSession = null; // Camera2：向HAL提交请求的会话
             }
         } catch (Exception e) {
-            mPreviewSession = null;
+            mPreviewSession = null; // Camera2：向HAL提交请求的会话
         } finally {
-            mPreviewSessionVideoMode = false;
+            mPreviewSessionVideoMode = false; // 赋值：更新状态
         }
-        mPreviewRequestBuilder = null;
+        mPreviewRequestBuilder = null; // Camera2：构建下一次请求参数
     }
 
-    private void closeImageReader() {
-        try {
-            if (mImageReader != null) {
-                mImageReader.close();
-                mImageReader = null;
+    private void closeImageReader() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mImageReader != null) { // Camera2：接收预览/抓拍帧
+                mImageReader.close(); // Camera2：接收预览/抓拍帧
+                mImageReader = null; // Camera2：接收预览/抓拍帧
             }
         } catch (Exception e) {
-            mImageReader = null;
+            mImageReader = null; // Camera2：接收预览/抓拍帧
         }
     }
 
-    private void closeStillImageReader() {
-        try {
-            if (mStillImageReader != null) {
-                mStillImageReader.close();
-                mStillImageReader = null;
+    private void closeStillImageReader() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mStillImageReader != null) { // Camera2：独立静态图输出
+                mStillImageReader.close(); // Camera2：独立静态图输出
+                mStillImageReader = null; // Camera2：独立静态图输出
             }
         } catch (Exception e) {
-            mStillImageReader = null;
+            mStillImageReader = null; // Camera2：独立静态图输出
         }
     }
 
-    private Point getConfiguredPhotoResolution() {
-        Point size = Settings.PhotoConfig.getImageSize(photoConfig.size);
-        if (size == null) {
-            size = new Point(1920, 1080);
+    private Point getConfiguredPhotoResolution() { // 入口：方法定义
+        Point size = Settings.PhotoConfig.getImageSize(photoConfig.size); // 赋值：更新状态
+        if (size == null) { // 条件：按运行状态分支
+            size = new Point(1920, 1080); // 赋值：更新状态
         }
-        if (is6735) {
-            return new Point(1280, 720);
+        if (is6735) { // 条件：按运行状态分支
+            return new Point(1280, 720); // 返回：结束当前方法
         }
-        if (streamConfigurationMap != null) {
-            Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG);
-            return getBestSize2(sizes, size.x, size.y);
+        if (streamConfigurationMap != null) { // 条件：按运行状态分支
+            Size[] sizes = streamConfigurationMap.getOutputSizes(ImageFormat.JPEG); // 赋值：更新状态
+            return getBestSize2(sizes, size.x, size.y); // 返回：结束当前方法
         }
-        return size;
+        return size; // 返回：结束当前方法
     }
 
-    private volatile boolean enableLiveEncode = false;
-    private volatile boolean liveStarting = false;
-    private volatile boolean videoStarting = false;
+    private volatile boolean enableLiveEncode = false; // 成员：保存运行状态
+    private volatile boolean liveStarting = false; // 成员：保存运行状态
+    private volatile boolean videoStarting = false; // 成员：保存运行状态
 
-    public void setEnableLiveEncode(boolean enable) {
-        enableLiveEncode = enable;
+    public void setEnableLiveEncode(boolean enable) { // 入口：方法定义
+        enableLiveEncode = enable; // 赋值：更新状态
     }
 
-    public void stopLiveAndCloseBothIfIdle() {
-        liveStarting = false;
+    public void stopLiveAndCloseBothIfIdle() { // 入口：方法定义
+        liveStarting = false; // 赋值：更新状态
         setEnableLiveEncode(false);
         closeBothCameraIfNoLive();
     }
 
-    private void ensureMipiVideoEncoder(int stream, boolean mipiMark) {
-        synchronized (mipiStreamLock) {
-            if (mediaCodec == null) {
+    private void ensureMipiVideoEncoder(int stream, boolean mipiMark) { // 入口：方法定义
+        synchronized (mipiStreamLock) { // 同步：互斥访问共享状态
+            if (mediaCodec == null) { // 条件：按运行状态分支
                 initVideoEncoder(stream, mResolution.x, mResolution.y, mipiMark);
-                mipiLivePpsSps = null;
-                mipiLiveFirstFrameTimestamp = 0;
+                mipiLivePpsSps = null; // 赋值：更新状态
+                mipiLiveFirstFrameTimestamp = 0; // 赋值：更新状态
             }
         }
     }
 
-    private void releaseMipiVideoEncoderIfIdle() {
-        synchronized (mipiStreamLock) {
-            if (!isLiving() && !isRecording() && mediaCodec != null) {
+    private void releaseMipiVideoEncoderIfIdle() { // 入口：方法定义
+        synchronized (mipiStreamLock) { // 同步：互斥访问共享状态
+            if (!isLiving() && !isRecording() && mediaCodec != null) { // 条件：按运行状态分支
                 uninitVideoEncoder();
-                mipiLivePpsSps = null;
-                mipiLiveFirstFrameTimestamp = 0;
+                mipiLivePpsSps = null; // 赋值：更新状态
+                mipiLiveFirstFrameTimestamp = 0; // 赋值：更新状态
             }
         }
     }
 
-    private void tryStartMipiMuxer() {
-        if (muxerStarted || mediaMuxer == null) return;
+    private void tryStartMipiMuxer() { // 入口：方法定义
+        if (muxerStarted || mediaMuxer == null) return; // 条件：按运行状态分支
 
-        if (useAudio) {
-            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) {
-                mediaMuxer.start();
-                muxerStarted = true;
-                muxerEverStarted = true;
+        if (useAudio) { // 条件：按运行状态分支
+            if (videoTrackIndex >= 0 && audioTrackIndex >= 0) { // 条件：按运行状态分支
+                mediaMuxer.start(); // 调用：执行下一步
+                muxerStarted = true; // 赋值：更新状态
+                muxerEverStarted = true; // 赋值：更新状态
             }
         } else if (videoTrackIndex >= 0) {
-            mediaMuxer.start();
-            muxerStarted = true;
-            muxerEverStarted = true;
+            mediaMuxer.start(); // 调用：执行下一步
+            muxerStarted = true; // 赋值：更新状态
+            muxerEverStarted = true; // 赋值：更新状态
         }
     }
 
-    private void releaseMipiMuxer() {
-        if (mediaMuxer == null) return;
+    private void releaseMipiMuxer() { // 入口：方法定义
+        if (mediaMuxer == null) return; // 条件：按运行状态分支
 
-        try {
-            if (muxerStarted) {
-                mediaMuxer.stop();
+        try { // 异常：保护相机/IO调用
+            if (muxerStarted) { // 条件：按运行状态分支
+                mediaMuxer.stop(); // 调用：执行下一步
             }
-            mediaMuxer.release();
-            Log.i(Log.TAG, "release MIPI muxer success"
-                    + "，samples = " + mipiRecordSamplesWritten
-                    + "，bytes = " + mipiRecordBytesWritten
-                    + "，keyFrames = " + mipiRecordKeyFramesWritten);
+            mediaMuxer.release(); // 调用：执行下一步
+            Log.i(Log.TAG, "release MIPI muxer success" // 日志：记录相机状态
+                    + "，samples = " + mipiRecordSamplesWritten // 赋值：更新状态
+                    + "，bytes = " + mipiRecordBytesWritten // 赋值：更新状态
+                    + "，keyFrames = " + mipiRecordKeyFramesWritten); // 赋值：更新状态
         } catch (Exception e) {
-            Log.i(Log.TAG, "release MIPI muxer error: " + e.getMessage());
+            Log.i(Log.TAG, "release MIPI muxer error: " + e.getMessage()); // 日志：记录相机状态
         } finally {
-            mediaMuxer = null;
-            videoTrackIndex = -1;
-            audioTrackIndex = -1;
-            muxerStarted = false;
-            muxerEverStarted = false;
-            avStartNs = 0;
+            mediaMuxer = null; // 赋值：更新状态
+            videoTrackIndex = -1; // 赋值：更新状态
+            audioTrackIndex = -1; // 赋值：更新状态
+            muxerStarted = false; // 赋值：更新状态
+            muxerEverStarted = false; // 赋值：更新状态
+            avStartNs = 0; // 赋值：更新状态
         }
     }
 
-    private boolean ensureVideoPreviewSession(Settings.VideoCodec vc, boolean isRecordVideo) {
-        if (mPreviewSession != null && mPreviewSessionVideoMode) {
-            return true;
+    private boolean ensureVideoPreviewSession(Settings.VideoCodec vc, boolean isRecordVideo) { // 入口：方法定义
+        if (mPreviewSession != null && mPreviewSessionVideoMode) { // Camera2：向HAL提交请求的会话
+            return true; // 返回：结束当前方法
         }
-        if (mCameraDevice == null || vc == null || mResolution == null) {
-            return false;
+        if (mCameraDevice == null || vc == null || mResolution == null) { // Camera2：已打开的相机句柄
+            return false; // 返回：结束当前方法
         }
 
         closePreviewSession();
         createPreviewSession(mResolution.x, mResolution.y, true);
-        if (mPreviewSession == null) {
-            Log.i(Log.TAG, "切换视频会话失败，PreviewSession 为空，camID = " + camID);
-            return false;
+        if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
+            Log.i(Log.TAG, "切换视频会话失败，PreviewSession 为空，camID = " + camID); // 日志：记录相机状态
+            return false; // 返回：结束当前方法
         }
 
-        previewReady = true;
+        previewReady = true; // 条件：会话可出帧后才处理Image
         lockFocus(
                 10000,
-                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                 isRecordVideo,
                 isRecordVideo ? vc : null
         );
-        return mPreviewSession != null && mPreviewSessionVideoMode;
+        return mPreviewSession != null && mPreviewSessionVideoMode; // Camera2：向HAL提交请求的会话
     }
 
-    private void resetMipiRecordStats() {
-        mipiRecordSamplesWritten = 0;
-        mipiRecordBytesWritten = 0;
-        mipiRecordKeyFramesWritten = 0;
+    private void resetMipiRecordStats() { // 入口：方法定义
+        mipiRecordSamplesWritten = 0; // 赋值：更新状态
+        mipiRecordBytesWritten = 0; // 赋值：更新状态
+        mipiRecordKeyFramesWritten = 0; // 赋值：更新状态
     }
 
-    private static void closeBothCameraIfNoLive() {
+    private static void closeBothCameraIfNoLive() { // 入口：方法定义
         Camera2Device cam0;
         Camera2Device cam1;
-        synchronized (sDualCameraLock) {
-            if (sDualClosing || sDualStarting) {
-                return;
+        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+            if (sDualClosing || sDualStarting) { // 条件：按运行状态分支
+                return; // 返回：结束当前方法
             }
-            cam0 = sCamera0Device;
-            cam1 = sCamera1Device;
-            boolean cam0Live = cam0 != null && (cam0.enableLiveEncode || cam0.liveStarting);
-            boolean cam1Live = cam1 != null && (cam1.enableLiveEncode || cam1.liveStarting);
-            boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing;
-            boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing;
-            boolean dualPhotoPending = sDualPhotoTaskCount > 0;
-            boolean cam0Recording = cam0 != null && (cam0.isRecording() || cam0.videoStarting);
-            boolean cam1Recording = cam1 != null && (cam1.isRecording() || cam1.videoStarting);
-            Log.i(Log.TAG, "检查是否需要释放双路 Camera"
-                    + "，cam0Live = " + cam0Live
-                    + "，cam1Live = " + cam1Live
-                    + "，cam0Photoing = " + cam0Photoing
-                    + "，cam1Photoing = " + cam1Photoing
-                    + "，cam0Recording = " + cam0Recording
-                    + "，cam1Recording = " + cam1Recording);
-            if (cam0Live || cam1Live || cam0Photoing || cam1Photoing || dualPhotoPending || cam0Recording || cam1Recording) {
-                Log.i(Log.TAG, "仍有直播、拍照或录像任务，不释放双路 Camera");
-                return;
+            cam0 = sCamera0Device; // 赋值：更新状态
+            cam1 = sCamera1Device; // 赋值：更新状态
+            boolean cam0Live = cam0 != null && (cam0.enableLiveEncode || cam0.liveStarting); // 赋值：更新状态
+            boolean cam1Live = cam1 != null && (cam1.enableLiveEncode || cam1.liveStarting); // 赋值：更新状态
+            boolean cam0Photoing = cam0 != null && cam0.mCameraPhotoing; // 状态：当前正在抓拍
+            boolean cam1Photoing = cam1 != null && cam1.mCameraPhotoing; // 状态：当前正在抓拍
+            boolean dualPhotoPending = sDualPhotoTaskCount > 0; // 同步：统计未完成拍照任务
+            boolean cam0Recording = cam0 != null && (cam0.isRecording() || cam0.videoStarting); // 赋值：更新状态
+            boolean cam1Recording = cam1 != null && (cam1.isRecording() || cam1.videoStarting); // 赋值：更新状态
+            Log.i(Log.TAG, "检查是否需要释放双路 Camera" // 日志：记录相机状态
+                    + "，cam0Live = " + cam0Live // 赋值：更新状态
+                    + "，cam1Live = " + cam1Live // 赋值：更新状态
+                    + "，cam0Photoing = " + cam0Photoing // 赋值：更新状态
+                    + "，cam1Photoing = " + cam1Photoing // 赋值：更新状态
+                    + "，cam0Recording = " + cam0Recording // 赋值：更新状态
+                    + "，cam1Recording = " + cam1Recording); // 赋值：更新状态
+            if (cam0Live || cam1Live || cam0Photoing || cam1Photoing || dualPhotoPending || cam0Recording || cam1Recording) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "仍有直播、拍照或录像任务，不释放双路 Camera"); // 日志：记录相机状态
+                return; // 返回：结束当前方法
             }
-            Log.i(Log.TAG, "两路均无直播、拍照、录像任务，准备释放双路 Camera");
-            sDualClosing = true;
+            Log.i(Log.TAG, "两路均无直播、拍照、录像任务，准备释放双路 Camera"); // 日志：记录相机状态
+            sDualClosing = true; // 赋值：更新状态
         }
-        try {
-            if (cam0 != null) {
-                cam0.closeCamera();
+        try { // 异常：保护相机/IO调用
+            if (cam0 != null) { // 条件：按运行状态分支
+                cam0.closeCamera(); // 调用：执行下一步
             }
-            if (cam1 != null && cam1 != cam0) {
-                cam1.closeCamera();
+            if (cam1 != null && cam1 != cam0) { // 条件：按运行状态分支
+                cam1.closeCamera(); // 调用：执行下一步
             }
         } finally {
-            synchronized (sDualCameraLock) {
-                sDualStarted = false;
-                sDualStarting = false;
-                sDualClosing = false;
-                sDualCameraLock.notifyAll();
+            synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+                sDualStarted = false; // 赋值：更新状态
+                sDualStarting = false; // 赋值：更新状态
+                sDualClosing = false; // 赋值：更新状态
+                sDualCameraLock.notifyAll(); // 同步：保护双MIPI共享状态
             }
         }
-        Log.i(Log.TAG, "双路 Camera 已释放");
+        Log.i(Log.TAG, "双路 Camera 已释放"); // 日志：记录相机状态
     }
     ///
 
@@ -1828,28 +1828,28 @@ public class Camera2Device extends Device {
 //        stopBackgroundThread();
 //        clearState(DevState.OPENING);
 //    }
-    public synchronized void closeCamera() {
-        super.closeCamera();
+    public synchronized void closeCamera() { // 入口：方法定义
+        super.closeCamera(); // 调用：执行下一步
         setEnableLiveEncode(false);
-        mDualSessionStarted = false;
-        mDualSessionStarting = false;
-        liveStarting = false;
-        videoStarting = false;
-        previewReady = false;
+        mDualSessionStarted = false; // 赋值：更新状态
+        mDualSessionStarting = false; // 赋值：更新状态
+        liveStarting = false; // 赋值：更新状态
+        videoStarting = false; // 赋值：更新状态
+        previewReady = false; // 条件：会话可出帧后才处理Image
 
         closePreviewSession();
         closeImageReader();
         closeStillImageReader();
-        if (mCameraDevice != null) {
-            mCameraDevice.close();
-            mCameraDevice = null;
+        if (mCameraDevice != null) { // Camera2：已打开的相机句柄
+            mCameraDevice.close(); // Camera2：已打开的相机句柄
+            mCameraDevice = null; // Camera2：已打开的相机句柄
         }
 
         stopBackgroundThread();
         clearState(DevState.OPENING);
 
-        synchronized (sDualCameraLock) {
-            sDualStarted = false;
+        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+            sDualStarted = false; // 赋值：更新状态
         }
     }
 
@@ -1857,74 +1857,74 @@ public class Camera2Device extends Device {
         开始录制视频
      */
     @Override
-    public boolean videoStop() {
-        try {
-            videoStarting = false;
+    public boolean videoStop() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            videoStarting = false; // 赋值：更新状态
             //Log.i(Log.TAG, "停止录制");
 //            unlockFocus();
 //            close();
-            super.videoStop();
+            super.videoStop(); // 调用：执行下一步
             /////
             releaseMipiMuxer();
-            if (useAudio) {
+            if (useAudio) { // 条件：按运行状态分支
                 uninitAudioEncoder();
             }
             releaseMipiVideoEncoderIfIdle();
-            if (!mCameraPhotoing && !isLiving()) {
+            if (!mCameraPhotoing && !isLiving()) { // 状态：当前正在抓拍
                 closeBothCameraIfNoLive(); ///
             }
             /////
         } catch (Exception e) {
-            Log.i(Log.TAG, "停止录像异常：" + e);
-            return false;
+            Log.i(Log.TAG, "停止录像异常：" + e); // 日志：记录相机状态
+            return false; // 返回：结束当前方法
         }
-        return true;
+        return true; // 返回：结束当前方法
     }
 
     @Override   // 录制短视频使用配置文件中的分辨率和I帧间隔
-    public boolean videoStart(int stream, String filename, int duration, boolean upload) {
-        try {
-            if (!videoStarting) {
-                return false;
+    public boolean videoStart(int stream, String filename, int duration, boolean upload) { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (!videoStarting) { // 条件：按运行状态分支
+                return false; // 返回：结束当前方法
             }
-            videoStarting = true;
+            videoStarting = true; // 赋值：更新状态
 
-            Settings.VideoCodec vc = getVideoCodec(stream); /////
-            mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+            Settings.VideoCodec vc = getVideoCodec(stream); /////；赋值：更新状态
+            mResolution = Settings.VideoCodec.getResolution(vc.resolution); // 赋值：更新状态
 
-            Log.e(Log.TAG,"录制视频"+ vc.frame + ":" + vc.iFrame);
+            Log.e(Log.TAG,"录制视频"+ vc.frame + ":" + vc.iFrame); // 日志：记录相机状态
 
-            if (is6735) {
-                mResolution = new Point(1280, 720);
+            if (is6735) { // 条件：按运行状态分支
+                mResolution = new Point(1280, 720); // 赋值：更新状态
             }
             ///
-            if (mResolution == null) {
-                Log.i(Log.TAG, "录像分辨率为空，使用默认 1536x864" ///
-                        + "，camID = " + camID);
-                mResolution = new Point(1536, 864); ///
+            if (mResolution == null) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "录像分辨率为空，使用默认 1536x864" ///；日志：记录相机状态
+                        + "，camID = " + camID); // 赋值：更新状态
+                mResolution = new Point(1536, 864); ///；赋值：更新状态
             }
             // MIPI session 在打开时会把视频分辨率限制到 1536x864，编码器必须使用同样尺寸。
-            if (mResolution.x > 1536 || mResolution.y > 864) {
-                mResolution = new Point(1536, 864);
+            if (mResolution.x > 1536 || mResolution.y > 864) { // 条件：按运行状态分支
+                mResolution = new Point(1536, 864); // 赋值：更新状态
             }
-            Log.i(Log.TAG, "MIPI录制编码分辨率，camID = " + camID
-                    + "，width = " + mResolution.x
-                    + "，height = " + mResolution.y);
+            Log.i(Log.TAG, "MIPI录制编码分辨率，camID = " + camID // 日志：记录相机状态
+                    + "，width = " + mResolution.x // 赋值：更新状态
+                    + "，height = " + mResolution.y); // 赋值：更新状态
 
-            if (mPreviewSession == null || mCameraDevice == null) {
-                Log.i(Log.TAG, "录像失败，CameraDevice 或 PreviewSession 为空"
-                        + "，camID = " + camID
-                        + "，mCameraDevice = " + mCameraDevice
-                        + "，mPreviewSession = " + mPreviewSession);
-                videoStarting = false;
-                return false;
+            if (mPreviewSession == null || mCameraDevice == null) { // Camera2：向HAL提交请求的会话
+                Log.i(Log.TAG, "录像失败，CameraDevice 或 PreviewSession 为空" // Camera2：相机设备对象
+                        + "，camID = " + camID // 赋值：更新状态
+                        + "，mCameraDevice = " + mCameraDevice // Camera2：已打开的相机句柄
+                        + "，mPreviewSession = " + mPreviewSession); // Camera2：向HAL提交请求的会话
+                videoStarting = false; // 赋值：更新状态
+                return false; // 返回：结束当前方法
             }
-            if (!ensureVideoPreviewSession(vc, true)) {
-                Log.i(Log.TAG, "录像失败，无法切换到视频会话"
-                        + "，camID = " + camID
-                        + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
+            if (!ensureVideoPreviewSession(vc, true)) { // 条件：按运行状态分支
+                Log.i(Log.TAG, "录像失败，无法切换到视频会话" // 日志：记录相机状态
+                        + "，camID = " + camID // 赋值：更新状态
+                        + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode); // 赋值：更新状态
 
-                videoStarting = false;
+                videoStarting = false; // 赋值：更新状态
 
 //                if (!isLiving() && !mCameraPhotoing) {
 //                    closePreviewSession();
@@ -1933,7 +1933,7 @@ public class Camera2Device extends Device {
 //                    closeBothCameraIfNoLive();
 //                }
 
-                return false;
+                return false; // 返回：结束当前方法
             }
             ///
 
@@ -1943,24 +1943,24 @@ public class Camera2Device extends Device {
                 // 对焦最大超时10秒
 //                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,true,vc);
                 // 状态设置为录像
-                mState = STATE_VIDEO_RECORDING;
+                mState = STATE_VIDEO_RECORDING; // 状态机：AF/AE/抓拍/视频流转
             }
             refreshLowNoiseRepeatingRequest(vc, true);
-            super.videoStart(stream, filename, duration, upload); /////
-            videoStarting = false;
-            String tmpfile = MainActivity.DATA_DIR + "record_" + id + ".mp4"; /////
+            super.videoStart(stream, filename, duration, upload); /////；调用：执行下一步
+            videoStarting = false; // 赋值：更新状态
+            String tmpfile = MainActivity.DATA_DIR + "record_" + id + ".mp4"; /////；赋值：更新状态
 
             /////
-            mediaMuxer = new MediaMuxer(tmpfile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            muxerStarted = false;
-            videoTrackIndex = -1;
+            mediaMuxer = new MediaMuxer(tmpfile, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4); // Android：视频编码/封装
+            muxerStarted = false; // 赋值：更新状态
+            videoTrackIndex = -1; // 赋值：更新状态
             resetMipiRecordStats();
-            if (useAudio) {
-                audioTrackIndex = -1;
-                avStartNs = System.nanoTime();
+            if (useAudio) { // 条件：按运行状态分支
+                audioTrackIndex = -1; // 赋值：更新状态
+                avStartNs = System.nanoTime(); // 赋值：更新状态
                 // 单调递增保护变量
-                lastVideoPtsUs = 0;
-                lastAudioPtsUs = 0;
+                lastVideoPtsUs = 0; // 赋值：更新状态
+                lastAudioPtsUs = 0; // 赋值：更新状态
                 // 音频按采样累计
                 initAudioRecord();
                 initAudioEncoder();
@@ -1969,97 +1969,97 @@ public class Camera2Device extends Device {
             ensureMipiVideoEncoder(stream, isLiving() || enableLiveEncode);   // 录制和直播共用 MIPI 编码器
             /////
 
-            new Timer("recordStop").schedule(new TimerTask() { /////
+            new Timer("recordStop").schedule(new TimerTask() { /////；调用：执行下一步
                 @Override
-                public void run() {
-                    Runnable finishRecord = () -> {
+                public void run() { // 入口：方法定义
+                    Runnable finishRecord = () -> { // 赋值：更新状态
                         videoStop();
-                        if (upload) {
-                            Utils.su("mv " + tmpfile + " " + filename);
+                        if (upload) { // 条件：按运行状态分支
+                            Utils.su("mv " + tmpfile + " " + filename); // 调用：执行下一步
                         } else {
-                            File file = new File(tmpfile);
-                            File finalFile = new File(filename);
-                            file.renameTo(new File(MainActivity.FILE_PATH + id + File.separator + finalFile.getName()));
-                            Log.i(Log.TAG, "MIPI摄像头文件不上传，修改文件为：" + (MainActivity.FILE_PATH + id + File.separator + finalFile.getName())); /////
+                            File file = new File(tmpfile); // 赋值：更新状态
+                            File finalFile = new File(filename); // 赋值：更新状态
+                            file.renameTo(new File(MainActivity.FILE_PATH + id + File.separator + finalFile.getName())); // 调用：执行下一步
+                            Log.i(Log.TAG, "MIPI摄像头文件不上传，修改文件为：" + (MainActivity.FILE_PATH + id + File.separator + finalFile.getName())); /////；日志：记录相机状态
                         }
-                        File recordedFile = upload
+                        File recordedFile = upload // 赋值：更新状态
                                 ? new File(filename)
-                                : new File(MainActivity.FILE_PATH + id + File.separator + new File(filename).getName());
-                        Log.i(Log.TAG, "MIPI录制完成文件大小"
-                                + "，file = " + recordedFile.getAbsolutePath()
-                                + "，exists = " + recordedFile.exists()
-                                + "，length = " + (recordedFile.exists() ? recordedFile.length() : -1)
-                                + "，samples = " + mipiRecordSamplesWritten
-                                + "，bytes = " + mipiRecordBytesWritten
-                                + "，keyFrames = " + mipiRecordKeyFramesWritten);
-                        controllerCallback.onVideoFinished(System.currentTimeMillis(), id, streamType, filename, upload);
+                                : new File(MainActivity.FILE_PATH + id + File.separator + new File(filename).getName()); // 调用：执行下一步
+                        Log.i(Log.TAG, "MIPI录制完成文件大小" // 日志：记录相机状态
+                                + "，file = " + recordedFile.getAbsolutePath() // 赋值：更新状态
+                                + "，exists = " + recordedFile.exists() // 赋值：更新状态
+                                + "，length = " + (recordedFile.exists() ? recordedFile.length() : -1) // 赋值：更新状态
+                                + "，samples = " + mipiRecordSamplesWritten // 赋值：更新状态
+                                + "，bytes = " + mipiRecordBytesWritten // 赋值：更新状态
+                                + "，keyFrames = " + mipiRecordKeyFramesWritten); // 赋值：更新状态
+                        controllerCallback.onVideoFinished(System.currentTimeMillis(), id, streamType, filename, upload); // 调用：执行下一步
                     };
-                    if (procVideoHandler != null) {
-                        procVideoHandler.post(finishRecord);
+                    if (procVideoHandler != null) { // 条件：按运行状态分支
+                        procVideoHandler.post(finishRecord); // 调用：执行下一步
                     } else {
-                        finishRecord.run();
+                        finishRecord.run(); // 调用：执行下一步
                     }
                 }
             }, (duration + 1) * 1000);  // 多1秒作为保险余地，不然可能录像时间不足
         } catch (Exception e) {
-            videoStarting = false;
+            videoStarting = false; // 赋值：更新状态
             videoStop(); /////
-            Log.e(Log.TAG, "MIPI摄像头录制视频异常: " + e.getMessage());
+            Log.e(Log.TAG, "MIPI摄像头录制视频异常: " + e.getMessage()); // 日志：记录相机状态
         }
-        return isRecording(); /////
+        return isRecording(); /////；返回：结束当前方法
     }
 
-    public boolean videoPause() {
-        return true;
+    public boolean videoPause() { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
 
-    public boolean videoResume() {
-        return true;
+    public boolean videoResume() { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
 
-    public boolean close() {
+    public boolean close() { // 入口：方法定义
 //        closeCamera();
         stopLiveAndCloseBothIfIdle(); ///
-        return true;
+        return true; // 返回：结束当前方法
     }
 
-    public boolean liveStop() {
+    public boolean liveStop() { // 入口：方法定义
         //Log.i(Log.TAG, "停止预览");
-        try {
+        try { // 异常：保护相机/IO调用
             ///
 //            if (!mCameraPhotoing && !isRecording()) {
 //                unlockFocus();
 //                close();
 //            }
-            liveStarting = false;
+            liveStarting = false; // 赋值：更新状态
             setEnableLiveEncode(false);
-            mOnShow = false;
+            mOnShow = false; // 赋值：更新状态
             ///
-            rtph264 = null;
+            rtph264 = null; // 赋值：更新状态
         } catch (Exception e) {
-            Log.i(Log.TAG, "停止预览异常：" + e);
-            return false;
+            Log.i(Log.TAG, "停止预览异常：" + e); // 日志：记录相机状态
+            return false; // 返回：结束当前方法
         } finally {
             clearState(DevState.LIVING); /////
             ///
             releaseMipiVideoEncoderIfIdle();
-            if (!mCameraPhotoing && !isRecording()) {
+            if (!mCameraPhotoing && !isRecording()) { // 状态：当前正在抓拍
                 closeBothCameraIfNoLive();
             }
             ///
         }
-        return true;
+        return true; // 返回：结束当前方法
     }
 
 
 
-    public boolean setOSD(Settings.OSD osd, boolean osdNull) { /////
-        this.osd = osd;
-        return true;
+    public boolean setOSD(Settings.OSD osd, boolean osdNull) { /////；成员：保存运行状态
+        this.osd = osd; // 赋值：更新状态
+        return true; // 返回：结束当前方法
     }
 
-    public boolean setCodec(Settings.VideoCodec codec) {
-        return true;
+    public boolean setCodec(Settings.VideoCodec codec) { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
 
     /////
@@ -2086,219 +2086,224 @@ public class Camera2Device extends Device {
 //        return true;
 //    }
     /////
-    public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///
+    public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///；成员：保存运行状态
         ///
-        synchronized (sDualCameraLock) {
-            int realCamId = camID % 2;
+        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+            int realCamId = camID % 2; // 赋值：更新状态
 
-            if (realCamId == 0) {
-                sCamera0Device = this;
+            if (realCamId == 0) { // 条件：按运行状态分支
+                sCamera0Device = this; // 赋值：更新状态
             } else {
-                sCamera1Device = this;
+                sCamera1Device = this; // 赋值：更新状态
             }
         }
-        if (ALWAYS_OPEN_BOTH_MIPI) {
+        if (ALWAYS_OPEN_BOTH_MIPI) { // 条件：按运行状态分支
             Camera2Device cam0;
             Camera2Device cam1;
-            synchronized (sDualCameraLock) {
-                cam0 = sCamera0Device;
-                cam1 = sCamera1Device;
+            synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+                cam0 = sCamera0Device; // 赋值：更新状态
+                cam1 = sCamera1Device; // 赋值：更新状态
 
-                Log.i(Log.TAG, "双路 Camera 对象检查"
-                        + "，cam0 = " + cam0
-                        + "，cam1 = " + cam1
-                        + "，camID = " + camID
-                        + "，sDualStarted = " + sDualStarted
-                        + "，sDualStarting = " + sDualStarting
-                        + "，sDualClosing = " + sDualClosing);
+                Log.i(Log.TAG, "双路 Camera 对象检查" // 日志：记录相机状态
+                        + "，cam0 = " + cam0 // 赋值：更新状态
+                        + "，cam1 = " + cam1 // 赋值：更新状态
+                        + "，camID = " + camID // 赋值：更新状态
+                        + "，sDualStarted = " + sDualStarted // 赋值：更新状态
+                        + "，sDualStarting = " + sDualStarting // 赋值：更新状态
+                        + "，sDualClosing = " + sDualClosing); // 赋值：更新状态
 
-                if (cam0 == null || cam1 == null) {
-                    if (cb != null) {
-                        cb.openFailed(-1);
+                if (cam0 == null || cam1 == null) { // 条件：按运行状态分支
+                    if (cb != null) { // 条件：按运行状态分支
+                        cb.openFailed(-1); // 调用：执行下一步
                     }
-                    return false;
+                    return false; // 返回：结束当前方法
                 }
-                long waitEnd = SystemClock.uptimeMillis() + 15000;
-                while (sDualClosing || sDualStarting) {
-                    long waitMs = waitEnd - SystemClock.uptimeMillis();
-                    if (waitMs <= 0) {
+                long waitEnd = SystemClock.uptimeMillis() + 15000; // Android：取运行时钟
+                while (sDualClosing || sDualStarting) { // 循环：等待状态变化
+                    long waitMs = waitEnd - SystemClock.uptimeMillis(); // Android：取运行时钟
+                    if (waitMs <= 0) { // 条件：按运行状态分支
                         break;
                     }
-                    try {
-                        sDualCameraLock.wait(waitMs);
+                    try { // 异常：保护相机/IO调用
+                        sDualCameraLock.wait(waitMs); // 同步：保护双MIPI共享状态
                     } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                        Thread.currentThread().interrupt(); // 调用：执行下一步
                         break;
                     }
                 }
-                if (sDualClosing || sDualStarting) {
-                    Log.i(Log.TAG, "等待双路 Camera 打开超时");
-                    if (cb != null) {
-                        cb.openFailed(-1);
+                if (sDualClosing || sDualStarting) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "等待双路 Camera 打开超时"); // 日志：记录相机状态
+                    if (cb != null) { // 条件：按运行状态分支
+                        cb.openFailed(-1); // 调用：执行下一步
                     }
-                    return false;
+                    return false; // 返回：结束当前方法
                 }
-                if (sDualStarted) {
-                    boolean sessionReady = startSessionForDualOpen(stream, video, isRecordVideo);
 
-                    if (!sessionReady) {
-                        Log.i(Log.TAG, "双路 Camera 已标记打开，但创建当前业务 session 失败，重置双路状态并尝试释放空闲资源"
-                                + "，camID = " + camID
-                                + "，video = " + video
-                                + "，isRecordVideo = " + isRecordVideo);
+                Log.e(Log.TAG,"sDualStarted"+sDualStarted);
 
-                        sDualStarted = false;
-                        sDualStarting = false;
-                        sDualCameraLock.notifyAll();
+                if (sDualStarted) { // 条件：按运行状态分支
 
-                        if (!isLiving() && !isRecording() && !mCameraPhotoing && !liveStarting && !videoStarting) {
+                    Log.e(Log.TAG,"sDualStarted"+sDualStarted);
+                    boolean sessionReady = startSessionForDualOpen(stream, video, isRecordVideo); // 赋值：更新状态
+
+                    if (!sessionReady) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "双路 Camera 已标记打开，但创建当前业务 session 失败，重置双路状态并尝试释放空闲资源" // 日志：记录相机状态
+                                + "，camID = " + camID // 赋值：更新状态
+                                + "，video = " + video // 赋值：更新状态
+                                + "，isRecordVideo = " + isRecordVideo); // 赋值：更新状态
+
+                        sDualStarted = false; // 赋值：更新状态
+                        sDualStarting = false; // 赋值：更新状态
+                        sDualCameraLock.notifyAll(); // 同步：保护双MIPI共享状态
+
+                        if (!isLiving() && !isRecording() && !mCameraPhotoing && !liveStarting && !videoStarting) { // 状态：当前正在抓拍
                             closeCamera();
                         } else {
                             closeBothCameraIfNoLive();
                         }
                     }
 
-                    if (cb != null) {
-                        if (sessionReady) {
-                            cb.openSucceed();
+                    if (cb != null) { // 条件：按运行状态分支
+                        if (sessionReady) { // 条件：按运行状态分支
+                            cb.openSucceed(); // 调用：执行下一步
                         } else {
-                            cb.openFailed(-1);
+                            cb.openFailed(-1); // 调用：执行下一步
                         }
                     }
 
-                    return sessionReady;
+                    return sessionReady; // 返回：结束当前方法
                 }
-                sDualStarting = true;
+                sDualStarting = true; // 赋值：更新状态
             }
-            boolean result = false;
-            try {
-                synchronized (sDualCameraLock) {
-                    cam0 = sCamera0Device;
-                    cam1 = sCamera1Device;
+            boolean result = false; // 赋值：更新状态
+            try { // 异常：保护相机/IO调用
+                synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+                    cam0 = sCamera0Device; // 赋值：更新状态
+                    cam1 = sCamera1Device; // 赋值：更新状态
                 }
-                if (cam0 == null || cam1 == null) {
-                    return false;
+                if (cam0 == null || cam1 == null) { // 条件：按运行状态分支
+                    return false; // 返回：结束当前方法
                 }
-                boolean ret0 = false;
-                Log.i(Log.TAG, "第 1 步：打开 camera0");
-                boolean ret1 = false;
-                Log.i(Log.TAG, "第 2 步：打开 camera1");
-                for (int openAttempt = 1; openAttempt <= 3; openAttempt++) {
-                    boolean keepCam0 = cam0 != null && (cam0.isLiving()
+                boolean ret0 = false; // 赋值：更新状态
+                Log.i(Log.TAG, "第 1 步：打开 camera0"); // 日志：记录相机状态
+                boolean ret1 = false; // 赋值：更新状态
+                Log.i(Log.TAG, "第 2 步：打开 camera1"); // 日志：记录相机状态
+                for (int openAttempt = 1; openAttempt <= 3; openAttempt++) { // 循环：遍历数据
+                    boolean keepCam0 = cam0 != null && (cam0.isLiving() // 赋值：更新状态
                             || cam0.enableLiveEncode
-                            || cam0.isRecording()
+                            || cam0.isRecording() // 调用：执行下一步
                             || cam0.videoStarting
-                            || cam0.mCameraPhotoing);
-                    boolean keepCam1 = cam1 != null && (cam1.isLiving()
+                            || cam0.mCameraPhotoing); // 状态：当前正在抓拍
+                    boolean keepCam1 = cam1 != null && (cam1.isLiving() // 赋值：更新状态
                             || cam1.enableLiveEncode
-                            || cam1.isRecording()
+                            || cam1.isRecording() // 调用：执行下一步
                             || cam1.videoStarting
-                            || cam1.mCameraPhotoing);
-                    Log.i(Log.TAG, "Dual camera open attempt = " + openAttempt);
-                    ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
-                    ret1 = cam1.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
-                    if (ret0 && ret1) {
+                            || cam1.mCameraPhotoing); // 状态：当前正在抓拍
+                    Log.i(Log.TAG, "Dual camera open attempt = " + openAttempt); // 日志：记录相机状态
+                    ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck); // 赋值：更新状态
+                    ret1 = cam1.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck); // 赋值：更新状态
+                    if (ret0 && ret1) { // 条件：按运行状态分支
                         break;
                     }
-                    Log.i(Log.TAG, "Dual camera open retry, camera0 = " + ret0
-                            + ", camera1 = " + ret1
-                            + ", attempt = " + openAttempt
-                            + ", keepCam0 = " + keepCam0
-                            + ", keepCam1 = " + keepCam1);
-                    if (ret0 && cam0 != null && !keepCam0) {
-                        cam0.closeCamera();
+                    Log.i(Log.TAG, "Dual camera open retry, camera0 = " + ret0 // 日志：记录相机状态
+                            + ", camera1 = " + ret1 // 赋值：更新状态
+                            + ", attempt = " + openAttempt // 赋值：更新状态
+                            + ", keepCam0 = " + keepCam0 // 赋值：更新状态
+                            + ", keepCam1 = " + keepCam1); // 赋值：更新状态
+                    if (ret0 && cam0 != null && !keepCam0) { // 条件：按运行状态分支
+                        cam0.closeCamera(); // 调用：执行下一步
                     }
-                    if (ret1 && cam1 != null && cam1 != cam0 && !keepCam1) {
-                        cam1.closeCamera();
+                    if (ret1 && cam1 != null && cam1 != cam0 && !keepCam1) { // 条件：按运行状态分支
+                        cam1.closeCamera(); // 调用：执行下一步
                     }
-                    SystemClock.sleep(1200);
+                    SystemClock.sleep(1200); // 阻塞：当前线程睡眠
                 }
-                Log.i(Log.TAG, "双路 openSelfOnly 结果"
-                        + "，camera0 = " + ret0
-                        + "，camera1 = " + ret1);
-                if (!ret0 || !ret1) {
-                    Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，停止后续流程");
-                    boolean keepCam0 = cam0 != null && (cam0.isLiving()
+                Log.i(Log.TAG, "双路 openSelfOnly 结果" // 日志：记录相机状态
+                        + "，camera0 = " + ret0 // 赋值：更新状态
+                        + "，camera1 = " + ret1); // 赋值：更新状态
+                if (!ret0 || !ret1) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，停止后续流程"); // Camera2：相机设备对象
+                    boolean keepCam0 = cam0 != null && (cam0.isLiving() // 赋值：更新状态
                             || cam0.enableLiveEncode
-                            || cam0.isRecording()
+                            || cam0.isRecording() // 调用：执行下一步
                             || cam0.videoStarting
-                            || cam0.mCameraPhotoing);
-                    boolean keepCam1 = cam1 != null && (cam1.isLiving()
+                            || cam0.mCameraPhotoing); // 状态：当前正在抓拍
+                    boolean keepCam1 = cam1 != null && (cam1.isLiving() // 赋值：更新状态
                             || cam1.enableLiveEncode
-                            || cam1.isRecording()
+                            || cam1.isRecording() // 调用：执行下一步
                             || cam1.videoStarting
-                            || cam1.mCameraPhotoing);
-                    if (ret0 && cam0 != null && !keepCam0) {
-                        cam0.closeCamera();
+                            || cam1.mCameraPhotoing); // 状态：当前正在抓拍
+                    if (ret0 && cam0 != null && !keepCam0) { // 条件：按运行状态分支
+                        cam0.closeCamera(); // 调用：执行下一步
                     }
-                    if (ret1 && cam1 != null && cam1 != cam0 && !keepCam1) {
-                        cam1.closeCamera();
+                    if (ret1 && cam1 != null && cam1 != cam0 && !keepCam1) { // 条件：按运行状态分支
+                        cam1.closeCamera(); // 调用：执行下一步
                     }
-                    if (cb != null) {
-                        Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，回调 openFailed，camID = " + camID);
-                        cb.openFailed(-1);
+                    if (cb != null) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，回调 openFailed，camID = " + camID); // Camera2：相机设备对象
+                        cb.openFailed(-1); // 调用：执行下一步
                     }
-                    return false;
+                    return false; // 返回：结束当前方法
                 }
-                boolean activeCamera0 = camID % 2 == 0;
-                boolean session0 = true;
-                boolean session1 = true;
-                if (activeCamera0) {
-                    Log.i(Log.TAG, "第 3 步：创建当前业务 camera0 session");
-                    session0 = cam0.startSessionForDualOpen(stream, video, isRecordVideo);
+                boolean activeCamera0 = camID % 2 == 0; // 赋值：更新状态
+                boolean session0 = true; // 赋值：更新状态
+                boolean session1 = true; // 赋值：更新状态
+                if (activeCamera0) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "第 3 步：创建当前业务 camera0 session"); // 日志：记录相机状态
+                    session0 = cam0.startSessionForDualOpen(stream, video, isRecordVideo); // 赋值：更新状态
                 } else {
-                    Log.i(Log.TAG, "第 3 步：创建当前业务 camera1 session");
-                    session1 = cam1.startSessionForDualOpen(stream, video, isRecordVideo);
+                    Log.i(Log.TAG, "第 3 步：创建当前业务 camera1 session"); // 日志：记录相机状态
+                    session1 = cam1.startSessionForDualOpen(stream, video, isRecordVideo); // 赋值：更新状态
                 }
                 ///
-                Log.i(Log.TAG, "双路 session 和 repeating 启动结果"
-                        + "，camera0 = " + session0
-                        + "，camera1 = " + session1);
-                result = session0 && session1;
+                Log.i(Log.TAG, "双路 session 和 repeating 启动结果" // 日志：记录相机状态
+                        + "，camera0 = " + session0 // 赋值：更新状态
+                        + "，camera1 = " + session1); // 赋值：更新状态
+                result = session0 && session1; // 赋值：更新状态
 
-                if (!result) {
-                    if (cam0 != null && !cam0.isLiving() && !cam0.isRecording() && !cam0.mCameraPhotoing) {
-                        cam0.closeCamera();
+                if (!result) { // 条件：按运行状态分支
+                    if (cam0 != null && !cam0.isLiving() && !cam0.isRecording() && !cam0.mCameraPhotoing) { // 状态：当前正在抓拍
+                        cam0.closeCamera(); // 调用：执行下一步
                     }
-                    if (cam1 != null && cam1 != cam0 && !cam1.isLiving() && !cam1.isRecording() && !cam1.mCameraPhotoing) {
-                        cam1.closeCamera();
+                    if (cam1 != null && cam1 != cam0 && !cam1.isLiving() && !cam1.isRecording() && !cam1.mCameraPhotoing) { // 状态：当前正在抓拍
+                        cam1.closeCamera(); // 调用：执行下一步
                     }
                 }
 
-                if (cb != null) {
-                    if (result) {
-                        Log.e(Log.TAG,"openSucceed");
-                        cb.openSucceed();
+                if (cb != null) { // 条件：按运行状态分支
+                    if (result) { // 条件：按运行状态分支
+                        Log.e(Log.TAG,"openSucceed"); // 日志：记录相机状态
+                        cb.openSucceed(); // 调用：执行下一步
                     } else {
-                        cb.openFailed(-1);
+                        cb.openFailed(-1); // 调用：执行下一步
                     }
                 }
-                return result;
+                return result; // 返回：结束当前方法
             } finally {
-                synchronized (sDualCameraLock) {
-                    sDualStarting = false;
-                    sDualStarted = result;
-                    sDualCameraLock.notifyAll();
+                synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+                    sDualStarting = false; // 赋值：更新状态
+                    sDualStarted = result; // 赋值：更新状态
+                    sDualCameraLock.notifyAll(); // 同步：保护双MIPI共享状态
             }
         }
     }
 
-        if (mCameraDevice != null) {
-            if (cb != null) {
-                cb.openSucceed();
+        if (mCameraDevice != null) { // Camera2：已打开的相机句柄
+            if (cb != null) { // 条件：按运行状态分支
+                cb.openSucceed(); // 调用：执行下一步
             }
-            return true;
+            return true; // 返回：结束当前方法
         }
         ///
 
-        if (isOpening()) {
-            if (mCameraDevice != null) {
-                Log.i(Log.TAG, "摄像头已经打开");
-                if (cb != null) cb.openSucceed();
-                return true;
+        if (isOpening()) { // 条件：按运行状态分支
+            if (mCameraDevice != null) { // Camera2：已打开的相机句柄
+                Log.i(Log.TAG, "摄像头已经打开"); // 日志：记录相机状态
+                if (cb != null) cb.openSucceed(); // 条件：按运行状态分支
+                return true; // 返回：结束当前方法
             }
 
-            Log.i(Log.TAG, "摄像头状态异常，CameraDevice 为空，清理残留资源后重新打开，camID = " + camID);
+            Log.i(Log.TAG, "摄像头状态异常，CameraDevice 为空，清理残留资源后重新打开，camID = " + camID); // Camera2：相机设备对象
             closePreviewSession();
             closeImageReader();
             closeStillImageReader();
@@ -2306,22 +2311,22 @@ public class Camera2Device extends Device {
             clearState(DevState.OPENING);
         }
 
-        streamType = stream;
-        openCamera();
-        if (mCameraDevice == null) {
-            Log.i(Log.TAG, "打开摄像头失败");
-            if (cb != null) cb.openFailed(-1);
-            return false;
+        streamType = stream; // 赋值：更新状态
+        openCamera(); // Camera2：异步打开相机
+        if (mCameraDevice == null) { // Camera2：已打开的相机句柄
+            Log.i(Log.TAG, "打开摄像头失败"); // 日志：记录相机状态
+            if (cb != null) cb.openFailed(-1); // 条件：按运行状态分支
+            return false; // 返回：结束当前方法
         }
 
-        previewReady = false;
+        previewReady = false; // 条件：会话可出帧后才处理Image
         setState(DevState.OPENING);
-        if (cb != null) cb.openSucceed();
-        return true;
+        if (cb != null) cb.openSucceed(); // 条件：按运行状态分支
+        return true; // 返回：结束当前方法
     }
 
     ///
-    public synchronized boolean openSelfOnly(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
+    public synchronized boolean openSelfOnly(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) { // 入口：方法定义
 //        if (mCameraDevice != null) {
 //            Log.i(Log.TAG, "openSelfOnly 直接成功，mCameraDevice 已存在"
 //                    + "，this = " + this
@@ -2332,50 +2337,52 @@ public class Camera2Device extends Device {
 //            }
 //            return true;
 //        }
-        if (isOpening()) {
-            if (mCameraDevice != null) {
-                Log.i(Log.TAG, "摄像头已经打开");
-                if (cb != null) cb.openSucceed();
-                return true;
+        if (isOpening()) { // 条件：按运行状态分支
+            if (mCameraDevice != null) { // Camera2：已打开的相机句柄
+                Log.i(Log.TAG, "摄像头已经打开"); // 日志：记录相机状态
+                if (cb != null) cb.openSucceed(); // 条件：按运行状态分支
+                return true; // 返回：结束当前方法
             }
-            Log.i(Log.TAG, "摄像头状态为已打开，但 CameraDevice 为空，重新打开，camID = " + camID);
+            Log.i(Log.TAG, "摄像头状态为已打开，但 CameraDevice 为空，重新打开，camID = " + camID); // Camera2：相机设备对象
             clearState(DevState.OPENING);
         }
-        if (mMainBoard == 1) {
-            MipiSwitch.switchTo(camID);
+        if (mMainBoard == 1) { // 条件：按运行状态分支
+            MipiSwitch.switchTo(camID); // 调用：执行下一步
         }
-        streamType = stream;
-        openCamera();
-        if (mCameraDevice == null) {
-            Log.i(Log.TAG, "打开摄像头失败");
-            if (cb != null) cb.openFailed(-1);
-            return false;
+        streamType = stream; // 赋值：更新状态
+        openCamera(); // Camera2：异步打开相机
+        if (mCameraDevice == null) { // Camera2：已打开的相机句柄
+            Log.i(Log.TAG, "打开摄像头失败"); // 日志：记录相机状态
+            if (cb != null) cb.openFailed(-1); // 条件：按运行状态分支
+            return false; // 返回：结束当前方法
         }
-        previewReady = false;
+        previewReady = false; // 条件：会话可出帧后才处理Image
+
+        Log.e(Log.TAG,"previewReady:"+previewReady);
         setState(DevState.OPENING);
-        if (cb != null) cb.openSucceed();
-        return true;
+        if (cb != null) cb.openSucceed(); // 条件：按运行状态分支
+        return true; // 返回：结束当前方法
     }
-    private boolean startSessionForDualOpen(int stream, boolean video, boolean isRecordVideo) {
+    private boolean startSessionForDualOpen(int stream, boolean video, boolean isRecordVideo) { // 入口：方法定义
 
 //        boolean useVideoSession = video || camID % 2 == 0;
-        boolean useVideoSession = video ;
+        boolean useVideoSession = video ; // 赋值：更新状态
 
-        Settings.VideoCodec vc = getVideoCodec(stream);
-        Point resolution = useVideoSession && vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
-        if (resolution == null) {
-            resolution = useVideoSession ? new Point(1536, 864) : getConfiguredPhotoResolution();
+        Settings.VideoCodec vc = getVideoCodec(stream); // 赋值：更新状态
+        Point resolution = useVideoSession && vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null; // 赋值：更新状态
+        if (resolution == null) { // 条件：按运行状态分支
+            resolution = useVideoSession ? new Point(1536, 864) : getConfiguredPhotoResolution(); // 赋值：更新状态
         }
-        if (resolution == null) {
-            resolution = new Point(1920, 1080);
+        if (resolution == null) { // 条件：按运行状态分支
+            resolution = new Point(1920, 1080); // 赋值：更新状态
         }
-        if (is6735) {
-            resolution = new Point(1280, 720);
+        if (is6735) { // 条件：按运行状态分支
+            resolution = new Point(1280, 720); // 赋值：更新状态
         } else if (useVideoSession && (resolution.x > 1536 || resolution.y > 864)) {
-            resolution = new Point(1536, 864);
+            resolution = new Point(1536, 864); // 赋值：更新状态
         }
-        mResolution = resolution;
-        return startSessionAndRepeatingIfNeeded(    // 创建 Session 和启动预览
+        mResolution = resolution; // 赋值：更新状态
+        return startSessionAndRepeatingIfNeeded(    // 创建 Session 和启动预览；返回：结束当前方法
                 resolution.x,
                 resolution.y,
                 useVideoSession,
@@ -2384,43 +2391,43 @@ public class Camera2Device extends Device {
         );
     }
 
-    private synchronized boolean startSessionAndRepeatingIfNeeded(int width, int height, boolean video, boolean isReordVideo, int stream) { ///
-        if (mDualSessionStarted) {
-            return true;
+    private synchronized boolean startSessionAndRepeatingIfNeeded(int width, int height, boolean video, boolean isReordVideo, int stream) { ///；成员：保存运行状态
+        if (mDualSessionStarted) { // 条件：按运行状态分支
+            return true; // 返回：结束当前方法
         }
-        if (mDualSessionStarting) {
-            return true;
+        if (mDualSessionStarting) { // 条件：按运行状态分支
+            return true; // 返回：结束当前方法
         }
-        if (mCameraDevice == null) {
-            return false;
+        if (mCameraDevice == null) { // Camera2：已打开的相机句柄
+            return false; // 返回：结束当前方法
         }
-        mDualSessionStarting = true;
-        try {
-            if (mPreviewSession != null && video && !mPreviewSessionVideoMode) {
+        mDualSessionStarting = true; // 赋值：更新状态
+        try { // 异常：保护相机/IO调用
+            if (mPreviewSession != null && video && !mPreviewSessionVideoMode) { // Camera2：向HAL提交请求的会话
                 closePreviewSession();
             }
-            if (mPreviewSession == null) {
+            if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
                 createPreviewSession(width, height, video);
             }
-            if (mPreviewSession == null) {
-                return false;
+            if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
+                return false; // 返回：结束当前方法
             }
-            previewReady = true;   // 这句决定图像回调能否开始处理帧
+            previewReady = true;   // 这句决定图像回调能否开始处理帧；条件：会话可出帧后才处理Image
             ///
-            if (video) {
-                if (isReordVideo) {
-                    Settings.VideoCodec vc = getVideoCodec(stream);
-                    mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+            if (video) { // 条件：按运行状态分支
+                if (isReordVideo) { // 条件：按运行状态分支
+                    Settings.VideoCodec vc = getVideoCodec(stream); // 赋值：更新状态
+                    mResolution = Settings.VideoCodec.getResolution(vc.resolution); // 赋值：更新状态
                     lockFocus(
                             10000,
-                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                             true,
                             vc
                     );
                 } else {
                     lockFocus(
                             10000,
-                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                             false,
                             null
                     );
@@ -2428,55 +2435,55 @@ public class Camera2Device extends Device {
             } else {
                 lockFocus(
                         10000,
-                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, // Camera2：发送给HAL的请求
                         false,
                         null
                 );
             }
             ///
-            mDualSessionStarted = true;
-            return true;
+            mDualSessionStarted = true; // 赋值：更新状态
+            return true; // 返回：结束当前方法
         } catch (Exception e) {
-            Log.i(Log.TAG, "dual camera session exception: " + e.getMessage());
+            Log.i(Log.TAG, "dual camera session exception: " + e.getMessage()); // 日志：记录相机状态
             closePreviewSession();
             closeImageReader();
             closeStillImageReader();
-            if (!isLiving() && !isRecording() && !mCameraPhotoing) {
+            if (!isLiving() && !isRecording() && !mCameraPhotoing) { // 状态：当前正在抓拍
                 closeCamera();
             }
-            return false;
+            return false; // 返回：结束当前方法
         } finally {
-            mDualSessionStarting = false;
+            mDualSessionStarting = false; // 赋值：更新状态
         }
     }
     ///
 
-    public boolean liveStart(int stream, int ssrc) {
-        if (false && (isRecording() || videoStarting)) {
-            Log.i(Log.TAG, "拉流失败，正在录制视频");
-            return false;
+    public boolean liveStart(int stream, int ssrc) { // 入口：方法定义
+        if (false && (isRecording() || videoStarting)) { // 条件：按运行状态分支
+            Log.i(Log.TAG, "拉流失败，正在录制视频"); // 日志：记录相机状态
+            return false; // 返回：结束当前方法
         }
-        if (isLiving() || liveStarting) {
-            Log.i(Log.TAG, "拉流失败，正在播放视频");
-            return false;
+        if (isLiving() || liveStarting) { // 条件：按运行状态分支
+            Log.i(Log.TAG, "拉流失败，正在播放视频"); // 日志：记录相机状态
+            return false; // 返回：结束当前方法
         }
 
-        this.streamType = stream;
-        liveStarting = true;
+        this.streamType = stream; // 赋值：更新状态
+        liveStarting = true; // 赋值：更新状态
 
-        scheduledHandler.post(() -> {
+        scheduledHandler.post(() -> { // 调用：执行下一步
             ///
-            try {
-                if (!liveStarting) {
-                    return;
+            try { // 异常：保护相机/IO调用
+                if (!liveStarting) { // 条件：按运行状态分支
+                    return; // 返回：结束当前方法
                 }
-                Settings.VideoCodec vc = getVideoCodec(stream);
-                mResolution = Settings.VideoCodec.getResolution(vc.resolution);
+                Settings.VideoCodec vc = getVideoCodec(stream); // 赋值：更新状态
+                mResolution = Settings.VideoCodec.getResolution(vc.resolution); // 赋值：更新状态
                 ///
-                if (mResolution == null) {
-                    Log.i(Log.TAG, "直播分辨率为空，使用默认 1536x864" ///
-                            + "，camID = " + camID);
-                    mResolution = new Point(1536, 864); ///
+                if (mResolution == null) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "直播分辨率为空，使用默认 1536x864" ///；日志：记录相机状态
+                            + "，camID = " + camID); // 赋值：更新状态
+                    mResolution = new Point(1536, 864); ///；赋值：更新状态
                 }
                 ///
 
@@ -2485,65 +2492,65 @@ public class Camera2Device extends Device {
 
                 ///
                 // 由于分辨率大于1536x864无法拉流，因此设置最大的分辨率为1536x864
-                if (mResolution.x > 1536 || mResolution.y > 864) { ///
-                    mResolution = new Point(1536, 864); ///
+                if (mResolution.x > 1536 || mResolution.y > 864) { ///；条件：按运行状态分支
+                    mResolution = new Point(1536, 864); ///；赋值：更新状态
                 }
 
-                if ((mResolution.x == 800 && mResolution.y == 600) || (mResolution.x == 704 && mResolution.y == 576)) {
-                    mResolution = new Point(640, 480);
+                if ((mResolution.x == 800 && mResolution.y == 600) || (mResolution.x == 704 && mResolution.y == 576)) { // 条件：按运行状态分支
+                    mResolution = new Point(640, 480); // 赋值：更新状态
                 }
 
 //                mResolution = size;
                 /////
 
-                Log.i(Log.TAG, "视频设置的宽高===>：" + mResolution.x + "x" + mResolution.y);
+                Log.i(Log.TAG, "视频设置的宽高===>：" + mResolution.x + "x" + mResolution.y); // 日志：记录相机状态
 
 //                createPreviewSession(mResolution.x, mResolution.y, true); ///
 //                if (mPreviewSession == null) {
 //                    Log.i(Log.TAG, "创建会话失败");
 //                    return;
 //                }
-                if (!ensureVideoPreviewSession(vc, false)) {
-                    Log.i(Log.TAG, "拉流失败，无法切换到视频会话"
-                            + "，camID = " + camID
-                            + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode);
+                if (!ensureVideoPreviewSession(vc, false)) { // 条件：按运行状态分支
+                    Log.i(Log.TAG, "拉流失败，无法切换到视频会话" // 日志：记录相机状态
+                            + "，camID = " + camID // 赋值：更新状态
+                            + "，mPreviewSessionVideoMode = " + mPreviewSessionVideoMode); // 赋值：更新状态
 
-                    liveStarting = false;
+                    liveStarting = false; // 赋值：更新状态
                     setEnableLiveEncode(false);
 
-                    if (!isRecording() && !mCameraPhotoing) {
+                    if (!isRecording() && !mCameraPhotoing) { // 状态：当前正在抓拍
                         closePreviewSession();
                         closeImageReader();
                         closeStillImageReader();
                         closeBothCameraIfNoLive();
                     }
-                    return;
+                    return; // 返回：结束当前方法
                 }
                 // 先进入直播状态再刷新 repeating，避免首批视频帧被普通预览请求吞掉。
-                mOnShow = true;
-                previewReady = true;
+                mOnShow = true; // 赋值：更新状态
+                previewReady = true; // 条件：会话可出帧后才处理Image
                 setState(DevState.LIVING);
-                mState = STATE_VIDEO_LIVING;
+                mState = STATE_VIDEO_LIVING; // 状态机：AF/AE/抓拍/视频流转
                 { // 直播要打包成rtp包进行发包
-                    rtph264 = new RTPH264(ssrc);
-                    mipiLivePpsSps = null;
-                    mipiLiveFirstFrameTimestamp = 0;
+                    rtph264 = new RTPH264(ssrc); // 赋值：更新状态
+                    mipiLivePpsSps = null; // 赋值：更新状态
+                    mipiLiveFirstFrameTimestamp = 0; // 赋值：更新状态
                     setEnableLiveEncode(true); ///
                     ensureMipiVideoEncoder(stream, true); /////
                     refreshLowNoiseRepeatingRequest(vc, true);
-                    liveStarting = false;
+                    liveStarting = false; // 赋值：更新状态
                 }
 //                lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,false,null); ///
 
-                Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc);
+                Log.i(Log.TAG, "拉流成功， SSRC:" + ssrc); // 日志：记录相机状态
             } catch (Exception e) {
-                liveStarting = false;
+                liveStarting = false; // 赋值：更新状态
                 setEnableLiveEncode(false);
             }
             ///
         });
 
-        return true;
+        return true; // 返回：结束当前方法
     }
 
 
@@ -2555,121 +2562,121 @@ public class Camera2Device extends Device {
      * @param height
      * @return
      */
-    private Point getBestSize2(final Size[] sizes, final int width, final int height) {
-        if (sizes == null || sizes.length == 0 || width <= 0 || height <= 0)
-            return new Point(width, height);
+    private Point getBestSize2(final Size[] sizes, final int width, final int height) { // 入口：方法定义
+        if (sizes == null || sizes.length == 0 || width <= 0 || height <= 0) // 条件：按运行状态分支
+            return new Point(width, height); // 返回：结束当前方法
 
         //指定列表中第一组数据为查找的初始数据
-        Size found = sizes[0];
-        final int specifiedArea = width * height;
+        Size found = sizes[0]; // 赋值：更新状态
+        final int specifiedArea = width * height; // 成员：保存运行状态
         //定义尺寸的最小匹配值
-        int minMatch = Math.abs(specifiedArea - found.getWidth() * found.getHeight());
+        int minMatch = Math.abs(specifiedArea - found.getWidth() * found.getHeight()); // 赋值：更新状态
 
-        for (int i = 1; i < sizes.length; i++) {
+        for (int i = 1; i < sizes.length; i++) { // 循环：遍历数据
             //for (Camera.Size supportSize : newList) {
-            int supportedArea = sizes[i].getWidth() * sizes[i].getHeight();
+            int supportedArea = sizes[i].getWidth() * sizes[i].getHeight(); // 赋值：更新状态
             //指定图片尺寸与支持列表中的尺寸完全匹配，不再进行查找
-            if (supportedArea == specifiedArea) {
-                return new Point(sizes[i].getWidth(), sizes[i].getHeight());
+            if (supportedArea == specifiedArea) { // 条件：按运行状态分支
+                return new Point(sizes[i].getWidth(), sizes[i].getHeight()); // 返回：结束当前方法
             }
             //指定图片尺寸大于相机支持的图片尺寸，查找相机支持的最大尺寸
-            if ((supportedArea < specifiedArea) && (specifiedArea - supportedArea < minMatch)) {
-                found = sizes[i];
-                minMatch = specifiedArea - supportedArea;
+            if ((supportedArea < specifiedArea) && (specifiedArea - supportedArea < minMatch)) { // 条件：按运行状态分支
+                found = sizes[i]; // 赋值：更新状态
+                minMatch = specifiedArea - supportedArea; // 赋值：更新状态
             }
             //指定图片尺寸小于相机支持的图片尺寸，查找相机支持的最小尺寸
-            else if ((supportedArea > specifiedArea) && (supportedArea - specifiedArea < minMatch)) {
-                found = sizes[i];
-                minMatch = supportedArea - specifiedArea;
+            else if ((supportedArea > specifiedArea) && (supportedArea - specifiedArea < minMatch)) { // 条件：按运行状态分支
+                found = sizes[i]; // 赋值：更新状态
+                minMatch = supportedArea - specifiedArea; // 赋值：更新状态
             }
         }
-        return new Point(found.getWidth(), found.getHeight());
+        return new Point(found.getWidth(), found.getHeight()); // 返回：结束当前方法
     }
 
-    private HashMap<String, Settings.AIParameter> aiParameters; /////
+    private HashMap<String, Settings.AIParameter> aiParameters; /////；成员：保存运行状态
     /**
      * 摄像头没有主/子码流之分，所以stream都是0
      */
 
     ///
-    private void enableMfbBeforeCapture() {
-        try {
-            if (mPreviewSession == null || mPreviewRequestBuilder == null) {
-                return;
+    private void enableMfbBeforeCapture() { // 入口：方法定义
+        try { // 异常：保护相机/IO调用
+            if (mPreviewSession == null || mPreviewRequestBuilder == null) { // Camera2：构建下一次请求参数
+                return; // 返回：结束当前方法
             }
 
             applyLowNoiseCaptureRequestParameters(null, false);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true); // Camera2：锁定自动曝光
 
-            mPreviewRequestBuilder.set(
-                    CaptureRequest.CONTROL_AF_TRIGGER,
+            mPreviewRequestBuilder.set( // Camera2：构建下一次请求参数
+                    CaptureRequest.CONTROL_AF_TRIGGER, // Camera2：触发自动对焦
                     CameraMetadata.CONTROL_AF_TRIGGER_IDLE
             );
 
-            if (mKeyAisRequestMode != null) {
-                mPreviewRequestBuilder.set(mKeyAisRequestMode, new int[]{2});
+            if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
+                mPreviewRequestBuilder.set(mKeyAisRequestMode, new int[]{2}); // Camera2：构建下一次请求参数
                 // 需要等待多帧降噪完成才能抓拍
-                if (mCameraPhotoing) {
-                    SystemClock.sleep(5000);
+                if (mCameraPhotoing) { // 状态：当前正在抓拍
+                    SystemClock.sleep(5000); // 阻塞：当前线程睡眠
                 }
             }
 
-            mPreviewSession.setRepeatingRequest(
-                    mPreviewRequestBuilder.build(),
-                    mCaptureCallback,
-                    mBackgroundHandler
+            mPreviewSession.setRepeatingRequest( // Camera2：持续提交预览请求
+                    mPreviewRequestBuilder.build(), // Camera2：生成不可变请求
+                    mCaptureCallback, // 回调：推进AF/AE状态机
+                    mBackgroundHandler // 线程：承接Camera2回调
             );
 
         } catch (Exception e) {
-            Log.i(Log.TAG, "MFB 预触发异常：" + e.getMessage());
+            Log.i(Log.TAG, "MFB 预触发异常：" + e.getMessage()); // 日志：记录相机状态
         }
     }
     ///
 
     @Override
-    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) {
-        aiParameters = aps; /////
-        synchronized (sDualCameraLock) {
-            sDualPhotoTaskCount++;
+    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) { // Android：图像解码/绘制
+        aiParameters = aps; /////；赋值：更新状态
+        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+            sDualPhotoTaskCount++; // 同步：统计未完成拍照任务
         }
-        scheduledHandler.post(() -> {
-            synchronized (sDualPhotoTaskLock) {
+        scheduledHandler.post(() -> { // 调用：执行下一步
+            synchronized (sDualPhotoTaskLock) { // 同步：串行化双路拍照任务
 
-                boolean notifyPhotoFailed = false;
-                try{
+                boolean notifyPhotoFailed = false; // 赋值：更新状态
+                try{ // 异常：保护相机/IO调用
                     ///
-                    mOnShow = show;
+                    mOnShow = show; // 赋值：更新状态
 
-                    mCameraPhotoing = true;
+                    mCameraPhotoing = true; // 状态：当前正在抓拍
 
-                    takePhotoOnce.set(true);
-                    photoDone.set(false);
+                    takePhotoOnce.set(true); // 同步：只允许一帧完成本次抓拍
+                    photoDone.set(false); // 条件：takePhoto等它变true
 
-                    mFileImage = filename;
-                    mFilePreset = preset;
+                    mFileImage = filename; // 赋值：更新状态
+                    mFilePreset = preset; // 赋值：更新状态
                     ///
 
-                    Point photoResolution = getConfiguredPhotoResolution();
+                    Point photoResolution = getConfiguredPhotoResolution(); // 赋值：更新状态
 
                     ///
     //                if (!isLiving()){
     //                    createPreviewSession(mResolution.x, mResolution.y, false);
     //                }
 
-                    if (photoResolution == null) {
-                        Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080"
-                                + "，camID = " + camID);
-                        photoResolution = new Point(1920, 1080);
+                    if (photoResolution == null) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080" // 日志：记录相机状态
+                                + "，camID = " + camID); // 赋值：更新状态
+                        photoResolution = new Point(1920, 1080); // 赋值：更新状态
                     }
                     ///
-                    boolean createdPhotoSession = false;
-                    if (mPreviewSession == null) {
-                        mResolution = photoResolution;
+                    boolean createdPhotoSession = false; // 赋值：更新状态
+                    if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
+                        mResolution = photoResolution; // 赋值：更新状态
                         createPreviewSession(photoResolution.x, photoResolution.y, false);
-                        createdPhotoSession = mPreviewSession != null;
+                        createdPhotoSession = mPreviewSession != null; // Camera2：向HAL提交请求的会话
                     }
-                    if (mPreviewSession == null) {
-                        Log.i(Log.TAG, "创建预览会话失败");
+                    if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
+                        Log.i(Log.TAG, "创建预览会话失败"); // 日志：记录相机状态
 
                         ///
     //                    //// 如果拍照失败，先释放资源，再重新申请
@@ -2677,17 +2684,17 @@ public class Camera2Device extends Device {
     //                        unlockFocus();
     //                        close();
     //                    }
-                        mCameraPhotoing = false;
-                        takePhotoOnce.set(false);
-                        photoDone.set(true);
-                        mCameraPhtotingLock.notifyLock();
+                        mCameraPhotoing = false; // 状态：当前正在抓拍
+                        takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
+                        photoDone.set(true); // 条件：takePhoto等它变true
+                        mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
                         ///
 
-                        notifyPhotoFailed = true;
-                        return;
+                        notifyPhotoFailed = true; // 赋值：更新状态
+                        return; // 返回：结束当前方法
                     }
-                    if (createdPhotoSession) {
-                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
+                    if (createdPhotoSession) { // 条件：按运行状态分支
+                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null); // Camera2：发送给HAL的请求
                     }
 
                     {
@@ -2698,19 +2705,19 @@ public class Camera2Device extends Device {
                     }
 
                     // 等待拍照成功
-                    int timeoutSeconds = 30;
-                    int timeoutMs = timeoutSeconds * 1000;
-                    long start = System.currentTimeMillis();
+                    int timeoutSeconds = 40; // 赋值：更新状态
+                    int timeoutMs = timeoutSeconds * 1000; // 赋值：更新状态
+                    long start = System.currentTimeMillis(); // 赋值：更新状态
 
 
-                    while (!photoDone.get()) {
-                        long remain = timeoutMs - (System.currentTimeMillis() - start);
-                        if (remain <= 0) break;
-                        mCameraPhtotingLock.waitLock((int) remain);
+                    while (!photoDone.get()) { // 条件：takePhoto等它变true
+                        long remain = timeoutMs - (System.currentTimeMillis() - start); // 赋值：更新状态
+                        if (remain <= 0) break; // 条件：按运行状态分支
+                        mCameraPhtotingLock.waitLock((int) remain); // 同步：takePhoto等待，保存/失败/超时唤醒
                     }
 
-                    if (!photoDone.get()) {
-                        Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒");
+                    if (!photoDone.get()) { // 条件：takePhoto等它变true
+                        Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒"); // 日志：记录相机状态
 
                         ///
     //                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
@@ -2718,23 +2725,23 @@ public class Camera2Device extends Device {
     //                        unlockFocus();
     //                        close();
     //                    }
-                        mCameraPhotoing = false;
-                        takePhotoOnce.set(false);
-                        photoDone.set(true);
-                        mCameraPhtotingLock.notifyLock();
+                        mCameraPhotoing = false; // 状态：当前正在抓拍
+                        takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
+                        photoDone.set(true); // 条件：takePhoto等它变true
+                        mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
                         ///
-                        notifyPhotoFailed = true;
+                        notifyPhotoFailed = true; // 赋值：更新状态
                     }
 
                 }catch (Exception e){
-                    Log.e(Log.TAG, "拍照过程中发生异常"+e);
+                    Log.e(Log.TAG, "拍照过程中发生异常"+e); // 日志：记录相机状态
                     ///
-                    mCameraPhotoing = false;
-                    takePhotoOnce.set(false);
-                    photoDone.set(true);
-                    mCameraPhtotingLock.notifyLock();
+                    mCameraPhotoing = false; // 状态：当前正在抓拍
+                    takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
+                    photoDone.set(true); // 条件：takePhoto等它变true
+                    mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
                     ///
-                    notifyPhotoFailed = true;
+                    notifyPhotoFailed = true; // 赋值：更新状态
                 }finally {
                     ///
     //                if (!isLiving() && !isRecording()) {
@@ -2742,76 +2749,76 @@ public class Camera2Device extends Device {
     //                    close();
     //                }
                     ///
-                    mCameraPhotoing = false;
+                    mCameraPhotoing = false; // 状态：当前正在抓拍
                     ///
-                    takePhotoOnce.set(false);
-                    synchronized (sDualCameraLock) {
-                        if (sDualPhotoTaskCount > 0) {
-                            sDualPhotoTaskCount--;
+                    takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
+                    synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+                        if (sDualPhotoTaskCount > 0) { // 同步：统计未完成拍照任务
+                            sDualPhotoTaskCount--; // 同步：统计未完成拍照任务
                         }
                     }
                     closeBothCameraIfNoLive();
-                    if (notifyPhotoFailed && controllerCallback != null) {
-                        Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID);
-                        controllerCallback.onPhotoFailed(id, preset, filename);
+                    if (notifyPhotoFailed && controllerCallback != null) { // 条件：按运行状态分支
+                        Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID); // 日志：记录相机状态
+                        controllerCallback.onPhotoFailed(id, preset, filename); // 调用：执行下一步
                     }
                     ///
                 }
             }
         });
-        return true;
+        return true; // 返回：结束当前方法
     }
 
 
 
     @Override
-    public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) {
-        if (isRecording() || videoStarting) return false;
+    public boolean takeVideo(final String filename, final int duration, int stream, boolean upload) { // 入口：方法定义
+        if (isRecording() || videoStarting) return false; // 条件：按运行状态分支
         // 录像优先级高于直播拉流
-        if (false && isLiving()) liveStop();
+        if (false && isLiving()) liveStop(); // 条件：按运行状态分支
 
-        videoStarting = true;
-        scheduledHandler.post(() -> {
+        videoStarting = true; // 赋值：更新状态
+        scheduledHandler.post(() -> { // 调用：执行下一步
             videoStart(stream, filename, duration, upload);
         });
-        return true;
+        return true; // 返回：结束当前方法
     }
 
-    protected boolean reboot() {
-        return true;
+    protected boolean reboot() { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
 
-    public void startRecordCheckLine(int group) {
+    public void startRecordCheckLine(int group) { // 入口：方法定义
     }
 
-    public void stopRecordCheckLine(int group) {
+    public void stopRecordCheckLine(int group) { // 入口：方法定义
     }
 
     /////
-    public boolean setTime(int dwYear, int dwMonth, int dwDay, int dwHour, int dwMinute, int dwSecond) {
-        return true;
+    public boolean setTime(int dwYear, int dwMonth, int dwDay, int dwHour, int dwMinute, int dwSecond) { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
     /////
 
-    public Settings.CruiseGroup[] getCruise() {
-        return null;
+    public Settings.CruiseGroup[] getCruise() { // 入口：方法定义
+        return null; // 返回：结束当前方法
     }
 
-    public boolean setCruise(int cmd, int group, int index, int preset, int duration, int speed) {
-        return true;
+    public boolean setCruise(int cmd, int group, int index, int preset, int duration, int speed) { // 入口：方法定义
+        return true; // 返回：结束当前方法
     }
 
-    public boolean setRecordTimes(List<Settings.VideoTimeItem> list) { /////
-        return true; /////
-    }
-
-    @Override
-    public boolean playbackStop() {
-        return true;
+    public boolean setRecordTimes(List<Settings.VideoTimeItem> list) { /////；成员：保存运行状态
+        return true; /////；返回：结束当前方法
     }
 
     @Override
-    public boolean imageFusion(int stream, int preset, boolean show, String filename, Bitmap image_rgb, int recordPreset) {
-        return true;
+    public boolean playbackStop() { // 入口：方法定义
+        return true; // 返回：结束当前方法
+    }
+
+    @Override
+    public boolean imageFusion(int stream, int preset, boolean show, String filename, Bitmap image_rgb, int recordPreset) { // Android：图像解码/绘制
+        return true; // 返回：结束当前方法
     }
 }

@@ -3026,8 +3026,8 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zhjinrui:spgp.WAKE_LOCK");
 
 
-//        SystemSettings.sleepAfter(this, 15);
-        SystemSettings.sleepAfter(this, 864000);
+        SystemSettings.sleepAfter(this, 15);
+//        SystemSettings.sleepAfter(this, 864000);
 
 
 //        SystemSettings.airplaneOff(this); ///
