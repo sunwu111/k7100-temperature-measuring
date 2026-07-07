@@ -1303,7 +1303,57 @@ public class Camera2Device extends Device {
     /**
      * @return true：AF/AE 流程正常结束或超时但管线仍在出帧；false：等待期间无任何相机回调（管线卡死）或设备已报错
      */
-    private boolean lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////
+//    private boolean lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////
+//        try {
+//            //Log.i(Log.TAG, "开始自动对焦");
+//            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+//            mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
+//
+//            if (isRecordVideo){
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+//
+//            }else {
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。
+//            }
+//
+//            applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
+//            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦
+//            mState = STATE_WAITING_AF_LOCK;
+//            mLockFocusTime = System.currentTimeMillis();
+//            long repeatingStartTime = SystemClock.uptimeMillis();
+//            ///
+//            // AF_TRIGGER_START 是一次性命令，绝不能放进 repeating 请求：
+//            // 否则每帧都会重启一次对焦扫描，AF 永远无法锁定（表现为每次抓拍都“对焦3秒超时”），
+//            // 且残留触发器会随后续 setRepeatingRequest 反复下发，偶发把 MTK HAL 的 3A/MFNR 管线打挂
+//            //（表现为 HAL 停止出帧，close 时报 error=4），导致抓拍盲等60秒超时。
+//            // 正确用法：repeating 请求触发器为 IDLE，AF 触发通过单次 capture 下发。
+//            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE);
+//            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+//            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
+//            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+//            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE);
+//            ///
+//            boolean notified = mCameraFocusLock.waitLock(timeoutMilsec);
+//            ///
+//            if (mPipelineDead) {
+//                Log.i(Log.TAG, "对焦等待期间相机设备报错/断开，camID = " + camID);
+//                return false;
+//            }
+//            if (!notified && mLastCaptureCallbackTime < repeatingStartTime) {
+//                // 等满超时且期间没有收到任何一次 Capture 回调：HAL 已不出帧，管线卡死
+//                Log.i(Log.TAG, "对焦等待" + timeoutMilsec + "ms内无任何相机回调，判定相机管线卡死，camID = " + camID);
+//                return false;
+//            }
+//            return true;
+//            ///
+//        } catch (Exception e) {
+//            Log.i(Log.TAG, "对焦异常：" + e.getMessage());
+//            return mCameraDevice != null && mPreviewSession != null; /// 设备或会话已失效时视为管线异常
+//        }
+//    }
+
+
+    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////
         try {
             //Log.i(Log.TAG, "开始自动对焦");
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -1318,39 +1368,18 @@ public class Camera2Device extends Device {
 
             applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             mState = STATE_WAITING_AF_LOCK;
             mLockFocusTime = System.currentTimeMillis();
-            long repeatingStartTime = SystemClock.uptimeMillis();
-            ///
-            // AF_TRIGGER_START 是一次性命令，绝不能放进 repeating 请求：
-            // 否则每帧都会重启一次对焦扫描，AF 永远无法锁定（表现为每次抓拍都“对焦3秒超时”），
-            // 且残留触发器会随后续 setRepeatingRequest 反复下发，偶发把 MTK HAL 的 3A/MFNR 管线打挂
-            //（表现为 HAL 停止出帧，close 时报 error=4），导致抓拍盲等60秒超时。
-            // 正确用法：repeating 请求触发器为 IDLE，AF 触发通过单次 capture 下发。
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE);
             mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE);
-            ///
-            boolean notified = mCameraFocusLock.waitLock(timeoutMilsec);
-            ///
-            if (mPipelineDead) {
-                Log.i(Log.TAG, "对焦等待期间相机设备报错/断开，camID = " + camID);
-                return false;
-            }
-            if (!notified && mLastCaptureCallbackTime < repeatingStartTime) {
-                // 等满超时且期间没有收到任何一次 Capture 回调：HAL 已不出帧，管线卡死
-                Log.i(Log.TAG, "对焦等待" + timeoutMilsec + "ms内无任何相机回调，判定相机管线卡死，camID = " + camID);
-                return false;
-            }
-            return true;
-            ///
+            mCameraFocusLock.waitLock(timeoutMilsec);
+
         } catch (Exception e) {
             Log.i(Log.TAG, "对焦异常：" + e.getMessage());
-            return mCameraDevice != null && mPreviewSession != null; /// 设备或会话已失效时视为管线异常
         }
     }
+
+
 
     private void unlockFocus() {
         try {
@@ -1846,16 +1875,24 @@ public class Camera2Device extends Device {
         }
 
         previewReady = true;
-        boolean pipelineAlive = lockFocus(
+//        boolean pipelineAlive = lockFocus(
+//                10000,
+//                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+//                isRecordVideo,
+//                isRecordVideo ? vc : null
+//        );
+
+        lockFocus(
                 10000,
                 CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
                 isRecordVideo,
                 isRecordVideo ? vc : null
         );
-        if (!pipelineAlive) { /// 管线卡死时如实返回失败，交由上层重试/释放
-            Log.i(Log.TAG, "视频会话对焦阶段相机管线异常，camID = " + camID);
-            return false;
-        }
+//
+//        if (!pipelineAlive) { /// 管线卡死时如实返回失败，交由上层重试/释放
+//            Log.i(Log.TAG, "视频会话对焦阶段相机管线异常，camID = " + camID);
+//            return false;
+//        }
         return mPreviewSession != null && mPreviewSessionVideoMode;
     }
 
@@ -2513,14 +2550,14 @@ public class Camera2Device extends Device {
                 if (isReordVideo) {
                     Settings.VideoCodec vc = getVideoCodec(stream);
                     mResolution = Settings.VideoCodec.getResolution(vc.resolution);
-                    pipelineAlive = lockFocus(
+                    lockFocus(
                             10000,
                             CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
                             true,
                             vc
                     );
                 } else {
-                    pipelineAlive = lockFocus(
+                    lockFocus(
                             10000,
                             CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
                             false,
@@ -2528,26 +2565,26 @@ public class Camera2Device extends Device {
                     );
                 }
             } else {
-                pipelineAlive = lockFocus(
+               lockFocus(
                         10000,
                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
                         false,
                         null
                 );
             }
-            if (!pipelineAlive) {
-                // 相机管线已卡死（对焦等待期间 HAL 无任何回调），如实上报 session 启动失败，
-                // 由 openDual 走 openFailed 回调 → 控制器立即进入补拍流程，
-                // 避免之前“session 报成功 → 抓拍盲等60秒超时”的浪费（首拍卡死场景可提前约50秒失败重试）。
-                Log.i(Log.TAG, "session 启动后相机无任何回调，判定管线卡死，session 启动失败，camID = " + camID);
-                closePreviewSession();
-                closeImageReader();
-                closeStillImageReader();
-                if (!isLiving() && !isRecording() && !mCameraPhotoing) {
-                    closeCamera();
-                }
-                return false;
-            }
+//            if (!pipelineAlive) {
+//                // 相机管线已卡死（对焦等待期间 HAL 无任何回调），如实上报 session 启动失败，
+//                // 由 openDual 走 openFailed 回调 → 控制器立即进入补拍流程，
+//                // 避免之前“session 报成功 → 抓拍盲等60秒超时”的浪费（首拍卡死场景可提前约50秒失败重试）。
+//                Log.i(Log.TAG, "session 启动后相机无任何回调，判定管线卡死，session 启动失败，camID = " + camID);
+//                closePreviewSession();
+//                closeImageReader();
+//                closeStillImageReader();
+//                if (!isLiving() && !isRecording() && !mCameraPhotoing) {
+//                    closeCamera();
+//                }
+//                return false;
+//            }
             ///
             mDualSessionStarted = true;
             return true;
@@ -2803,16 +2840,17 @@ public class Camera2Device extends Device {
                         return;
                     }
                     if (createdPhotoSession) {
-                        if (!lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null)) {
-                            /// 对焦阶段管线已卡死，直接失败进入补拍，不再提交抓拍请求盲等
-                            Log.i(Log.TAG, "抓拍前对焦阶段相机管线异常，直接失败进入补拍，camID = " + camID);
-                            mCameraPhotoing = false;
-                            takePhotoOnce.set(false);
-                            photoDone.set(true);
-                            mCameraPhtotingLock.notifyLock();
-                            notifyPhotoFailed = true;
-                            return;
-                        }
+                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null);
+//                        if (!lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null)) {
+//                            /// 对焦阶段管线已卡死，直接失败进入补拍，不再提交抓拍请求盲等
+//                            Log.i(Log.TAG, "抓拍前对焦阶段相机管线异常，直接失败进入补拍，camID = " + camID);
+//                            mCameraPhotoing = false;
+//                            takePhotoOnce.set(false);
+//                            photoDone.set(true);
+//                            mCameraPhtotingLock.notifyLock();
+//                            notifyPhotoFailed = true;
+//                            return;
+//                        }
                     }
 
                     {
