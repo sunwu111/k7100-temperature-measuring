@@ -640,7 +640,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10)); // Camera2：限制帧率范围
         }
 
-        Log.e(Log.TAG,"mKeyAisRequestMode is not null::"+(mKeyAisRequestMode != null));
+        Log.e(Log.TAG,"mKeyAisRequestMode == null::"+(mKeyAisRequestMode == null));
         if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
             builder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
         }
@@ -744,6 +744,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 previewBitmap = preProcessingPhoto(previewBitmap); // 赋值：更新状态
 
                 if (mCameraPhotoing && mStillImageReader == null && takePhotoOnce.compareAndSet(true, false)) { // 同步：只允许一帧完成本次抓拍
+                    Log.e(Log.TAG,"======saveCapturedPhoto======");
                     saveCapturedPhoto(previewBitmap);
 
                 } else if ((isLiving() && rtph264 != null) || isRecording()) {
@@ -1018,6 +1019,17 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         }
     }
 
+    private String imageFormatToString(int format) {
+        switch (format) {
+            case ImageFormat.JPEG:
+                return "JPEG";
+            case ImageFormat.YUV_420_888:
+                return "YUV_420_888";
+            default:
+                return "UNKNOWN(" + format + ")";
+        }
+    }
+
     ///
     private void captureStillPicture() { // 入口：方法定义
         try { // 异常：保护相机/IO调用
@@ -1031,45 +1043,65 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 return; // 返回：结束当前方法
             }
 
-            captureBuilder.addTarget(targetReader.getSurface()); // Camera2：绑定输出Surface
+            int targetFormat = targetReader.getImageFormat();
 
-            captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true); // Camera2：锁定自动曝光
-            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100); // Camera2：设置JPEG质量
-            captureBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE); // Camera2：声明抓拍意图
-            captureBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY); // Camera2：发送给HAL的请求
+//            StillCapture targetReader 信息，camID = 0，targetReader = mImageReader，format = 256，formatName = JPEG，size = 1920x1088，sessionVideoMode = false
+            Log.i(Log.TAG,
+                    "StillCapture targetReader 信息"
+                            + "，camID = " + camID
+                            + "，targetReader = " + (targetReader == mStillImageReader ? "mStillImageReader" : "mImageReader")
+                            + "，format = " + targetFormat
+                            + "，formatName = " + imageFormatToString(targetFormat)
+                            + "，size = " + targetReader.getWidth() + "x" + targetReader.getHeight()
+                            + "，sessionVideoMode = " + mPreviewSessionVideoMode);
 
-            captureBuilder.set( // 调用：执行下一步
-                    CaptureRequest.CONTROL_AF_MODE, // Camera2：发送给HAL的请求
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE // Camera2：发送给HAL的请求
+
+            captureBuilder.addTarget(targetReader.getSurface());
+
+            captureBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+            captureBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
+            captureBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_STILL_CAPTURE);
+            captureBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+
+            captureBuilder.set(
+                    CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
             );
 
-            captureBuilder.set( // 调用：执行下一步
-                    CaptureRequest.CONTROL_AF_TRIGGER, // Camera2：触发自动对焦
+            captureBuilder.set(
+                    CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_IDLE
             );
 
+            Log.e(Log.TAG,"mKeyAisAvailableModes == null " + (mKeyAisAvailableModes == null));
+            Log.e(Log.TAG,"mKeyAisResult == null " + (mKeyAisResult == null));
+            Log.e(Log.TAG,"mKeyAisRequestMode == null " + (mKeyAisRequestMode == null));
             if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
                 captureBuilder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
             }
 
-            CameraCaptureSession.CaptureCallback captureCallback = // Camera2：输出会话
-                    new CameraCaptureSession.CaptureCallback() { // Camera2：输出会话
+            CameraCaptureSession.CaptureCallback captureCallback =
+                    new CameraCaptureSession.CaptureCallback() {
                         @Override
                         public void onCaptureCompleted( // 回调：单次请求完成
                                 @NonNull CameraCaptureSession session, // Camera2：输出会话
                                 @NonNull CaptureRequest request, // Camera2：发送给HAL的请求
                                 @NonNull TotalCaptureResult result) { // Camera2：HAL返回帧元数据
 
-                            Log.i(Log.TAG, "拍摄照片成功"); // 日志：记录相机状态
+                            Log.i(Log.TAG, "onCaptureCompleted() 成功 返回请求的 metadata/result，真正数据在mOnImageAvailableListener中处理");
 
-                            if (mKeyAisResult != null) { // 条件：按运行状态分支
-                                int[] resultModes = result.get(mKeyAisResult); // 赋值：更新状态
-                                if (resultModes != null) { // 条件：按运行状态分支
-                                    for (int mode : resultModes) { // 循环：遍历数据
-                                        Log.i(Log.TAG, "MFB Result Mode: " + mode); // 日志：记录相机状态
+                            // 主要是一个调试和验证用的 metadata 读取逻辑
+                            if (mKeyAisResult != null) {
+                                int[] resultModes = result.get(mKeyAisResult);
+
+                                Log.e(Log.TAG,"resultModes == null " + (resultModes == null));
+
+                                if (resultModes != null) {
+                                    for (int mode : resultModes) {
+                                        Log.i(Log.TAG, "MFB Result Mode: " + mode);
                                     }
                                 } else {
-                                    Log.i(Log.TAG, "captureStillPicture::MFB Result Mode not available."); // 日志：记录相机状态
+                                    Log.i(Log.TAG, "captureStillPicture::MFB Result Mode not available.");
                                 }
                             }
 
@@ -1077,10 +1109,10 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                         }
                     };
 
-            mPreviewSession.capture( // Camera2：提交单次请求
-                    captureBuilder.build(), // Camera2：生成不可变请求
+            mPreviewSession.capture(
+                    captureBuilder.build(),
                     captureCallback,
-                    mBackgroundHandler // 线程：承接Camera2回调
+                    mBackgroundHandler
             );
 
         } catch (Exception e) {
@@ -1524,6 +1556,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     Log.i(Log.TAG, "Found CameraCharacteristics Key: " + AIS_AVAILABLE_MODES_KEY_NAME); // 日志：记录相机状态
                 }
             }
+
+
 
             List<CaptureResult.Key<?>> resultKeyList = cameraCharacteristics.getAvailableCaptureResultKeys(); // Camera2：HAL返回帧元数据
             for (CaptureResult.Key<?> resultKey : resultKeyList) { // Camera2：HAL返回帧元数据
@@ -2671,6 +2705,9 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     }
                     ///
                     boolean createdPhotoSession = false; // 赋值：更新状态
+
+                    Log.e(Log.TAG,"mPreviewSession == null " + (mPreviewSession == null));  // false
+
                     if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
                         mResolution = photoResolution; // 赋值：更新状态
                         createPreviewSession(photoResolution.x, photoResolution.y, false);
