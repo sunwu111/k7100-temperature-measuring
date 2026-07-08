@@ -640,6 +640,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10)); // Camera2：限制帧率范围
         }
 
+        Log.e(Log.TAG,"mKeyAisRequestMode is not null::"+(mKeyAisRequestMode != null));
         if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
             builder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
         }
