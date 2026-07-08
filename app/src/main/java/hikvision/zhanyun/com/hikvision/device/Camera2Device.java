@@ -3,6 +3,8 @@ package hikvision.zhanyun.com.hikvision.device;
 import static hikvision.zhanyun.com.hikvision.MainActivity.channels;
 import static hikvision.zhanyun.com.hikvision.MainActivity.is6735;
 
+
+import android.graphics.Color;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -109,6 +111,17 @@ public class Camera2Device extends Device { // 成员：保存运行状态
     private volatile long mipiRecordKeyFramesWritten = 0; // 成员：保存运行状态
     /////
 
+    /**
+     * 本次拍照保存是否成功。
+     * true  = 图片保存成功
+     * false = 图片保存失败
+     */
+    private final AtomicBoolean photoSaveSuccess = new AtomicBoolean(false);
+
+    /**
+     * 本次拍照失败原因，用于日志和补拍判断。
+     */
+    private volatile String photoFailReason = "";
 
     /// sunwu
     private final AtomicBoolean takePhotoOnce = new AtomicBoolean(false);   // 防止在拉流的时候拍照会被执行多次；同步：只允许一帧完成本次抓拍
@@ -132,6 +145,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
 
     private boolean mDualSessionStarted = false; // 成员：保存运行状态
     private boolean mDualSessionStarting = false; // 成员：保存运行状态
+
+    private static final long MIN_VALID_PHOTO_SIZE_BYTES = 400 * 1024;  // 图片文件大小 400kb
     ///
 
     public Camera2Device(int ID, Context context, int camID, int board, int rotate, boolean useAudio) { /////；成员：保存运行状态
@@ -640,7 +655,6 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10)); // Camera2：限制帧率范围
         }
 
-        Log.e(Log.TAG,"mKeyAisRequestMode == null::"+(mKeyAisRequestMode == null));
         if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
             builder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
         }
@@ -679,34 +693,197 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         return dst; // 返回：结束当前方法
     }
 
-    private void saveCapturedPhoto(Bitmap bitmap) { // Android：图像解码/绘制
-        if (bitmap == null) { // 条件：按运行状态分支
-            return; // 返回：结束当前方法
-        }
-        Log.i(Log.TAG, "抓拍图片分辨率：" + bitmap.getWidth() + "x" + bitmap.getHeight()); // 日志：记录相机状态
 
-        bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true); // 赋值：更新状态
-        //drawMetrics(bitmap);  // 绘制信噪比、宽动态、清晰度OSD /////
-        drawWatermark(bitmap, id, streamType, true); // 先AI识别再画OSD //////
+    private void saveCapturedPhoto(Bitmap bitmap) {
+        if (bitmap == null) {
+            Log.i(Log.TAG, "抓拍失败：bitmap 为空");
 
-        Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100); // 调用：执行下一步
-        if (NettyUtils.isTakePhoto()) { // 条件：按运行状态分支
-            toolTakePhoto(bitmap);
-            NettyUtils.setTakePhoto(false); // 调用：执行下一步
+            notifyPhotoFinished(false, "bitmap 为空");
+            return;
         }
-        if (controllerCallback != null) { // 条件：按运行状态分支
-            procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage)); // 调用：执行下一步
+
+        try {
+            Log.i(Log.TAG, "抓拍图片分辨率：" + bitmap.getWidth() + "x" + bitmap.getHeight());
+
+            bitmap = processPhoto(bitmap, System.currentTimeMillis(), 255, aiParameters, true);
+
+            if (bitmap == null) {
+                Log.i(Log.TAG, "抓拍失败：processPhoto 返回 null");
+
+                notifyPhotoFinished(false, "processPhoto 返回 null");
+                return;
+            }
+
+            boolean abnormalBitmap = isAbnormalBitmap(bitmap);
+
+            Log.i(Log.TAG,
+                    "抓拍 Bitmap 异常检测"
+                            + "，abnormalBitmap = " + abnormalBitmap
+                            + "，width = " + bitmap.getWidth()
+                            + "，height = " + bitmap.getHeight()
+                            + "，camID = " + camID);
+
+            drawWatermark(bitmap, id, streamType, true);
+
+            Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100);
+
+            File photoFile = new File(mFileImage);
+
+            if (!photoFile.exists()) {
+                Log.i(Log.TAG, "抓拍失败：文件不存在，file = " + mFileImage);
+
+                notifyPhotoFinished(false, "抓拍文件不存在");
+                return;
+            }
+
+            long fileSize = photoFile.length();
+            long fileSizeKb = fileSize / 1024;
+
+            Log.i(Log.TAG,
+                    "抓拍文件大小检查"
+                            + "，file = " + mFileImage
+                            + "，size = " + fileSize
+                            + " bytes"
+                            + "，sizeKB = " + fileSizeKb
+                            + "KB"
+                            + "，minValidKB = " + (MIN_VALID_PHOTO_SIZE_BYTES / 1024)
+                            + "KB"
+                            + "，abnormalBitmap = " + abnormalBitmap
+                            + "，camID = " + camID);
+
+            if (abnormalBitmap && fileSize < MIN_VALID_PHOTO_SIZE_BYTES) {
+//            if (fileSize < 4000 * 1024) {   // test
+                Log.i(Log.TAG,
+                        "抓拍失败：Bitmap 疑似异常且文件小于 400KB，触发补拍"
+                                + "，file = " + mFileImage
+                                + "，sizeKB = " + fileSizeKb
+                                + "KB"
+                                + "，camID = " + camID);
+
+                notifyPhotoFinished(false, "Bitmap疑似异常且文件小于400KB");
+                return;
+            }
+
+            if (NettyUtils.isTakePhoto()) {
+                toolTakePhoto(bitmap);
+                NettyUtils.setTakePhoto(false);
+            }
+
+            if (controllerCallback != null) {
+                procVideoHandler.post(() ->
+                        controllerCallback.onPhotoTaked(
+                                getTimestampFromFilename(mFileImage),
+                                id,
+                                mFilePreset,
+                                mFileImage
+                        )
+                );
+            }
+
+            Runnable done = () -> notifyPhotoFinished(true, null);
+
+            if (mBackgroundHandler != null) {
+                mBackgroundHandler.postDelayed(done, 1500);
+                return;
+            }
+
+            SystemClock.sleep(1500);
+            done.run();
+
+        } catch (Exception e) {
+            Log.i(Log.TAG,
+                    "抓拍保存异常："
+                            + e.getMessage()
+                            + "，file = " + mFileImage
+                            + "，camID = " + camID);
+
+            notifyPhotoFinished(false, "抓拍保存异常：" + e.getMessage());
         }
-        Runnable done = () -> { // 赋值：更新状态
-            photoDone.set(true); // 条件：takePhoto等它变true
-            mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
-        };
-        if (mBackgroundHandler != null) { // 线程：承接Camera2回调
-            mBackgroundHandler.postDelayed(done, 1500); // 线程：承接Camera2回调
-            return; // 返回：结束当前方法
+    }
+
+
+
+
+
+    public static boolean isAbnormalBitmap(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            return true;
         }
-        SystemClock.sleep(1500); // 阻塞：当前线程睡眠
-        done.run(); // 调用：执行下一步
+
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+
+        if (width <= 0 || height <= 0) {
+            return true;
+        }
+
+        int sampleStep = 4; // 每隔 4 个像素采样一次，提升速度
+        int[] buckets = new int[16 * 16 * 16];
+
+        long count = 0;
+        double sumR = 0;
+        double sumG = 0;
+        double sumB = 0;
+        double sumY = 0;
+
+        double sumR2 = 0;
+        double sumG2 = 0;
+        double sumB2 = 0;
+        double sumY2 = 0;
+
+        int maxBucketCount = 0;
+
+        for (int y = 0; y < height; y += sampleStep) {
+            for (int x = 0; x < width; x += sampleStep) {
+                int color = bitmap.getPixel(x, y);
+
+                int r = Color.red(color);
+                int g = Color.green(color);
+                int b = Color.blue(color);
+
+                double luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                sumR += r;
+                sumG += g;
+                sumB += b;
+                sumY += luminance;
+
+                sumR2 += r * r;
+                sumG2 += g * g;
+                sumB2 += b * b;
+                sumY2 += luminance * luminance;
+
+                int bucket = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+                int bucketCount = ++buckets[bucket];
+
+                if (bucketCount > maxBucketCount) {
+                    maxBucketCount = bucketCount;
+                }
+
+                count++;
+            }
+        }
+
+        if (count == 0) {
+            return true;
+        }
+
+        double meanR = sumR / count;
+        double meanG = sumG / count;
+        double meanB = sumB / count;
+        double meanY = sumY / count;
+
+        double stdR = Math.sqrt(Math.max(0, sumR2 / count - meanR * meanR));
+        double stdG = Math.sqrt(Math.max(0, sumG2 / count - meanG * meanG));
+        double stdB = Math.sqrt(Math.max(0, sumB2 / count - meanB * meanB));
+        double stdY = Math.sqrt(Math.max(0, sumY2 / count - meanY * meanY));
+
+        double colorStdAvg = (stdR + stdG + stdB) / 3.0;
+        double dominantColorRatio = maxBucketCount * 1.0 / count;
+
+        return dominantColorRatio > 0.90
+                && stdY < 12.0
+                && colorStdAvg < 15.0;
     }
 
 
@@ -744,7 +921,6 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 previewBitmap = preProcessingPhoto(previewBitmap); // 赋值：更新状态
 
                 if (mCameraPhotoing && mStillImageReader == null && takePhotoOnce.compareAndSet(true, false)) { // 同步：只允许一帧完成本次抓拍
-                    Log.e(Log.TAG,"======saveCapturedPhoto======");
                     saveCapturedPhoto(previewBitmap);
 
                 } else if ((isLiving() && rtph264 != null) || isRecording()) {
@@ -1073,9 +1249,6 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     CameraMetadata.CONTROL_AF_TRIGGER_IDLE
             );
 
-            Log.e(Log.TAG,"mKeyAisAvailableModes == null " + (mKeyAisAvailableModes == null));
-            Log.e(Log.TAG,"mKeyAisResult == null " + (mKeyAisResult == null));
-            Log.e(Log.TAG,"mKeyAisRequestMode == null " + (mKeyAisRequestMode == null));
             if (mKeyAisRequestMode != null) { // 条件：按运行状态分支
                 captureBuilder.set(mKeyAisRequestMode, new int[]{2}); // 调用：执行下一步
             }
@@ -1094,8 +1267,6 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                             if (mKeyAisResult != null) {
                                 int[] resultModes = result.get(mKeyAisResult);
 
-                                Log.e(Log.TAG,"resultModes == null " + (resultModes == null));
-
                                 if (resultModes != null) {
                                     for (int mode : resultModes) {
                                         Log.i(Log.TAG, "MFB Result Mode: " + mode);
@@ -1108,6 +1279,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                             restorePreviewRepeatingAfterStillCapture();
                         }
                     };
+
+
 
             mPreviewSession.capture(
                     captureBuilder.build(),
@@ -2669,144 +2842,314 @@ public class Camera2Device extends Device { // 成员：保存运行状态
     ///
 
     @Override
-    public boolean takePhoto(int stream, int preset, boolean show, String filename, Bitmap pop, int recordPreset, HashMap<String, Settings.AIParameter> aps, boolean alert) { // Android：图像解码/绘制
-        aiParameters = aps; /////；赋值：更新状态
-        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
-            sDualPhotoTaskCount++; // 同步：统计未完成拍照任务
+    public boolean takePhoto(
+            int stream,
+            int preset,
+            boolean show,
+            String filename,
+            Bitmap pop,
+            int recordPreset,
+            HashMap<String, Settings.AIParameter> aps,
+            boolean alert) {
+
+        aiParameters = aps;
+
+        synchronized (sDualCameraLock) {
+            sDualPhotoTaskCount++;
         }
-        scheduledHandler.post(() -> { // 调用：执行下一步
-            synchronized (sDualPhotoTaskLock) { // 同步：串行化双路拍照任务
 
-                boolean notifyPhotoFailed = false; // 赋值：更新状态
-                try{ // 异常：保护相机/IO调用
-                    ///
-                    mOnShow = show; // 赋值：更新状态
+        scheduledHandler.post(() -> {
+            synchronized (sDualPhotoTaskLock) {
 
-                    mCameraPhotoing = true; // 状态：当前正在抓拍
+                boolean notifyPhotoFailed = false;
+                boolean finalSuccess = false;
+                final int maxRetryCount = 1;
 
-                    takePhotoOnce.set(true); // 同步：只允许一帧完成本次抓拍
-                    photoDone.set(false); // 条件：takePhoto等它变true
+                try {
+                    mOnShow = show;
 
-                    mFileImage = filename; // 赋值：更新状态
-                    mFilePreset = preset; // 赋值：更新状态
-                    ///
+                    mCameraPhotoing = true;
+                    takePhotoOnce.set(false);
+                    photoDone.set(false);
+                    photoSaveSuccess.set(false);
+                    photoFailReason = "";
 
-                    Point photoResolution = getConfiguredPhotoResolution(); // 赋值：更新状态
+                    mFileImage = filename;
+                    mFilePreset = preset;
 
-                    ///
-    //                if (!isLiving()){
-    //                    createPreviewSession(mResolution.x, mResolution.y, false);
-    //                }
+                    Point photoResolution = getConfiguredPhotoResolution();
 
-                    if (photoResolution == null) { // 条件：按运行状态分支
-                        Log.i(Log.TAG, "拍照分辨率为空，使用默认 1920x1080" // 日志：记录相机状态
-                                + "，camID = " + camID); // 赋值：更新状态
-                        photoResolution = new Point(1920, 1080); // 赋值：更新状态
-                    }
-                    ///
-                    boolean createdPhotoSession = false; // 赋值：更新状态
+                    if (photoResolution == null) {
+                        Log.i(Log.TAG,
+                                "拍照分辨率为空，使用默认 1920x1080"
+                                        + "，camID = " + camID);
 
-                    Log.e(Log.TAG,"mPreviewSession == null " + (mPreviewSession == null));  // false
-
-                    if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
-                        mResolution = photoResolution; // 赋值：更新状态
-                        createPreviewSession(photoResolution.x, photoResolution.y, false);
-                        createdPhotoSession = mPreviewSession != null; // Camera2：向HAL提交请求的会话
-                    }
-                    if (mPreviewSession == null) { // Camera2：向HAL提交请求的会话
-                        Log.i(Log.TAG, "创建预览会话失败"); // 日志：记录相机状态
-
-                        ///
-    //                    //// 如果拍照失败，先释放资源，再重新申请
-    //                    if (!isLiving() && !isRecording()) {
-    //                        unlockFocus();
-    //                        close();
-    //                    }
-                        mCameraPhotoing = false; // 状态：当前正在抓拍
-                        takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
-                        photoDone.set(true); // 条件：takePhoto等它变true
-                        mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
-                        ///
-
-                        notifyPhotoFailed = true; // 赋值：更新状态
-                        return; // 返回：结束当前方法
-                    }
-                    if (createdPhotoSession) { // 条件：按运行状态分支
-                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null); // Camera2：发送给HAL的请求
+                        photoResolution = new Point(1920, 1080);
                     }
 
-                    {
-                        ///
-    //                    lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,false,null);
+                    boolean createdPhotoSession = false;
+
+                    Log.e(Log.TAG,
+                            "takePhoto 开始"
+                                    + "，mPreviewSession == null " + (mPreviewSession == null)
+                                    + "，camID = " + camID
+                                    + "，photoResolution = " + photoResolution.x + "x" + photoResolution.y
+                                    + "，isLiving = " + isLiving()
+                                    + "，isRecording = " + isRecording());
+
+                    if (mPreviewSession == null) {
+                        mResolution = photoResolution;
+
+                        createPreviewSession(
+                                photoResolution.x,
+                                photoResolution.y,
+                                false
+                        );
+
+                        createdPhotoSession = mPreviewSession != null;
+                    }
+
+                    if (mPreviewSession == null) {
+                        Log.i(Log.TAG,
+                                "创建预览会话失败"
+                                        + "，camID = " + camID);
+
+                        notifyPhotoFinished(false, "创建预览会话失败");
+
+                        notifyPhotoFailed = true;
+                        return;
+                    }
+
+                    if (createdPhotoSession) {
+                        lockFocus(
+                                10000,
+                                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
+                                false,
+                                null
+                        );
+                    }
+
+                    for (int attempt = 0; attempt <= maxRetryCount; attempt++) {
+
+                        Log.i(Log.TAG,
+                                "开始执行抓拍"
+                                        + "，attempt = " + attempt
+                                        + "，camID = " + camID
+                                        + "，file = " + mFileImage);
+
+                        photoDone.set(false);
+                        photoSaveSuccess.set(false);
+                        photoFailReason = "";
+                        takePhotoOnce.set(false);
+
+                        if (!isLiving() && !isRecording() && !enableLiveEncode) {
+                            try {
+                                Log.i(Log.TAG,
+                                        "非拉流单次拍照，抓拍前停止 repeating"
+                                                + "，attempt = " + attempt
+                                                + "，camID = " + camID);
+
+                                if (mPreviewSession != null) {
+                                    mPreviewSession.stopRepeating();
+                                    mPreviewSession.abortCaptures();
+                                }
+
+                            } catch (Exception e) {
+                                Log.i(Log.TAG,
+                                        "非拉流单次拍照，停止 repeating 异常："
+                                                + e.getMessage()
+                                                + "，attempt = " + attempt
+                                                + "，camID = " + camID);
+                            }
+
+                            drainImageReader(mImageReader);
+                        }
+
+                        takePhotoOnce.set(true);
+
                         captureStillPicture();
-                        ///
-                    }
 
-                    // 等待拍照成功
-                    int timeoutSeconds = 40; // 赋值：更新状态
-                    int timeoutMs = timeoutSeconds * 1000; // 赋值：更新状态
-                    long start = System.currentTimeMillis(); // 赋值：更新状态
+                        int timeoutSeconds = 40;
+                        int timeoutMs = timeoutSeconds * 1000;
+                        long start = System.currentTimeMillis();
 
+                        while (!photoDone.get()) {
+                            long remain = timeoutMs - (System.currentTimeMillis() - start);
 
-                    while (!photoDone.get()) { // 条件：takePhoto等它变true
-                        long remain = timeoutMs - (System.currentTimeMillis() - start); // 赋值：更新状态
-                        if (remain <= 0) break; // 条件：按运行状态分支
-                        mCameraPhtotingLock.waitLock((int) remain); // 同步：takePhoto等待，保存/失败/超时唤醒
-                    }
+                            if (remain <= 0) {
+                                break;
+                            }
 
-                    if (!photoDone.get()) { // 条件：takePhoto等它变true
-                        Log.i(Log.TAG, "抓拍超时" + timeoutSeconds + "秒"); // 日志：记录相机状态
+                            mCameraPhtotingLock.waitLock((int) remain);
+                        }
 
-                        ///
-    //                    //// 如果拍照失败，先释放资源，再重新申请，可能会存在摄像头资源被占用，导致一直申请不上资源
-    //                    if (!isLiving() && !isRecording()) {
-    //                        unlockFocus();
-    //                        close();
-    //                    }
-                        mCameraPhotoing = false; // 状态：当前正在抓拍
-                        takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
-                        photoDone.set(true); // 条件：takePhoto等它变true
-                        mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
-                        ///
-                        notifyPhotoFailed = true; // 赋值：更新状态
-                    }
+                        if (!photoDone.get()) {
+                            photoSaveSuccess.set(false);
+                            photoFailReason = "抓拍超时 " + timeoutSeconds + " 秒";
 
-                }catch (Exception e){
-                    Log.e(Log.TAG, "拍照过程中发生异常"+e); // 日志：记录相机状态
-                    ///
-                    mCameraPhotoing = false; // 状态：当前正在抓拍
-                    takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
-                    photoDone.set(true); // 条件：takePhoto等它变true
-                    mCameraPhtotingLock.notifyLock(); // 同步：takePhoto等待，保存/失败/超时唤醒
-                    ///
-                    notifyPhotoFailed = true; // 赋值：更新状态
-                }finally {
-                    ///
-    //                if (!isLiving() && !isRecording()) {
-    //                    unlockFocus();
-    //                    close();
-    //                }
-                    ///
-                    mCameraPhotoing = false; // 状态：当前正在抓拍
-                    ///
-                    takePhotoOnce.set(false); // 同步：只允许一帧完成本次抓拍
-                    synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
-                        if (sDualPhotoTaskCount > 0) { // 同步：统计未完成拍照任务
-                            sDualPhotoTaskCount--; // 同步：统计未完成拍照任务
+                            photoDone.set(true);
+                            takePhotoOnce.set(false);
+
+                            Log.i(Log.TAG,
+                                    "抓拍超时"
+                                            + timeoutSeconds
+                                            + "秒"
+                                            + "，attempt = " + attempt
+                                            + "，camID = " + camID);
+                        }
+
+                        if (!photoSaveSuccess.get()
+                                && (photoFailReason == null || photoFailReason.length() == 0)) {
+
+                            photoFailReason = "拍照未保存成功，未知原因";
+                        }
+
+                        if (photoSaveSuccess.get()) {
+                            finalSuccess = true;
+
+                            Log.i(Log.TAG,
+                                    "抓拍成功"
+                                            + "，attempt = " + attempt
+                                            + "，camID = " + camID
+                                            + "，file = " + mFileImage);
+
+                            break;
+                        }
+
+                        Log.i(Log.TAG,
+                                "本次抓拍失败"
+                                        + "，attempt = " + attempt
+                                        + "，reason = " + photoFailReason
+                                        + "，camID = " + camID
+                                        + "，file = " + mFileImage);
+
+                        takePhotoOnce.set(false);
+
+                        if (attempt < maxRetryCount) {
+                            Log.i(Log.TAG,
+                                    "准备补拍"
+                                            + "，nextAttempt = " + (attempt + 1)
+                                            + "，camID = " + camID);
+
+                            SystemClock.sleep(800);
+
+                            lockFocus(
+                                    3000,
+                                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
+                                    false,
+                                    null
+                            );
                         }
                     }
-                    closeBothCameraIfNoLive();
-                    if (notifyPhotoFailed && controllerCallback != null) { // 条件：按运行状态分支
-                        Log.i(Log.TAG, "拍照失败，已释放双路 Camera，准备通知补拍，camID = " + camID); // 日志：记录相机状态
-                        controllerCallback.onPhotoFailed(id, preset, filename); // 调用：执行下一步
+
+                    if (!finalSuccess) {
+                        notifyPhotoFailed = true;
+
+                        Log.i(Log.TAG,
+                                "抓拍最终失败"
+                                        + "，reason = " + photoFailReason
+                                        + "，camID = " + camID
+                                        + "，file = " + mFileImage);
                     }
-                    ///
+
+                } catch (Exception e) {
+                    Log.e(Log.TAG,
+                            "拍照过程中发生异常"
+                                    + "，camID = " + camID
+                                    + "，error = " + e);
+
+                    notifyPhotoFinished(false, "拍照异常：" + e.getMessage());
+
+                    notifyPhotoFailed = true;
+
+                } finally {
+                    mCameraPhotoing = false;
+                    takePhotoOnce.set(false);
+
+                    synchronized (sDualCameraLock) {
+                        if (sDualPhotoTaskCount > 0) {
+                            sDualPhotoTaskCount--;
+                        }
+                    }
+
+                    closeBothCameraIfNoLive();
+
+                    if (notifyPhotoFailed && controllerCallback != null) {
+                        Log.i(Log.TAG,
+                                "拍照失败，已释放双路 Camera，准备通知补拍"
+                                        + "，camID = " + camID
+                                        + "，reason = " + photoFailReason);
+
+                        controllerCallback.onPhotoFailed(
+                                id,
+                                preset,
+                                filename
+                        );
+                    }
                 }
             }
         });
-        return true; // 返回：结束当前方法
+
+        return true;
     }
 
+
+    /**
+     * 通知 takePhoto() 当前拍照流程已经结束。
+     *
+     * @param success 本次拍照是否成功
+     * @param reason  失败原因，成功时可以传 null
+     */
+    private void notifyPhotoFinished(boolean success, String reason) {
+        photoSaveSuccess.set(success);
+        photoFailReason = reason == null ? "" : reason;
+
+        photoDone.set(true);
+        mCameraPhtotingLock.notifyLock();
+
+        Log.i(Log.TAG,
+                "通知拍照完成"
+                        + "，success = " + success
+                        + "，reason = " + photoFailReason
+                        + "，camID = " + camID
+                        + "，file = " + mFileImage);
+    }
+
+
+
+
+    private void drainImageReader(ImageReader reader) {
+        if (reader == null) {
+            return;
+        }
+
+        Image img = null;
+
+        try {
+            while ((img = reader.acquireLatestImage()) != null) {
+                Log.i(Log.TAG,
+                        "清理 ImageReader 残留帧"
+                                + "，camID = " + camID
+                                + "，format = " + img.getFormat()
+                                + "，size = " + img.getWidth() + "x" + img.getHeight());
+
+                img.close();
+                img = null;
+            }
+        } catch (Exception e) {
+            Log.i(Log.TAG,
+                    "清理 ImageReader 残留帧异常："
+                            + e.getMessage()
+                            + "，camID = " + camID);
+        } finally {
+            if (img != null) {
+                try {
+                    img.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
 
 
     @Override
