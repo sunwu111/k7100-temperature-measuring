@@ -1242,7 +1242,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         }
     }
 
-    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc) { /////；成员：保存运行状态
+    private void lockFocus(int timeoutMilsec, int captureMode, boolean isRecordVideo, Settings.VideoCodec vc,boolean videoMark) { /////；成员：保存运行状态
         try { // 异常：保护相机/IO调用
             //Log.i(Log.TAG, "开始自动对焦");
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW); // Camera2：创建请求模板
@@ -1251,8 +1251,10 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             if (isRecordVideo){ // 条件：按运行状态分支
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
 
+            }else if (videoMark){
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
             }else {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(30, 30));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(30, 30));
             }
 
             applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
@@ -1754,7 +1756,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 10000,
                 CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                 isRecordVideo,
-                isRecordVideo ? vc : null
+                isRecordVideo ? vc : null,
+                true
         );
         return mPreviewSession != null && mPreviewSessionVideoMode; // Camera2：向HAL提交请求的会话
     }
@@ -2423,14 +2426,16 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                             10000,
                             CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                             true,
-                            vc
+                            vc,
+                            video
                     );
                 } else {
                     lockFocus(
                             10000,
                             CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO, // Camera2：发送给HAL的请求
                             false,
-                            null
+                            null,
+                            video
                     );
                 }
             } else {
@@ -2438,7 +2443,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                         10000,
                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, // Camera2：发送给HAL的请求
                         false,
-                        null
+                        null,
+                        false
                 );
             }
             ///
@@ -2695,7 +2701,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                         return; // 返回：结束当前方法
                     }
                     if (createdPhotoSession) { // 条件：按运行状态分支
-                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null); // Camera2：发送给HAL的请求
+                        lockFocus(10000, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE, false, null,false); // Camera2：发送给HAL的请求
                     }
 
                     {
