@@ -392,47 +392,13 @@ public class Camera2Device extends Device { // 成员：保存运行状态
 
     /////
     // 图像参数调节算法
-    private Bitmap preProcessingPhoto(Bitmap previewBitmap) { // Android：图像解码/绘制
+    private Bitmap preProcessingPhoto(Bitmap previewBitmap, Point targetResolution) { // Android：图像解码/绘制
         try { // 异常：保护相机/IO调用
-            Point targetResolution = null;
-            boolean useVideoResolution = (isLiving() && rtph264 != null) || isRecording() || enableLiveEncode;
-            if (useVideoResolution) {
-
-//                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
-                Settings.VideoCodec vc = codec.get(String.valueOf(streamType));
-                Point size = vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
-                if (size == null) {
-                    size = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
-                }
-
-
-                ///
-                // 由于分辨率大于1536x864无法拉流，因此设置最大的分辨率为1536x864
-                if (size.x > 1536 || size.y > 864) {
-                    size = new Point(1536, 864);
-                }
-                ///
-                mResolution = size;
-                targetResolution = size;
-//                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
-
-            } else if (mCameraPhotoing) {
-                targetResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
-            } else {
-                targetResolution = mResolution;
-            }
-            ///
-            if (targetResolution == null) {
-                targetResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
-            }
             if (targetResolution.x == previewBitmap.getWidth() && targetResolution.y == previewBitmap.getHeight()) {
-                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
-                    return previewBitmap; // 返回：结束当前方法
-                } else {
-                    Bitmap outputBitmap = Bitmap.createBitmap(previewBitmap.getWidth(), previewBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
-                    Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
-                    Paint paint = new Paint();
-                    ColorMatrix colorMatrix = new ColorMatrix();
+                Bitmap outputBitmap = Bitmap.createBitmap(previewBitmap.getWidth(), previewBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
+                Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
+                Paint paint = new Paint();
+                ColorMatrix colorMatrix = new ColorMatrix();
 //                // 是否灰度化
 //                if (photoConfig.color == 0) {
 //                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
@@ -447,114 +413,109 @@ public class Camera2Device extends Device { // 成员：保存运行状态
 //                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
 //                }
 
-                    if (photoConfig.brightness != 50) {
-                        // 映射亮度 (1~100 → -128~128)
-                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
-                        // 调整亮度
-                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
-                                1, 0, 0, 0, brightnessValue,
-                                0, 1, 0, 0, brightnessValue,
-                                0, 0, 1, 0, brightnessValue,
-                                0, 0, 0, 1, 0
-                        });
-                        colorMatrix.postConcat(brightnessMatrix);
-                    }
-                    if (photoConfig.contrast != 50) {
-                        // 映射对比度 (1~100 → 0.5~2.0)
-                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
-                        // 调整对比度
-                        float translate = (1 - contrastValue) * 128;
-                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
-                                contrastValue, 0, 0, 0, translate,
-                                0, contrastValue, 0, 0, translate,
-                                0, 0, contrastValue, 0, translate,
-                                0, 0, 0, 1, 0
-                        });
-                        colorMatrix.postConcat(contrastMatrix);
-                    }
-                    if (photoConfig.saturation != 50) {
-                        // 映射饱和度 (1~100 → 0.0~2.0)
-                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
-                        // 调整饱和度
-                        ColorMatrix saturationMatrix = new ColorMatrix();
-                        saturationMatrix.setSaturation(saturationValue);
-                        if (MainActivity.DEBUG) {
-                            colorMatrix.postConcat(saturationMatrix);
-                        }
-                        // 组合所有矩阵
-                        paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-                        canvas.drawBitmap(previewBitmap, 0, 0, paint);
-                        //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
-                        //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
-                        //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
-                        return outputBitmap; // 返回：结束当前方法
-                    }
+                if (photoConfig.brightness != 50) {
+                    // 映射亮度 (1~100 → -128~128)
+                    float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                    // 调整亮度
+                    ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                            1, 0, 0, 0, brightnessValue,
+                            0, 1, 0, 0, brightnessValue,
+                            0, 0, 1, 0, brightnessValue,
+                            0, 0, 0, 1, 0
+                    });
+                    colorMatrix.postConcat(brightnessMatrix);
                 }
-            } else {
-                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, targetResolution.x, targetResolution.y, true); // Android：图像解码/绘制
-//                Log.i(Log.TAG, "摄像头设置分辨率为" + targetResolution.x + "x" + targetResolution.y);
-                if (photoConfig.brightness == 50 && photoConfig.contrast == 50 && photoConfig.saturation == 50) {
-                    return scaledBitmap; // 返回：结束当前方法
-                } else {
-                    Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
-                    Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
-                    Paint paint = new Paint();
-                    ColorMatrix colorMatrix = new ColorMatrix();
-//                // 是否灰度化
-//                if (photoConfig.color == 0) {
-//                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
-//                            0.299f, 0.587f, 0.114f, 0, 0,
-//                            0.299f, 0.587f, 0.114f, 0, 0,
-//                            0.299f, 0.587f, 0.114f, 0, 0,
-//                            0, 0, 0, 1, 0
-//                    });
-//                    colorMatrix.postConcat(grayscaleMatrix);
-//                    //Log.i(Log.TAG, "摄像头色彩设置为黑白模式");
-//                } else {
-//                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
-//                }
-
-                    if (photoConfig.brightness != 50) {
-                        // 映射亮度 (1~100 → -128~128)
-                        float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
-                        // 调整亮度
-                        ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
-                                1, 0, 0, 0, brightnessValue,
-                                0, 1, 0, 0, brightnessValue,
-                                0, 0, 1, 0, brightnessValue,
-                                0, 0, 0, 1, 0
-                        });
-                        colorMatrix.postConcat(brightnessMatrix);
-                    }
-                    if (photoConfig.contrast != 50) {
-                        // 映射对比度 (1~100 → 0.5~2.0)
-                        float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
-                        // 调整对比度
-                        float translate = (1 - contrastValue) * 128;
-                        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
-                                contrastValue, 0, 0, 0, translate,
-                                0, contrastValue, 0, 0, translate,
-                                0, 0, contrastValue, 0, translate,
-                                0, 0, 0, 1, 0
-                        });
-                        colorMatrix.postConcat(contrastMatrix);
-                    }
-                    if (photoConfig.saturation != 50) {
-                        // 映射饱和度 (1~100 → 0.0~2.0)
-                        float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
-                        // 调整饱和度
-                        ColorMatrix saturationMatrix = new ColorMatrix();
-                        saturationMatrix.setSaturation(saturationValue);
+                if (photoConfig.contrast != 50) {
+                    // 映射对比度 (1~100 → 0.5~2.0)
+                    float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                    // 调整对比度
+                    float translate = (1 - contrastValue) * 128;
+                    ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                            contrastValue, 0, 0, 0, translate,
+                            0, contrastValue, 0, 0, translate,
+                            0, 0, contrastValue, 0, translate,
+                            0, 0, 0, 1, 0
+                    });
+                    colorMatrix.postConcat(contrastMatrix);
+                }
+                if (photoConfig.saturation != 50) {
+                    // 映射饱和度 (1~100 → 0.0~2.0)
+                    float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                    // 调整饱和度
+                    ColorMatrix saturationMatrix = new ColorMatrix();
+                    saturationMatrix.setSaturation(saturationValue);
+                    if (MainActivity.DEBUG) {
                         colorMatrix.postConcat(saturationMatrix);
                     }
                     // 组合所有矩阵
                     paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-                    canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+                    canvas.drawBitmap(previewBitmap, 0, 0, paint);
                     //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
                     //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
                     //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
                     return outputBitmap; // 返回：结束当前方法
                 }
+            } else {
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(previewBitmap, targetResolution.x, targetResolution.y, true); // Android：图像解码/绘制
+//                Log.i(Log.TAG, "摄像头设置分辨率为" + targetResolution.x + "x" + targetResolution.y);
+                Bitmap outputBitmap = Bitmap.createBitmap(scaledBitmap.getWidth(), scaledBitmap.getHeight(), Bitmap.Config.ARGB_8888); /////；Android：图像解码/绘制
+                Canvas canvas = new Canvas(outputBitmap); // Android：图像解码/绘制
+                Paint paint = new Paint();
+                ColorMatrix colorMatrix = new ColorMatrix();
+//                // 是否灰度化
+//                if (photoConfig.color == 0) {
+//                    ColorMatrix grayscaleMatrix = new ColorMatrix(new float[]{
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0.299f, 0.587f, 0.114f, 0, 0,
+//                            0, 0, 0, 1, 0
+//                    });
+//                    colorMatrix.postConcat(grayscaleMatrix);
+//                    //Log.i(Log.TAG, "摄像头色彩设置为黑白模式");
+//                } else {
+//                    //Log.i(Log.TAG, "摄像头色彩设置为彩色模式");
+//                }
+
+                if (photoConfig.brightness != 50) {
+                    // 映射亮度 (1~100 → -128~128)
+                    float brightnessValue = (photoConfig.brightness - 50) * 2.56f;
+                    // 调整亮度
+                    ColorMatrix brightnessMatrix = new ColorMatrix(new float[]{
+                            1, 0, 0, 0, brightnessValue,
+                            0, 1, 0, 0, brightnessValue,
+                            0, 0, 1, 0, brightnessValue,
+                            0, 0, 0, 1, 0
+                    });
+                    colorMatrix.postConcat(brightnessMatrix);
+                }
+                if (photoConfig.contrast != 50) {
+                    // 映射对比度 (1~100 → 0.5~2.0)
+                    float contrastValue = 0.5f + (photoConfig.contrast - 1) * (1.5f / 99);
+                    // 调整对比度
+                    float translate = (1 - contrastValue) * 128;
+                    ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
+                            contrastValue, 0, 0, 0, translate,
+                            0, contrastValue, 0, 0, translate,
+                            0, 0, contrastValue, 0, translate,
+                            0, 0, 0, 1, 0
+                    });
+                    colorMatrix.postConcat(contrastMatrix);
+                }
+                if (photoConfig.saturation != 50) {
+                    // 映射饱和度 (1~100 → 0.0~2.0)
+                    float saturationValue = (photoConfig.saturation - 1) * (2.0f / 99);
+                    // 调整饱和度
+                    ColorMatrix saturationMatrix = new ColorMatrix();
+                    saturationMatrix.setSaturation(saturationValue);
+                    colorMatrix.postConcat(saturationMatrix);
+                }
+                // 组合所有矩阵
+                paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+                canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+                //Log.i(Log.TAG, "摄像头亮度设置为" + photoConfig.brightness);
+                //Log.i(Log.TAG, "摄像头对比度设置为" + photoConfig.contrast);
+                //Log.i(Log.TAG, "摄像头饱和度设置为" + photoConfig.saturation);
+                return outputBitmap; // 返回：结束当前方法
             }
             ///
         } catch (Exception e) {
@@ -565,63 +526,80 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         return previewBitmap; // 返回：结束当前方法
     }
 
-    private void updateCaptureRequestParameters() { // 入口：方法定义
-        try { // 异常：保护相机/IO调用
+    private void updateCaptureRequestParameters() {
+        try {
+//            // 降噪模式
+//            if (cameraConfig.denoiseMode == 0) {
+//                //Log.i(Log.TAG, "MIPI摄像头关闭降噪");
+//            } else if (cameraConfig.denoiseMode == 1) {
+//                //Log.i(Log.TAG, "MIPI摄像头开启2D降噪");
+//            } else if (cameraConfig.denoiseMode == 2) {
+//                //Log.i(Log.TAG, "MIPI摄像头开启3D降噪");
+//            }
+//            if (cameraConfig.denoiseMode <= 2) {
+//                mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode);
+//            }
+//            // 增益控制
+//            if (cameraConfig.gainControl == 0) {
+//                //Log.i(Log.TAG, "MIPI摄像头手动增益");
+//            } else {
+//                //Log.i(Log.TAG, "MIPI摄像头自动增益");
+//            }
+//            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl);
+//            // 背光补偿
+//            if (cameraConfig.backLightCom == 1) {
+//                //Log.i(Log.TAG, "MIPI摄像头开启背光补偿");
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值
+//                // 强光抑制
+//            } else if (cameraConfig.strongLightSup == 1) {
+//                //Log.i(Log.TAG, "MIPI摄像头开启强光抑制");
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值
+//            } else {
+//                //Log.i(Log.TAG, "MIPI摄像头关闭背光补偿与强光抑制");
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);  // 亮度补偿值
+//            }
+//            // 聚焦模式
+//            if (cameraConfig.focusMode == 0) {
+//                //Log.i(Log.TAG, "MIPI摄像头半自动对焦");
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
+//            } else if (cameraConfig.focusMode == 1) {
+//                //Log.i(Log.TAG, "MIPI摄像头全自动对焦");
+//                if (mCameraPhotoing) {
+//                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+//                } else {
+//                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+//                }
+//            } else {
+//                //Log.i(Log.TAG, "MIPI摄像头手动对焦");
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+//            }
+//            // 是否灰度化
+//            if (photoConfig.color == 0) {
+//                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩
+//            }
             // 降噪模式
-            if (cameraConfig.denoiseMode == 0) {
-                //Log.i(Log.TAG, "MIPI摄像头关闭降噪");
-            } else if (cameraConfig.denoiseMode == 1) {
-                //Log.i(Log.TAG, "MIPI摄像头开启2D降噪");
-            } else if (cameraConfig.denoiseMode == 2) {
-                //Log.i(Log.TAG, "MIPI摄像头开启3D降噪");
-            }
-            if (cameraConfig.denoiseMode <= 2) {
-                mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode); // Camera2：构建下一次请求参数
+            if (cameraConfig.denoiseMode <= 1) {
+                mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode);
             }
             // 增益控制
             if (cameraConfig.gainControl == 0) {
-                //Log.i(Log.TAG, "MIPI摄像头手动增益");
-            } else {
-                //Log.i(Log.TAG, "MIPI摄像头自动增益");
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl);
             }
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl); // Camera2：构建下一次请求参数
             // 背光补偿
             if (cameraConfig.backLightCom == 1) {
-                //Log.i(Log.TAG, "MIPI摄像头开启背光补偿");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值；Camera2：构建下一次请求参数
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 4);  // 亮度补偿值
                 // 强光抑制
             } else if (cameraConfig.strongLightSup == 1) {
-                //Log.i(Log.TAG, "MIPI摄像头开启强光抑制");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值；Camera2：构建下一次请求参数
-            } else {
-                //Log.i(Log.TAG, "MIPI摄像头关闭背光补偿与强光抑制");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);  // 亮度补偿值；Camera2：构建下一次请求参数
-            }
-            // 聚焦模式
-            if (cameraConfig.focusMode == 0) {
-                //Log.i(Log.TAG, "MIPI摄像头半自动对焦");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO); // Camera2：构建下一次请求参数
-            } else if (cameraConfig.focusMode == 1) {
-                //Log.i(Log.TAG, "MIPI摄像头全自动对焦");
-                if (mCameraPhotoing) { // 状态：当前正在抓拍
-                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE); // Camera2：构建下一次请求参数
-                } else {
-                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO); // Camera2：构建下一次请求参数
-                }
-            } else {
-                //Log.i(Log.TAG, "MIPI摄像头手动对焦");
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF); // Camera2：构建下一次请求参数
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -4);  // 亮度补偿值
             }
             // 是否灰度化
             if (photoConfig.color == 0) {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩；Camera2：构建下一次请求参数
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);  // 黑白色彩
             }
             // 更新请求
-            applyLowNoiseCaptureRequestParameters(isRecording() ? getVideoCodec(streamType) : null, isRecording());
-            logExposureRequest("updateCaptureRequestParameters", mPreviewRequestBuilder);
-            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler); // Camera2：持续提交预览请求
+            mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (Exception e) {
-            Log.e(Log.TAG, "更新CaptureRequest参数失败: " + e.getMessage()); // Camera2：发送给HAL的请求
+            Log.e(Log.TAG, "更新CaptureRequest参数失败: " + e.getMessage());
         }
     }
 
@@ -644,10 +622,12 @@ public class Camera2Device extends Device { // 成员：保存运行状态
 
         if (isRecordVideo && vc != null && vc.frame > 0) {
             builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame)); // Camera2：限制帧率范围
-        } else if (isPhotoing()) {
-            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(30, 30));
-        }else {
-            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10)); // Camera2：限制帧率范围
+        } else {
+            if (MainActivity.tempEnvControl < 50) {
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(20, 20));
+            } else {
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));
+            }
         }
 
 //        Log.e(Log.TAG,"mKeyAisRequestMode is not null::"+(mKeyAisRequestMode != null));
@@ -757,6 +737,9 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     return;
                 }
 
+                if (cameraConfig.denoiseMode <= 1 || cameraConfig.gainControl == 0 || cameraConfig.backLightCom == 1 || cameraConfig.strongLightSup == 1 || photoConfig.color == 0) {
+                    mCameraParamHandler.post(() -> updateCaptureRequestParameters());
+                }
                 Bitmap previewBitmap = imageDecode(img); // Android：图像解码/绘制
                 boolean logBitmapDiag = shouldLogBitmapExposure();
                 if (logBitmapDiag) {
@@ -771,7 +754,40 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     previewBitmap = rotate180WithCanvas(previewBitmap);
                 }
 
-                previewBitmap = preProcessingPhoto(previewBitmap);
+                Point targetResolution = null;
+                boolean useVideoResolution = (isLiving() && rtph264 != null) || isRecording() || enableLiveEncode;
+                if (useVideoResolution) {
+
+//                Point size = Settings.VideoCodec.getResolution(codec.get(String.valueOf(0)).resolution);
+                    Settings.VideoCodec vc = codec.get(String.valueOf(streamType));
+                    Point size = vc != null ? Settings.VideoCodec.getResolution(vc.resolution) : null;
+                    if (size == null) {
+                        size = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+                    }
+
+
+                    ///
+                    // 由于分辨率大于1536x864无法拉流，因此设置最大的分辨率为1536x864
+                    if (size.x > 1536 || size.y > 864) {
+                        size = new Point(1536, 864);
+                    }
+                    ///
+                    mResolution = size;
+                    targetResolution = size;
+//                Log.e(Log.TAG,"preProcessingPhoto分辨率为：" + mResolution.x + ":" + mResolution.y);
+
+                } else if (mCameraPhotoing) {
+                    targetResolution = Settings.PhotoConfig.getImageSize(photoConfig.size);
+                } else {
+                    targetResolution = mResolution;
+                }
+                ///
+                if (targetResolution == null) {
+                    targetResolution = new Point(previewBitmap.getWidth(), previewBitmap.getHeight());
+                }
+                if (targetResolution.x != previewBitmap.getWidth() || targetResolution.y != previewBitmap.getHeight() || photoConfig.brightness != 50 || photoConfig.contrast != 50 || photoConfig.saturation != 50) {
+                    previewBitmap = preProcessingPhoto(previewBitmap, targetResolution);
+                }
                 if (logBitmapDiag) {
                     logBitmapExposure("previewPostProcess", previewBitmap, null);
                 }
@@ -834,7 +850,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 if (rotate == 1) {
                     bitmap = rotate180WithCanvas(bitmap);
                 }
-                bitmap = preProcessingPhoto(bitmap);
+                bitmap = preProcessingPhoto(bitmap, mResolution);
                 if (logBitmapDiag) {
                     logBitmapExposure("stillPostProcess", bitmap, null);
                 }
@@ -1298,15 +1314,20 @@ public class Camera2Device extends Device { // 成员：保存运行状态
 
 //            设置 Camera 的自动曝光模块 AE 目标帧率范围为固定fps。
             if (isRecordVideo){
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
-
-            }else if (videoMark){
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));   // 摄像头帧率  摄像头最大帧率为60fps，程序的处理速度<=10fps，可以优化程序的处理速度。；Camera2：限制帧率范围
-            }else {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(30, 30));
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(vc.frame, vc.frame));
+            } else {
+                if (MainActivity.tempEnvControl < 50) {
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(20, 20));
+                } else {
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(10, 10));
+                }
             }
             /// ????
             applyLowNoiseCaptureRequestParameters(vc, isRecordVideo);  // 这里面又会再设置一次 FPS。最终生效的是该函数最后写入的值
+            mPreviewRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, (int) cameraConfig.denoiseMode);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, (int) cameraConfig.gainControl);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);  // 亮度补偿值
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_OFF);  // 彩色色彩
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, captureMode); ///// AF：自动对焦；Camera2：构建下一次请求参数
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START); // Camera2：触发自动对焦
             mState = STATE_WAITING_AF_LOCK; //  1

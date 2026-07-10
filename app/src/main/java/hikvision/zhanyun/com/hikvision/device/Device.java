@@ -2117,9 +2117,13 @@ public abstract class Device {
         mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
         mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, vc.bps * 1000);
 
-        if (MIPIMark){
-            mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 10);       // 建议与摄像头的帧率一致 ， TODO 如果是mipi的话，这个地方需要修改为10，和摄像头的输出帧率一样，否则后台拉流容易不出图。
-        }else {
+        if (MIPIMark) {
+            if (MainActivity.tempEnvControl < 50) {
+                mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 20);
+            } else {
+                mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 10);
+            }
+        } else {
             mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, vc.frame);
         }
 
