@@ -158,12 +158,11 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             mCameraParamThread.start();
             mCameraParamHandler = new Handler(mCameraParamThread.getLooper()); /////；线程：异步刷新请求参数
         } /////
-        registerDualCameraInstance(); ///
+        registerDualCameraInstance();
     }
 
     ///
-    private void registerDualCameraInstance() { // 入口：方法定义
-        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+    private void registerDualCameraInstance() {
             int realCamId = camID % 2;
 
             if (realCamId == 0) {
@@ -177,8 +176,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                     + "，realCamId = " + realCamId
                     + "，this = " + this
                     + "，sCamera0Device = " + sCamera0Device
-                    + "，sCamera1Device = " + sCamera1Device);
-        }
+                    + "，sCamera1Device = " + sCamera1Device);  // 这个地方注册了两个camera对象
     }
     ///
 
@@ -681,10 +679,12 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         drawWatermark(bitmap, id, streamType, true); // 先AI识别再画OSD //////
 
         Utils.saveBitmapAsJPEG(bitmap, mFileImage, 100);
+
         if (NettyUtils.isTakePhoto()) {
             toolTakePhoto(bitmap);
             NettyUtils.setTakePhoto(false);
         }
+
         if (controllerCallback != null) {
             procVideoHandler.post(() -> controllerCallback.onPhotoTaked(getTimestampFromFilename(mFileImage), id, mFilePreset, mFileImage));
         }
@@ -1381,6 +1381,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             return mCameraWorkHandler;
         }
     }
+
     private void createPreviewSession(int width, int height, boolean video) { // 入口：方法定义
         try { // 异常：保护相机/IO调用
             if (width <= 0 || height <= 0) {
@@ -1893,10 +1894,12 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         mipiRecordBytesWritten = 0;
         mipiRecordKeyFramesWritten = 0;
     }
-    private static void closeBothCameraIfNoLive() { // 入口：方法定义
+
+
+    private static void closeBothCameraIfNoLive() {
         Camera2Device cam0;
         Camera2Device cam1;
-        synchronized (sDualCameraLock) { // 同步：保护双MIPI共享状态
+        synchronized (sDualCameraLock) {
             if (sDualClosing || sDualStarting) {
                 return;
             }
@@ -1947,21 +1950,6 @@ public class Camera2Device extends Device { // 成员：保存运行状态
     }
     ///
 
-    //    public synchronized void closeCamera() {
-//        super.closeCamera();
-//        if (mImageReader != null) {
-//            mImageReader.close();
-//            mImageReader = null;
-//        }
-//        if (mCameraDevice != null) {
-//            mCameraDevice.close();
-//            mCameraDevice = null;
-//        }
-//
-//        closePreviewSession();
-//        stopBackgroundThread();
-//        clearState(DevState.OPENING);
-//    }
     public synchronized void closeCamera() { // 入口：方法定义
         super.closeCamera();
         setEnableLiveEncode(false);
@@ -2016,7 +2004,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
     }
 
     @Override   // 录制短视频使用配置文件中的分辨率和I帧间隔
-    public boolean videoStart(int stream, String filename, int duration, boolean upload) { // 入口：方法定义
+    public boolean videoStart(int stream, String filename, int duration, boolean upload) {
         try { // 异常：保护相机/IO调用
             if (isRecording()) {
                 Log.i(Log.TAG, "录像失败，当前已经在录像，camID = " + camID);
@@ -2131,21 +2119,21 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         return isRecording();
     }
 
-    public boolean videoPause() { // 入口：方法定义
-        return true; // 返回：结束当前方法
+    public boolean videoPause() {
+        return true;
     }
 
-    public boolean videoResume() { // 入口：方法定义
-        return true; // 返回：结束当前方法
+    public boolean videoResume() {
+        return true;
     }
 
-    public boolean close() { // 入口：方法定义
+    public boolean close() {
 //        closeCamera();
         stopLiveAndCloseBothIfIdle(); ///
-        return true; // 返回：结束当前方法
+        return true;
     }
 
-    public boolean liveStop() { // 入口：方法定义
+    public boolean liveStop() {
         //Log.i(Log.TAG, "停止预览");
         try { // 异常：保护相机/IO调用
             ///
@@ -2180,51 +2168,13 @@ public class Camera2Device extends Device { // 成员：保存运行状态
         return true; // 返回：结束当前方法
     }
 
-    public boolean setCodec(Settings.VideoCodec codec) { // 入口：方法定义
-        return true; // 返回：结束当前方法
+    public boolean setCodec(Settings.VideoCodec codec) {
+        return true;
     }
 
-    /////
-//    public synchronized boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck) {
-//        if (isOpening()) {
-//            Log.i(Log.TAG, "摄像头已经打开");
-//            if (cb != null) cb.openSucceed();
-//            return true;
-//        }
-//        if (mMainBoard == 1) {
-//            MipiSwitch.switchTo(camID);
-//        }
-//        streamType = stream;
-//        openCamera();
-//        if (mCameraDevice == null) {
-//            Log.i(Log.TAG, "打开摄像头失败");
-//            if (cb != null) cb.openFailed(-1);
-//            return false;
-//        }
-//
-//        previewReady = false;
-//        setState(DevState.OPENING);
-//        if (cb != null) cb.openSucceed();
-//        return true;
-//    }
-    /////
-    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) { ///；成员：保存运行状态
-        synchronized (sDualCameraLock) {
-            int realCamId = camID % 2;
-            if (realCamId == 0) {
-                sCamera0Device = this;
-            } else {
-                sCamera1Device = this;
-            }
-        }
 
-        if (!ALWAYS_OPEN_BOTH_MIPI) {
-            boolean opened = openSelfOnly(stream, cb, timeoutSeconds, waitSelfCheck);
-            if (opened) {
-                startSessionForDualOpen(stream, video, isRecordVideo);
-            }
-            return opened;
-        }
+    public boolean open(int stream, onOpenCallback cb, int timeoutSeconds, boolean waitSelfCheck, boolean video, boolean isRecordVideo) {
+
 
         Camera2Device cam0;
         Camera2Device cam1;
@@ -2245,6 +2195,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 return false;
             }
 
+//            若其他线程正在执行双路打开或关闭，则当前线程等待。
             long waitEnd = SystemClock.uptimeMillis() + 15000;
             while (sDualClosing || sDualStarting) {
                 long waitMs = waitEnd - SystemClock.uptimeMillis();
@@ -2265,8 +2216,8 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 return false;
             }
 
-            if (sDualStarted && areBothCameraDevicesOpenedLocked()) {
-                boolean sessionReady = startSessionForDualOpen(stream, video, isRecordVideo);
+            if (sDualStarted) {
+                boolean sessionReady = startSessionForDualOpen(stream, video, isRecordVideo);  // 只创建session
                 if (cb != null) {
                     if (sessionReady) {
                         cb.openSucceed();
@@ -2280,21 +2231,23 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             sDualStarting = true;
         }
 
+
         boolean deviceReady = false;
         boolean sessionReady = false;
         try {
-            synchronized (sDualCameraLock) {
-                cam0 = sCamera0Device;
-                cam1 = sCamera1Device;
-            }
-
-            if (cam0 == null || cam1 == null) {
-                if (cb != null) cb.openFailed(-1);
-                return false;
-            }
+//            synchronized (sDualCameraLock) {
+//                cam0 = sCamera0Device;
+//                cam1 = sCamera1Device;
+//            }
+//
+//            if (cam0 == null || cam1 == null) {
+//                if (cb != null) cb.openFailed(-1);
+//                return false;
+//            }
 
             boolean ret0 = false;
             boolean ret1 = false;
+            /// 这个地方是打开mipi，获取mipi的句柄，mCameraDevice
             for (int attempt = 1; attempt <= 3; attempt++) {
                 Log.i(Log.TAG, "双路 CameraDevice 同步打开，attempt = " + attempt);
                 ret0 = cam0.openSelfOnly(stream, null, timeoutSeconds, waitSelfCheck);
@@ -2320,12 +2273,16 @@ public class Camera2Device extends Device { // 成员：保存运行状态
                 SystemClock.sleep(1200);
             }
 
+
+
             deviceReady = ret0 && ret1 && cam0.mCameraDevice != null && cam1.mCameraDevice != null;
+            sDualStarted = deviceReady;
             if (!deviceReady) {
                 Log.i(Log.TAG, "双路 CameraDevice 未全部打开成功，停止后续 session 创建");
                 if (cb != null) cb.openFailed(-1);
                 return false;
             }
+
 
             // CameraDevice 必须双路同时打开；session 只给当前业务通道创建/切换，另一通道保持已打开待命。
             sessionReady = startSessionForDualOpen(stream, video, isRecordVideo);
@@ -2357,27 +2314,29 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             Log.i(Log.TAG, "摄像头状态为已打开，但 CameraDevice 为空，重新打开，camID = " + camID); // Camera2：相机设备对象
             clearState(DevState.OPENING);
         }
-        if (mMainBoard == 1) {
-            MipiSwitch.switchTo(camID);
-        }
+//        if (mMainBoard == 1) {
+//            MipiSwitch.switchTo(camID);
+//        }
 
         streamType = stream;
 
-        openCamera(); // Camera2：异步打开相机
+        openCamera();
 
-        if (mCameraDevice == null) { // Camera2：已打开的相机句柄
+        if (mCameraDevice == null) {
             Log.i(Log.TAG, "打开摄像头失败");
             if (cb != null) cb.openFailed(-1);
             return false; // 返回：结束当前方法
         }
 
-        previewReady = false; // 条件：会话可出帧后才处理Image
+        previewReady = false;
 
         Log.e(Log.TAG,"previewReady:"+previewReady);
         setState(DevState.OPENING);
         if (cb != null) cb.openSucceed();
         return true; // 返回：结束当前方法
     }
+
+
     private boolean startSessionForDualOpen(int stream, boolean video, boolean isRecordVideo) {
         boolean useVideoSession = video || isRecordVideo || isLiving() || isRecording() || enableLiveEncode;
 
@@ -2474,6 +2433,7 @@ public class Camera2Device extends Device { // 成员：保存运行状态
             closeStillImageReader();
             return false;
         } finally {
+            mDualSessionStarted = false;
             mDualSessionStarting = false;
         }
     }

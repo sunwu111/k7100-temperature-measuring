@@ -8368,6 +8368,16 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
         dev.open(streamType, callback, DVR_BOOT_TIME, false, true, false);  // 这个地方打开成功调用前面的回调函数 ///
     }
 
+    private boolean OtherPlayingMark() {    //
+        for (Device camera : channels.values()) {
+            if (camera.isLiving()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     @Override
     public boolean stopLiveVideo(int channel, int streamType, int ssrc) {
         Device dev = channels.get(String.valueOf(channel));
@@ -8380,10 +8390,11 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
 
         try {
             // 在打开球机的过程中允许停止
-            if (dev != null && !dev.isRecording()) {
+            if (dev != null && !dev.isRecording()) {   // 这个地方要考虑双mipi的情况，一个mipi在拉流，另一个mipi停止也不能释放streamclient
                 dev.liveStop();
 
-                if (dev.streamClient != null) {
+
+                if (dev.streamClient != null && !OtherPlayingMark()) {
                     dev.streamClient.close();
                     dev.streamClient = null;
                 }
@@ -8396,9 +8407,9 @@ public class MainActivity extends AppCompatActivity implements SPGPCallback, Vie
                         sleepDevice(channel, "可见光停止直播");
                     }
                 }
-                if (dev.isCamera()) {
-                    powerOffMipiIfIdle("MIPI停止直播");
-                }
+//                if (dev.isCamera()) {
+//                    powerOffMipiIfIdle("MIPI停止直播");
+//                }
             }
             releaseDecoder();
             finishTask(TaskManager.Task.Living.toString());
